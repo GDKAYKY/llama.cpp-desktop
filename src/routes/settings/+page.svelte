@@ -8,6 +8,7 @@
     } from "$lib/config.js";
     import { selectModelsDirectory } from "$lib/models.js";
 
+    /** @type {{ models_directory: string | null, theme: string, language: string, max_tokens: number, temperature: number, auto_save_chat: boolean, chat_history_limit: number }} */
     let config = $state({
         models_directory: null,
         theme: "dark",
@@ -21,6 +22,7 @@
     let configPath = $state("");
     let loading = $state(false);
     let saving = $state(false);
+    /** @type {{ type: string, text: string }} */
     let message = $state({ type: "", text: "" });
     let unsavedChanges = $state(false);
 
@@ -32,11 +34,13 @@
     async function loadConfiguration() {
         try {
             loading = true;
-            config = await loadConfig();
+            config = (await loadConfig()) || config;
         } catch (err) {
+            const errorMessage =
+                err instanceof Error ? err.message : String(err);
             showMessage(
                 "error",
-                `Failed to load configuration: ${err.message}`,
+                `Failed to load configuration: ${errorMessage}`,
             );
         } finally {
             loading = false;
@@ -58,9 +62,11 @@
             unsavedChanges = false;
             showMessage("success", "Configuration saved successfully!");
         } catch (err) {
+            const errorMessage =
+                err instanceof Error ? err.message : String(err);
             showMessage(
                 "error",
-                `Failed to save configuration: ${err.message}`,
+                `Failed to save configuration: ${errorMessage}`,
             );
         } finally {
             saving = false;
@@ -76,13 +82,15 @@
 
         try {
             loading = true;
-            config = await resetConfig();
+            config = (await resetConfig()) || config;
             unsavedChanges = false;
             showMessage("success", "Configuration reset to defaults");
         } catch (err) {
+            const errorMessage =
+                err instanceof Error ? err.message : String(err);
             showMessage(
                 "error",
-                `Failed to reset configuration: ${err.message}`,
+                `Failed to reset configuration: ${errorMessage}`,
             );
         } finally {
             loading = false;
@@ -97,13 +105,17 @@
                 unsavedChanges = true;
             }
         } catch (err) {
-            showMessage("error", `Failed to select directory: ${err.message}`);
+            const errorMessage =
+                err instanceof Error ? err.message : String(err);
+            showMessage("error", `Failed to select directory: ${errorMessage}`);
             console.error(err);
         }
     }
-        }
-    }
 
+    /**
+     * @param {string} type
+     * @param {string} text
+     */
     function showMessage(type, text) {
         message = { type, text };
         setTimeout(() => {
@@ -138,6 +150,22 @@
             >
                 {saving ? "Saving..." : "Save Changes"}
             </button>
+            <a href="/" class="btn-exit" title="Exit Settings">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </a>
         </div>
     </div>
 
@@ -338,6 +366,8 @@
         margin: 0 auto;
         padding: 40px 20px;
         color: var(--color-text-primary);
+        height: 100vh;
+        overflow-y: auto;
     }
 
     .settings-header {
@@ -521,7 +551,8 @@
     }
 
     .btn-primary,
-    .btn-secondary {
+    .btn-secondary,
+    .btn-exit {
         padding: 10px 20px;
         border-radius: 6px;
         font-size: 14px;
@@ -560,6 +591,25 @@
     .btn-secondary:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+    }
+
+    .btn-exit {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        background-color: transparent;
+        border: 1px solid var(--color-border);
+        color: white;
+        text-decoration: none;
+    }
+
+    .btn-exit:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-color: #ff6b6b;
+        color: #ff6b6b;
     }
 
     .about-info {

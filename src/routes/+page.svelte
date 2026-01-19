@@ -1,6 +1,6 @@
 <script>
-  import { onMount, tick } from "svelte";
-  import { invokeCommand } from "$lib/ipc";
+  import { tick } from "svelte";
+  import { loadModelLibrary } from "$lib/models.js";
 
   let messages = $state([
     { role: "assistant", content: "Hello! How can I help you today?" },
@@ -9,6 +9,12 @@
   let isSidebarOpen = $state(true);
   let messagesEnd = $state();
   let textarea = $state();
+  let models = $state(
+    /** @type {Array<{name: string, full_identifier: string}>} */ ([]),
+  );
+  let selectedModel = $state("Llama 3.1");
+  let isDropdownOpen = $state(false);
+  let libraryPath = $state("");
 
   $effect(() => {
     if (messages.length) {
@@ -47,6 +53,9 @@
     }, 500);
   }
 
+  /**
+   * @param {KeyboardEvent} e
+   */
   function handleKeydown(e) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -70,6 +79,55 @@
       textarea.style.height = "auto";
     }
   }
+
+  async function loadModels() {
+    try {
+      const { loadConfig } = await import("$lib/config.js");
+      const config = await loadConfig();
+      const modelsDir = config.models_directory || "";
+      if (modelsDir) {
+        libraryPath = `${modelsDir}/modelLibrary.json`;
+        const loadedModels = await loadModelLibrary(libraryPath);
+        if (loadedModels && loadedModels.length > 0) {
+          models = loadedModels.map((m) => ({
+            name: `${m.name}:${m.version}`,
+            full_identifier: m.full_identifier,
+          }));
+          if (models.length > 0) {
+            selectedModel = models[0].name;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load models:", err);
+    }
+  }
+
+  function toggleDropdown() {
+    isDropdownOpen = !isDropdownOpen;
+  }
+
+  /**
+   * @param {string} modelName
+   */
+  function selectModel(modelName) {
+    selectedModel = modelName;
+    isDropdownOpen = false;
+  }
+
+  /**
+   * @param {MouseEvent} e
+   */
+  function handleClickOutside(e) {
+    const dropdown = document.querySelector(".model-dropdown");
+    if (dropdown && e.target instanceof Node && !dropdown.contains(e.target)) {
+      isDropdownOpen = false;
+    }
+  }
+
+  $effect(() => {
+    loadModels();
+  });
 </script>
 
 <div class="app-container">
@@ -138,7 +196,11 @@
   <!-- Main Content -->
   <main class="main-content">
     <header class="chat-header">
-      <button class="menu-toggle" onclick={toggleSidebar}>
+      <button
+        class="menu-toggle"
+        onclick={toggleSidebar}
+        aria-label="Toggle sidebar"
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="20"
@@ -157,7 +219,53 @@
           ></line><line x1="3" y1="18" x2="21" y2="18"></line></svg
         >
       </button>
-      <div class="model-info">Llama 3.1</div>
+      <div class="model-dropdown">
+        <button
+          class="model-selector-btn"
+          onclick={toggleDropdown}
+          aria-label="Select model"
+        >
+          {selectedModel}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class:rotated={isDropdownOpen}
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        {#if isDropdownOpen}
+          <div
+            class="dropdown-menu"
+            role="listbox"
+            tabindex="0"
+            onmousedown={handleClickOutside}
+          >
+            {#if models.length > 0}
+              {#each models as model}
+                <button
+                  class="dropdown-item"
+                  class:active={selectedModel === model.name}
+                  onclick={() => selectModel(model.name)}
+                  role="option"
+                  aria-selected={selectedModel === model.name}
+                >
+                  {model.name}
+                </button>
+              {/each}
+            {:else}
+              <div class="dropdown-empty">No models found</div>
+            {/if}
+          </div>
+        {/if}
+      </div>
     </header>
 
     <div class="messages-container">
@@ -188,6 +296,7 @@
           class="send-button"
           onclick={sendMessage}
           disabled={!userInput.trim()}
+          aria-label="Send message"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -373,6 +482,82 @@
     font-weight: 500;
     font-size: 16px;
     color: white;
+  }
+
+  .model-dropdown {
+    position: relative;
+  }
+
+  .model-selector-btn {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+  }
+
+  .model-selector-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .model-selector-btn svg {
+    transition: transform 0.2s;
+  }
+
+  .model-selector-btn svg.rotated {
+    transform: rotate(180deg);
+  }
+
+  .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: var(--color-bg-sidebar);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    margin-top: 4px;
+    min-width: 200px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+  }
+
+  .dropdown-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+  }
+
+  .dropdown-item.active {
+    background-color: #343541;
+    color: white;
+    font-weight: 500;
+  }
+
+  .dropdown-empty {
+    padding: 10px 12px;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    text-align: center;
   }
 
   .messages-container {

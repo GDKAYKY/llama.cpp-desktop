@@ -1,8 +1,19 @@
 import { invokeCommand } from './ipc.js';
 
 /**
+ * @typedef {Object} AppConfig
+ * @property {string | null} models_directory
+ * @property {string} theme
+ * @property {string} language
+ * @property {number} max_tokens
+ * @property {number} temperature
+ * @property {boolean} auto_save_chat
+ * @property {number} chat_history_limit
+ */
+
+/**
  * Load application configuration
- * @returns {Promise<Object>} Configuration object
+ * @returns {Promise<AppConfig>} Configuration object
  */
 export async function loadConfig() {
     return await invokeCommand('load_config');
@@ -10,7 +21,7 @@ export async function loadConfig() {
 
 /**
  * Save application configuration
- * @param {Object} config - Configuration object
+ * @param {AppConfig} config - Configuration object
  * @returns {Promise<void>}
  */
 export async function saveConfig(config) {
@@ -19,7 +30,7 @@ export async function saveConfig(config) {
 
 /**
  * Reset configuration to defaults
- * @returns {Promise<Object>} Default configuration object
+ * @returns {Promise<AppConfig>} Default configuration object
  */
 export async function resetConfig() {
     return await invokeCommand('reset_config');
@@ -35,6 +46,7 @@ export async function getConfigPath() {
 
 /**
  * Default configuration values
+ * @type {AppConfig}
  */
 export const DEFAULT_CONFIG = {
     models_directory: null,

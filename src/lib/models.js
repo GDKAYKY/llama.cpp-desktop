@@ -14,7 +14,7 @@ export async function parseModelManifest(modelPath, modelsRoot) {
 /**
  * Scan entire models directory and parse all manifests
  * @param {string} modelsRoot - Root directory where models are stored
- * @returns {Promise<Array>} Array of model information objects
+ * @returns {Promise<any[]>} Array of model information objects
  */
 export async function scanModelsDirectory(modelsRoot) {
     return await invokeCommand('scan_models_directory', { modelsRoot });
@@ -23,7 +23,7 @@ export async function scanModelsDirectory(modelsRoot) {
 /**
  * Save model library to JSON file
  * @param {string} libraryPath - Path where to save the library
- * @param {Array} models - Array of model information objects
+ * @param {any[]} models - Array of model information objects
  * @returns {Promise<void>}
  */
 export async function saveModelLibrary(libraryPath, models) {
@@ -33,7 +33,7 @@ export async function saveModelLibrary(libraryPath, models) {
 /**
  * Load model library from JSON file
  * @param {string} libraryPath - Path to the library file
- * @returns {Promise<Array>} Array of model information objects
+ * @returns {Promise<any[]>} Array of model information objects
  */
 export async function loadModelLibrary(libraryPath) {
     return await invokeCommand('load_model_library', { libraryPath });
@@ -53,7 +53,8 @@ export async function selectModelsDirectory() {
         return selected;
     } catch (err) {
         console.error('Dialog error:', err);
-        throw new Error(`Failed to open directory dialog: ${err.message || err}`);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        throw new Error(`Failed to open directory dialog: ${errorMessage}`);
     }
 }
 
