@@ -1,240 +1,250 @@
 # Models Setup Guide
 
+This guide explains how the Llama Desktop application identifies, parses, and manages models from your local Ollama installation.
+
 ## Overview
 
-This guide explains how to configure and use the model library system in Llama Desktop.
+The application can automatically scan and parse model manifests from your Ollama models directory, extracting metadata and creating a searchable model library.
 
-## Directory Structure
+## Model Directory Structure
 
-Models should be organized in the following structure:
-
+Models are stored in the following structure:
 ```
-library/
-├── model-name-1/
-│   ├── version-1/
-│   │   └── manifest          (JSON file without extension)
-│   └── version-2/
-│       └── manifest
-├── model-name-2/
-│   └── version-1/
-│       └── manifest
+{modelsRoot}/
+├── manifests/
+│   └── {modelProvider}/
+│       └── {manifestLibrary}/
+│           └── {modelName}/
+│               └── {modelVersion}  (manifest file)
+└── blobs/
+    └── sha256-{hash}  (actual model files)
+```
+
+Example:
+```
+C:/Users/YourName/.ollama/models/
+├── manifests/
+│   └── registry.ollama.ai/
+│       └── library/
+│           └── qwen2.5-coder/
+│               └── 7b  (manifest file)
+└── blobs/
+    └── sha256-60e05f2100071479f596b964f89f510f057ce397ea22f2833a0cfe029bfc2463
 ```
 
 ## Manifest File Format
 
-The `manifest` file (without `.json` extension) should contain:
+Each model version file is a JSON manifest containing:
 
 ```json
 {
   "schemaVersion": 2,
   "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
   "config": {
-    "digest": "sha256:...",
     "mediaType": "application/vnd.docker.container.image.v1+json",
-    "size": 1234
+    "digest": "sha256:d9bb33f2786931fea42f50936a2424818aa2f14500638af2f01861eb2c8fb446",
+    "size": 487
   },
   "layers": [
     {
-      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
-      "digest": "sha256:...",
-      "size": 5678
+      "mediaType": "application/vnd.ollama.image.model",
+      "digest": "sha256:60e05f2100071479f596b964f89f510f057ce397ea22f2833a0cfe029bfc2463",
+      "size": 4683074048
+    },
+    {
+      "mediaType": "application/vnd.ollama.image.system",
+      "digest": "sha256:66b9ea09bd5b7099cbb4fc820f31b575c0366fa439b08245566692c6784e281e",
+      "size": 68
+    },
+    {
+      "mediaType": "application/vnd.ollama.image.template",
+      "digest": "sha256:1e65450c30670713aa47fe23e8b9662bdf4065e81cc8e3cbfaa98924fcc0d320",
+      "size": 1615
+    },
+    {
+      "mediaType": "application/vnd.ollama.image.license",
+      "digest": "sha256:832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+      "size": 11343
     }
   ]
 }
 ```
 
-## Frontend Usage
+## How It Works
 
-### 1. Configure Library Path
+### 1. Model Identification
 
-When the app starts, use the **Path Selector** component to set the path to your models library:
+When you select a models directory, the app:
+- Scans the `manifests/` folder structure
+- Extracts provider, library, name, and version from the path
+- Creates a full identifier: `{provider}:{name}:{version}`
 
-```
-Configure Model Library Path
-[Enter path to models library] [Set Path]
-```
+Example: `registry.ollama.ai:qwen2.5-coder:7b`
 
-Example paths:
-- Windows: `C:/Users/username/models` or `E:/models`
-- Linux/Mac: `/home/username/models` or `/Users/username/models`
+### 2. Manifest Parsing
 
-### 2. Load Models
+For each manifest file, the app:
+- Parses the JSON structure
+- Extracts layer information (model file, system prompts, templates, license)
+- Identifies the main model layer (mediaType: `application/vnd.ollama.image.model`)
 
-After setting the path, the **Model Selector** will automatically load available models:
+### 3. Blob File Mapping
 
-```
-Available Models
-[Select a model...] [Load Model] [Unload]
-```
+The digest from the manifest is converted to a blob filename:
+- Digest: `sha256:60e05f2100071479f596b964f89f510f057ce397ea22f2833a0cfe029bfc2463`
+- Blob file: `sha256-60e05f2100071479f596b964f89f510f057ce397ea22f2833a0cfe029bfc2463`
 
-Select a model and click "Load Model" to use it.
+The app verifies the blob file exists in the `blobs/` directory.
 
-### 3. Use Chat Interface
+### 4. Model Library Storage
 
-Once a model is loaded, the **Chat Interface** becomes available for interaction.
-
-## Backend API Endpoints
-
-### Set Library Path
-
-```http
-POST /api/models/library-path
-Content-Type: application/json
-
-{
-  "libraryPath": "C:/models"
-}
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Library path configured successfully",
-    "libraryPath": "C:/models"
-  }
-}
-```
-
-### List Models
-
-```http
-GET /api/models
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "libraryPath": "C:/models",
-    "models": [
-      {
-        "modelName": "llama",
-        "version": "2.0",
-        "path": "C:/models/library/llama/2.0",
-        "manifest": {
-          "schemaVersion": 2,
-          "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-          "config": {...},
-          "layers": [...]
-        }
-      }
-    ],
-    "total": 1
-  }
-}
-```
-
-### Select Model
-
-```http
-POST /api/models/select
-Content-Type: application/json
-
-{
-  "modelName": "llama",
-  "version": "2.0"
-}
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "modelName": "llama",
-    "version": "2.0",
-    "path": "C:/models/library/llama/2.0",
-    "manifest": {...},
-    "message": "Model llama:2.0 selected successfully"
-  }
-}
-```
-
-### Get Selected Model
-
-```http
-GET /api/models/selected
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "modelName": "llama",
-    "version": "2.0",
-    "path": "C:/models/library/llama/2.0",
-    "manifest": {...}
-  }
-}
-```
-
-## Caching
-
-Models are cached in memory after the first load. The cache is cleared when:
-- A new library path is set
-- The application restarts
-
-This ensures optimal performance when listing and selecting models.
-
-## Error Handling
-
-### Path Not Found
+All parsed models are saved to `modelLibrary.json`:
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "PATH_NOT_FOUND",
-    "message": "Path does not exist: C:/invalid/path"
-  }
+  "models": [
+    {
+      "provider": "registry.ollama.ai",
+      "library": "library",
+      "name": "qwen2.5-coder",
+      "version": "7b",
+      "full_identifier": "registry.ollama.ai:qwen2.5-coder:7b",
+      "model_file_path": "C:/Users/YourName/.ollama/models/blobs/sha256-60e05f21...",
+      "manifest": { /* full manifest data */ }
+    }
+  ]
 }
 ```
 
-### Model Not Found
+## Usage
 
-```json
-{
-  "success": false,
-  "error": {
-    "code": "MODEL_NOT_FOUND",
-    "message": "Model llama:3.0 not found"
-  }
-}
+### Frontend API
+
+```javascript
+import { 
+  selectModelsDirectory,
+  scanModelsDirectory,
+  saveModelLibrary,
+  loadModelLibrary 
+} from '$lib/models.js';
+
+// Let user select models directory
+const modelsRoot = await selectModelsDirectory();
+
+// Scan for all models
+const models = await scanModelsDirectory(modelsRoot);
+
+// Save to library
+await saveModelLibrary(`${modelsRoot}/modelLibrary.json`, models);
+
+// Load existing library
+const existingModels = await loadModelLibrary(`${modelsRoot}/modelLibrary.json`);
 ```
 
-### Invalid Path
+### Using the ModelSelector Component
 
-```json
-{
-  "success": false,
-  "error": {
-    "code": "NOT_A_DIRECTORY",
-    "message": "Path is not a directory: C:/models/file.txt"
-  }
-}
+```svelte
+<script>
+  import ModelSelector from '$lib/components/ModelSelector.svelte';
+</script>
+
+<ModelSelector />
+```
+
+The component provides:
+- Directory selection dialog
+- Automatic scanning and parsing
+- Visual model cards with metadata
+- Model selection interface
+- Persistent storage in modelLibrary.json
+
+## Backend Commands
+
+The Rust backend provides these commands:
+
+### `parse_model_manifest`
+Parse a single manifest file.
+
+```javascript
+await invoke('parse_model_manifest', {
+  modelPath: 'path/to/manifest/file',
+  modelsRoot: 'path/to/models/root'
+});
+```
+
+### `scan_models_directory`
+Scan entire models directory.
+
+```javascript
+await invoke('scan_models_directory', {
+  modelsRoot: 'path/to/models/root'
+});
+```
+
+### `save_model_library`
+Save models to JSON file.
+
+```javascript
+await invoke('save_model_library', {
+  libraryPath: 'path/to/modelLibrary.json',
+  models: [/* array of model objects */]
+});
+```
+
+### `load_model_library`
+Load models from JSON file.
+
+```javascript
+await invoke('load_model_library', {
+  libraryPath: 'path/to/modelLibrary.json'
+});
+```
+
+## Model Information Structure
+
+Each parsed model contains:
+
+- `provider`: Model provider (e.g., "registry.ollama.ai")
+- `library`: Manifest library (e.g., "library")
+- `name`: Model name (e.g., "qwen2.5-coder")
+- `version`: Model version (e.g., "7b")
+- `full_identifier`: Complete identifier string
+- `model_file_path`: Path to the actual model blob file (if found)
+- `manifest`: Complete manifest data including:
+  - `schema_version`: Manifest schema version
+  - `media_type`: Manifest media type
+  - `config`: Configuration metadata
+  - `layers`: Array of layers (model, system, template, license)
+
+## Common Locations
+
+### Windows
+```
+C:\Users\{Username}\.ollama\models
+```
+
+### macOS
+```
+~/.ollama/models
+```
+
+### Linux
+```
+~/.ollama/models
 ```
 
 ## Troubleshooting
 
-### Models not appearing
+### Model file not found
+- Ensure the blobs directory exists in your models root
+- Verify the digest in the manifest matches a blob file
+- Check file permissions
 
-1. Verify the library path is correct
-2. Check that the directory structure matches the expected format
-3. Ensure manifest files exist (without `.json` extension)
-4. Check the backend logs for errors
+### No models found
+- Verify the manifests directory structure is correct
+- Ensure manifest files are valid JSON
+- Check that you selected the correct root directory (should contain both `manifests/` and `blobs/`)
 
-### Path configuration fails
-
-1. Verify the path exists on your system
-2. Check file permissions
-3. Ensure the path is a directory, not a file
-
-### Model loading fails
-
-1. Verify the manifest file is valid JSON
-2. Check that all required fields are present
-3. Ensure the model path is accessible
+### Invalid path structure
+- The path must follow: `.../manifests/{provider}/{library}/{name}/{version}`
+- Ensure you're selecting the models root, not a subdirectory
