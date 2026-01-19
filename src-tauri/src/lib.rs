@@ -3,6 +3,8 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
+use state::AppState;
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -16,6 +18,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             greet,
             commands::chat::send_message,
@@ -26,7 +29,9 @@ pub fn run() {
             commands::config::load_config,
             commands::config::save_config,
             commands::config::reset_config,
-            commands::config::get_config_path_string
+            commands::config::get_config_path_string,
+            commands::llama_cpp::init_llama,
+            commands::llama_cpp::shutdown_llama,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -6,6 +6,7 @@ use tauri::{command, AppHandle, Manager};
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {
     pub models_directory: Option<String>,
+    pub llamaPath: Option<String>,
     pub theme: String,
     pub language: String,
     pub max_tokens: u32,
@@ -18,6 +19,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             models_directory: None,
+            llamaPath: None,
             theme: "dark".to_string(),
             language: "en".to_string(),
             max_tokens: 2048,

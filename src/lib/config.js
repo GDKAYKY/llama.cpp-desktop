@@ -1,8 +1,9 @@
-import { invokeCommand } from './ipc.js';
+import { invokeCommand } from './ipc.ts';
 
 /**
  * @typedef {Object} AppConfig
  * @property {string | null} models_directory
+ * @property {string | null} llamaPath
  * @property {string} theme
  * @property {string} language
  * @property {number} max_tokens
@@ -25,7 +26,7 @@ export async function loadConfig() {
  * @returns {Promise<void>}
  */
 export async function saveConfig(config) {
-    return await invokeCommand('save_config', { config });
+    await invokeCommand('save_config', { config });
 }
 
 /**
@@ -50,6 +51,7 @@ export async function getConfigPath() {
  */
 export const DEFAULT_CONFIG = {
     models_directory: null,
+    llamaPath: null,
     theme: 'dark',
     language: 'en',
     max_tokens: 2048,

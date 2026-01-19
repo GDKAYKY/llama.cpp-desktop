@@ -1,0 +1,15 @@
+{
+    "llama_cpp_path": "E:\\src\\llama_cpp",
+    "model_path": "C:\\Models\\mistral-7b.gguf",
+    "port": 8080,
+    "ctx_size": 4096,
+    "parallel": 4,
+    "n_gpu_layers": 33,
+    "chat_defaults": {
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "top_k": 40,
+        "max_tokens": 512
+    },
+    "notes": "Adjust paths to match your system. Set n_gpu_layers to 0 for CPU-only mode."
+}

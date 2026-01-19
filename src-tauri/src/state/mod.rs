@@ -1,13 +1,13 @@
-use std::sync::Mutex;
+use crate::services::llama_cpp::LlamaCppService;
 
 pub struct AppState {
-    // defined state fields
+    pub llama_service: LlamaCppService,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
-            // init state
+            llama_service: LlamaCppService::new(),
         }
     }
 }

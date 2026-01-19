@@ -8,9 +8,10 @@
     } from "$lib/config.js";
     import { selectModelsDirectory } from "$lib/models.js";
 
-    /** @type {{ models_directory: string | null, theme: string, language: string, max_tokens: number, temperature: number, auto_save_chat: boolean, chat_history_limit: number }} */
+    /** @type {{ models_directory: string | null, llamaPath: string | null, theme: string, language: string, max_tokens: number, temperature: number, auto_save_chat: boolean, chat_history_limit: number }} */
     let config = $state({
         models_directory: null,
+        llamaPath: null,
         theme: "dark",
         language: "en",
         max_tokens: 2048,
@@ -112,6 +113,21 @@
         }
     }
 
+    async function handleSelectLlamaPath() {
+        try {
+            const selected = await selectModelsDirectory();
+            if (selected) {
+                config.llamaPath = selected;
+                unsavedChanges = true;
+            }
+        } catch (err) {
+            const errorMessage =
+                err instanceof Error ? err.message : String(err);
+            showMessage("error", `Failed to select directory: ${errorMessage}`);
+            console.error(err);
+        }
+    }
+
     /**
      * @param {string} type
      * @param {string} text
@@ -200,6 +216,30 @@
                         <button
                             class="btn-secondary"
                             onclick={handleSelectModelsDirectory}
+                        >
+                            Browse
+                        </button>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label for="llama-path">
+                        <span class="label-text">llama.cpp Path</span>
+                        <span class="label-description"
+                            >Location of llama.cpp executables folder</span
+                        >
+                    </label>
+                    <div class="input-with-button">
+                        <input
+                            id="llama-path"
+                            type="text"
+                            value={config.llamaPath || ""}
+                            placeholder="Select llama.cpp directory..."
+                            readonly
+                        />
+                        <button
+                            class="btn-secondary"
+                            onclick={handleSelectLlamaPath}
                         >
                             Browse
                         </button>

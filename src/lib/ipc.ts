@@ -3,10 +3,10 @@ import { invoke } from "@tauri-apps/api/core";
 /**
  * Wrapper for Tauri's invoke function with error logging.
  * @param {string} command - The command name.
- * @param {Object} [args={}] - The arguments.
- * @returns {Promise<any>}
+ * @param {Record<string, unknown>} [args={}] - The arguments.
+ * @returns {Promise<unknown>}
  */
-export async function invokeCommand(command, args = {}) {
+export async function invokeCommand(command: string, args: Record<string, unknown> = {}): Promise<unknown> {
   try {
     return await invoke(command, args);
   } catch (error) {

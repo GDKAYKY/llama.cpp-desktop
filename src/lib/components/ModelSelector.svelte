@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
     import {
         selectModelsDirectory,
         scanModelsDirectory,
@@ -7,11 +7,21 @@
     } from "../models.js";
     import { createEventDispatcher } from "svelte";
 
+    type Model = {
+        name: string;
+        version: string;
+        provider: string;
+        library: string;
+        full_identifier: string;
+        manifest: { layers: Array<{ size: number }> };
+        model_file_path?: string;
+    };
+
     const dispatch = createEventDispatcher();
 
     let modelsRoot = $state("");
-    let models = $state([]);
-    let selectedModel = $state(null);
+    let models = $state<Model[]>([]);
+    let selectedModel = $state<Model | null>(null);
     let loading = $state(false);
     let error = $state("");
     let libraryPath = $state("");
@@ -28,7 +38,7 @@
                 await loadExistingLibrary();
             }
         } catch (err) {
-            error = `Failed to select directory: ${err.message}`;
+            error = `Failed to select directory: ${err instanceof Error ? err.message : String(err)}`;
             console.error(err);
         }
     }
@@ -67,14 +77,14 @@
                 error = "No models found in the selected directory";
             }
         } catch (err) {
-            error = `Failed to scan directory: ${err.message}`;
+            error = `Failed to scan directory: ${err instanceof Error ? err.message : String(err)}`;
             console.error(err);
         } finally {
             loading = false;
         }
     }
 
-    function handleSelectModel(model) {
+    function handleSelectModel(model: Model) {
         selectedModel = model;
         successMessage = "";
     }
@@ -93,7 +103,7 @@
         successMessage = `Model "${selectedModel.name}:${selectedModel.version}" is ready to use`;
     }
 
-    function formatSize(bytes) {
+    function formatSize(bytes: number) {
         const gb = bytes / 1024 ** 3;
         return `${gb.toFixed(2)} GB`;
     }

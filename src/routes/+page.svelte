@@ -1,5 +1,6 @@
 <script>
   import { tick } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import { loadModelLibrary } from "$lib/models.js";
 
   let messages = $state([
@@ -9,12 +10,14 @@
   let isSidebarOpen = $state(true);
   let messagesEnd = $state();
   let textarea = $state();
-  let models = $state(
-    /** @type {Array<{name: string, full_identifier: string}>} */ ([]),
-  );
-  let selectedModel = $state("Llama 3.1");
+  /** @type {Array<{name: string, full_identifier: string, model_file_path: string}>} */
+  let models = $state([]);
+  let selectedModel = $state(null);
   let isDropdownOpen = $state(false);
   let libraryPath = $state("");
+  let isLoading = $state(false);
+  let modelLoaded = $state(false);
+  let llama_cpp_path = $state("");
 
   $effect(() => {
     if (messages.length) {
@@ -30,7 +33,7 @@
   }
 
   async function sendMessage() {
-    if (!userInput.trim()) return;
+    if (!userInput.trim() || !modelLoaded) return;
 
     const userMessage = { role: "user", content: userInput };
     messages = [...messages, userMessage];
@@ -38,19 +41,30 @@
     userInput = "";
     resetTextareaHeight();
 
-    // Simulate assistant response or call backend
-    // greetMsg = await invokeCommand("greet", { name: userInput });
+    try {
+      isLoading = true;
+      const response = await invoke("send_message", {
+        message: currentInput,
+      });
 
-    // For now, let's just simulate a response
-    setTimeout(async () => {
       messages = [
         ...messages,
         {
           role: "assistant",
-          content: `You said: "${currentInput}". This is a mock response in the ChatGPT-style UI.`,
+          content: response,
         },
       ];
-    }, 500);
+    } catch (error) {
+      messages = [
+        ...messages,
+        {
+          role: "assistant",
+          content: `Error: ${error}`,
+        },
+      ];
+    } finally {
+      isLoading = false;
+    }
   }
 
   /**
@@ -85,6 +99,7 @@
       const { loadConfig } = await import("$lib/config.js");
       const config = await loadConfig();
       const modelsDir = config.models_directory || "";
+      llama_cpp_path = config.llamaPath || "";
       if (modelsDir) {
         libraryPath = `${modelsDir}/modelLibrary.json`;
         const loadedModels = await loadModelLibrary(libraryPath);
@@ -92,9 +107,10 @@
           models = loadedModels.map((m) => ({
             name: `${m.name}:${m.version}`,
             full_identifier: m.full_identifier,
+            model_file_path: m.model_file_path,
           }));
           if (models.length > 0) {
-            selectedModel = models[0].name;
+            selectedModel = models[0];
           }
         }
       }
@@ -108,11 +124,57 @@
   }
 
   /**
-   * @param {string} modelName
+   * @param {any} model
    */
-  function selectModel(modelName) {
-    selectedModel = modelName;
+  async function selectModel(model) {
+    selectedModel = model;
     isDropdownOpen = false;
+    await loadModel();
+  }
+
+  async function loadModel() {
+    if (!selectedModel || !selectedModel.model_file_path) {
+      console.error("No model selected or model path missing");
+      return;
+    }
+
+    if (!llama_cpp_path) {
+      messages = [
+        ...messages,
+        {
+          role: "system",
+          content:
+            "Error: llama.cpp path not configured. Please set it in Settings.",
+        },
+      ];
+      return;
+    }
+
+    try {
+      isLoading = true;
+      await invoke("init_llama", {
+        llamaPath: llama_cpp_path,
+        modelPath: selectedModel.model_file_path,
+      });
+      modelLoaded = true;
+      messages = [
+        ...messages,
+        {
+          role: "system",
+          content: `Model "${selectedModel.name}" loaded successfully`,
+        },
+      ];
+    } catch (error) {
+      messages = [
+        ...messages,
+        {
+          role: "system",
+          content: `Failed to load model: ${error}`,
+        },
+      ];
+    } finally {
+      isLoading = false;
+    }
   }
 
   /**
@@ -224,8 +286,9 @@
           class="model-selector-btn"
           onclick={toggleDropdown}
           aria-label="Select model"
+          disabled={isLoading}
         >
-          {selectedModel}
+          {selectedModel ? selectedModel.name : "Select a model"}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="16"
@@ -252,10 +315,10 @@
               {#each models as model}
                 <button
                   class="dropdown-item"
-                  class:active={selectedModel === model.name}
-                  onclick={() => selectModel(model.name)}
+                  class:active={selectedModel?.name === model.name}
+                  onclick={() => selectModel(model)}
                   role="option"
-                  aria-selected={selectedModel === model.name}
+                  aria-selected={selectedModel?.name === model.name}
                 >
                   {model.name}
                 </button>
@@ -266,36 +329,58 @@
           </div>
         {/if}
       </div>
+      {#if modelLoaded}
+        <div class="model-status">
+          <span class="status-dot"></span>
+          Model loaded
+        </div>
+      {/if}
+      {#if !llama_cpp_path}
+        <div class="warning-status">⚠ llama.cpp path not set</div>
+      {/if}
     </header>
 
     <div class="messages-container">
       {#each messages as msg}
         <div class="message-row {msg.role}">
           <div class="message-wrapper">
-            <div class="avatar-small">{msg.role === "user" ? "U" : "AI"}</div>
+            <div class="avatar-small">
+              {msg.role === "user" ? "U" : msg.role === "system" ? "⚙" : "AI"}
+            </div>
             <div class="message-content">
               {msg.content}
             </div>
           </div>
         </div>
       {/each}
+      {#if isLoading}
+        <div class="message-row assistant">
+          <div class="message-wrapper">
+            <div class="avatar-small">AI</div>
+            <div class="message-content typing">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+      {/if}
       <div bind:this={messagesEnd}></div>
     </div>
 
     <footer class="input-area">
       <div class="input-container">
         <textarea
-          placeholder="Message ChatGPT..."
+          placeholder={modelLoaded ? "Message..." : "Load a model first..."}
           bind:value={userInput}
           bind:this={textarea}
           onkeydown={handleKeydown}
           oninput={handleInput}
           rows="1"
+          disabled={!modelLoaded || isLoading}
         ></textarea>
         <button
           class="send-button"
           onclick={sendMessage}
-          disabled={!userInput.trim()}
+          disabled={!userInput.trim() || !modelLoaded || isLoading}
           aria-label="Send message"
         >
           <svg
@@ -314,7 +399,7 @@
           >
         </button>
       </div>
-      <p class="disclaimer">ChatGPT can make mistakes. Check important info.</p>
+      <p class="disclaimer">Local LLM powered by llama.cpp</p>
     </footer>
   </main>
 </div>
@@ -462,6 +547,7 @@
     padding: 0 16px;
     border-bottom: 1px solid var(--color-border);
     color: var(--color-text-secondary);
+    gap: 16px;
   }
 
   .menu-toggle {
@@ -470,18 +556,11 @@
     color: inherit;
     cursor: pointer;
     padding: 8px;
-    margin-right: 12px;
     border-radius: 4px;
   }
 
   .menu-toggle:hover {
     background-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .model-info {
-    font-weight: 500;
-    font-size: 16px;
-    color: white;
   }
 
   .model-dropdown {
@@ -502,8 +581,13 @@
     transition: background-color 0.2s;
   }
 
-  .model-selector-btn:hover {
+  .model-selector-btn:hover:not(:disabled) {
     background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .model-selector-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .model-selector-btn svg {
@@ -560,6 +644,42 @@
     text-align: center;
   }
 
+  .model-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #10b981;
+    margin-left: auto;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #10b981;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  .warning-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #f59e0b;
+    margin-left: auto;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
   .messages-container {
     flex-grow: 1;
     overflow-y: auto;
@@ -573,6 +693,10 @@
 
   .message-row.assistant {
     background-color: var(--color-bg-secondary);
+  }
+
+  .message-row.system {
+    background-color: rgba(59, 130, 246, 0.1);
   }
 
   .message-wrapper {
@@ -605,11 +729,51 @@
     color: white;
   }
 
+  .system .avatar-small {
+    background-color: #3b82f6;
+    color: white;
+  }
+
   .message-content {
     line-height: 1.6;
     font-size: 16px;
     color: var(--color-text-primary);
     white-space: pre-wrap;
+  }
+
+  .message-content.typing {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .message-content.typing span {
+    width: 8px;
+    height: 8px;
+    background-color: var(--color-accent);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite;
+  }
+
+  .message-content.typing span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .message-content.typing span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes bounce {
+    0%,
+    80%,
+    100% {
+      opacity: 0.5;
+      transform: translateY(0);
+    }
+    40% {
+      opacity: 1;
+      transform: translateY(-10px);
+    }
   }
 
   .input-area {
@@ -641,6 +805,11 @@
     outline: none;
     padding: 4px 0;
     font-family: inherit;
+  }
+
+  textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .send-button {
