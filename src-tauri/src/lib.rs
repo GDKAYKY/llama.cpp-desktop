@@ -18,7 +18,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
-            commands::chat::send_message
+            commands::chat::send_message,
+            commands::models::parse_model_manifest,
+            commands::models::scan_models_directory,
+            commands::models::save_model_library,
+            commands::models::load_model_library,
+            commands::config::load_config,
+            commands::config::save_config,
+            commands::config::reset_config,
+            commands::config::get_config_path_string
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

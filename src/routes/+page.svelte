@@ -86,6 +86,49 @@
       <div class="history-item">Recipe: Chocolate Cake</div>
     </div>
 
+    <div class="sidebar-footer">
+      <a href="/models" class="nav-link">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+          ></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+        Models
+      </a>
+      <a href="/settings" class="nav-link">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 1v6m0 6v6m-9-9h6m6 0h6"></path>
+          <path
+            d="m4.93 4.93 4.24 4.24m5.66 5.66 4.24 4.24m0-14.14-4.24 4.24m-5.66 5.66-4.24 4.24"
+          ></path>
+        </svg>
+        Settings
+      </a>
+    </div>
+
     <div class="user-profile">
       <div class="avatar">U</div>
       <span>User Account</span>
@@ -252,6 +295,36 @@
     gap: 12px;
     color: white;
     font-size: 14px;
+  }
+
+  .sidebar-footer {
+    border-top: 1px solid var(--color-border);
+    padding-top: 8px;
+    margin-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+
+  .nav-link:hover {
+    background-color: #2a2b32;
+    color: white;
+  }
+
+  .nav-link svg {
+    flex-shrink: 0;
   }
 
   .avatar {
