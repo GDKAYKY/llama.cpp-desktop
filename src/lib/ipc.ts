@@ -10,7 +10,6 @@ export async function invokeCommand(command: string, args: Record<string, unknow
   try {
     return await invoke(command, args);
   } catch (error) {
-    console.error(`IPC Error [${command}]:`, error);
     throw error;
   }
 }

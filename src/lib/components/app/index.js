@@ -1,8 +1,8 @@
-export { default as ChatMessage } from "./chat/ChatMessage/ChatMessage.svelte";
-export { default as ChatMessages } from "./chat/ChatMessages/ChatMessages.svelte";
-export { default as ChatForm } from "./chat/ChatForm/ChatForm.svelte";
-export { default as ChatSidebar } from "./chat/ChatSidebar/ChatSidebar.svelte";
-export { default as ChatHeader } from "./chat/ChatScreen/ChatHeader.svelte";
-export { default as MessageAvatar } from "./chat/MessageAvatar/MessageAvatar.svelte";
-export { default as TypingIndicator } from "./chat/TypingIndicator/TypingIndicator.svelte";
-export { default as MarkdownContent } from "./misc/MarkdownContent.svelte";
+export { default as ChatMessage } from "./chat/ChatMessage.svelte";
+export { default as ChatMessages } from "./chat/ChatMessages.svelte";
+export { default as ChatForm } from "./layout/chat/ChatForm.svelte";
+export { default as ChatSidebar } from "./layout/sidebar/ChatSidebar.svelte";
+export { default as ChatHeader } from "./layout/header/ChatHeader.svelte";
+export { default as MessageAvatar } from "./layout/chat/MessageAvatar.svelte";
+export { default as TypingIndicator } from "./layout/chat/TypingIndicator.svelte";
+export { default as MarkdownContent } from "./layout/chat/MarkdownContent.svelte";

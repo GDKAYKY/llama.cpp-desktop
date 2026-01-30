@@ -16,6 +16,7 @@
   import { preprocessLaTeX } from "$lib/utils/latex-protection.js";
   import { copyCodeToClipboard } from "$lib/utils/clipboard.js";
   import { mode } from "mode-watcher";
+  import { cn } from "$lib/utils/cn.js";
   import "highlight.js/styles/github-dark.css";
   import "katex/dist/katex.min.css";
 
@@ -171,7 +172,25 @@
   });
 </script>
 
-<div bind:this={containerRef} class="markdown-content {className}">
+<div
+  bind:this={containerRef}
+  class={cn(
+    "text-base leading-relaxed break-words",
+    "[&_p]:mb-4 [&_p:last-child]:mb-0",
+    "[&_ul]:mb-4 [&_ul]:list-disc [&_ul]:pl-6",
+    "[&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:pl-6",
+    "[&_li]:mb-1",
+    "[&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:bg-white/10 [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:font-mono",
+    "[&_table]:my-4 [&_table]:w-full [&_table]:border-collapse",
+    "[&_th]:border [&_th]:border-border [&_th]:bg-white/5 [&_th]:p-2 [&_th]:text-left",
+    "[&_td]:border [&_td]:border-border [&_td]:p-2 [&_td]:text-left",
+    "[&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-primary [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground",
+    "[&_h1]:mb-4 [&_h1]:mt-8 [&_h1]:text-2xl [&_h1]:font-bold",
+    "[&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:text-xl [&_h2]:font-bold",
+    "[&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-bold",
+    className,
+  )}
+>
   {#each renderedBlocks as block (block.id)}
     <div class="markdown-block" data-block-id={block.id}>
       {@html block.html}
@@ -187,111 +206,3 @@
     </div>
   {/if}
 </div>
-
-<style>
-  .markdown-content {
-    line-height: 1.6;
-    font-size: 16px;
-  }
-
-  .markdown-block {
-    display: contents;
-  }
-
-  .markdown-content :global(p) {
-    margin-bottom: 1rem;
-  }
-
-  .markdown-content :global(p:last-child) {
-    margin-bottom: 0;
-  }
-
-  .markdown-content :global(pre) {
-    background: #1e1e1e;
-    color: #d4d4d4;
-    padding: 1rem;
-    border-radius: 8px;
-    overflow-x: auto;
-    margin: 1rem 0;
-  }
-
-  .markdown-content :global(code:not(pre code)) {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 0.2rem 0.4rem;
-    border-radius: 4px;
-    font-family: monospace;
-  }
-
-  .markdown-content :global(.code-block-wrapper) {
-    margin: 1.5rem 0;
-    border-radius: 0.75rem;
-    overflow: hidden;
-    border: 1px solid var(--color-border);
-    background: #1e1e1e;
-  }
-
-  .markdown-content :global(.code-block-header) {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border-bottom: 1px solid var(--color-border);
-    font-size: 0.875rem;
-  }
-
-  .markdown-content :global(.code-language) {
-    color: #888;
-    font-weight: 500;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-  }
-
-  .markdown-content :global(.copy-code-btn) {
-    background: transparent;
-    border: none;
-    color: #888;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    transition: all 0.2s;
-  }
-
-  .markdown-content :global(.copy-code-btn:hover) {
-    color: white;
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .markdown-content :global(table) {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 1rem 0;
-  }
-
-  .markdown-content :global(th),
-  .markdown-content :global(td) {
-    border: 1px solid var(--color-border);
-    padding: 0.5rem;
-    text-align: left;
-  }
-
-  .markdown-content :global(th) {
-    background: rgba(255, 255, 255, 0.05);
-  }
-
-  .markdown-content :global(ul),
-  .markdown-content :global(ol) {
-    margin-bottom: 1rem;
-    padding-left: 1.5rem;
-  }
-
-  .markdown-content :global(blockquote) {
-    border-left: 4px solid var(--color-accent);
-    padding-left: 1rem;
-    color: var(--color-text-secondary);
-    margin: 1rem 0;
-    font-style: italic;
-  }
-</style>

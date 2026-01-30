@@ -1,6 +1,7 @@
-import { initLlama, shutdownLlama, sendMessage } from '$lib/llama';
-import { settingsStore } from './settings.svelte';
-import { modelsStore } from './models.svelte';
+import { invokeCommand } from '$lib/ipc';
+import { Channel } from '@tauri-apps/api/core';
+import type { UnlistenFn } from '@tauri-apps/api/event';
+import { settingsStore } from '$lib/stores/settings.svelte';
 
 export interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -11,52 +12,36 @@ export interface Message {
 class ChatStore {
   messages = $state<Message[]>([]);
   isLoading = $state(false);
-  isModelLoading = $state(false);
-  modelLoaded = $state(false);
   error = $state<string | null>(null);
+  modelLoaded = $state(true);
 
-  async loadModel() {
-    if (!modelsStore.selectedModel) {
-      this.error = 'No model selected';
-      return;
-    }
+  sessionId = crypto.randomUUID();
+  unlisten: UnlistenFn | null = null;
 
-    const llamaPath = settingsStore.settings.llamaPath;
-    if (!llamaPath) {
-      this.error = 'Llama.cpp path not configured';
-      return;
-    }
-
-    try {
-      this.isModelLoading = true;
-      this.error = null;
-      await initLlama(llamaPath, modelsStore.selectedModel.model_file_path || '');
-      this.modelLoaded = true;
-    } catch (err) {
-      console.error('Failed to load model:', err);
-      this.error = 'Failed to load model';
-      this.modelLoaded = false;
-    } finally {
-      this.isModelLoading = false;
+  async initialize() {
+    this.error = null;
+    
+    // Persistence: only create session if doesn't exist
+    if (!this.sessionId) {
+      this.sessionId = crypto.randomUUID();
     }
   }
 
-  async unloadModel() {
-    try {
-      await shutdownLlama();
-      this.modelLoaded = false;
-    } catch (err) {
-      console.error('Failed to unload model:', err);
+  appendChunk(chunk: string) {
+    if (this.messages.length === 0) return;
+    const lastMsg = this.messages[this.messages.length - 1];
+    if (lastMsg.role === 'assistant') {
+      lastMsg.content += chunk;
+    } else {
+      this.messages.push({
+        role: 'assistant',
+        content: chunk,
+        timestamp: Date.now()
+      });
     }
   }
 
   async send(content: string) {
-    if (!this.modelLoaded && !this.isModelLoading) {
-      await this.loadModel();
-    }
-
-    if (!this.modelLoaded) return;
-
     const userMessage: Message = {
       role: 'user',
       content,
@@ -64,27 +49,56 @@ class ChatStore {
     };
 
     this.messages.push(userMessage);
+    
+    // Add placeholder for assistant
+    this.messages.push({
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now()
+    });
+
     this.isLoading = true;
     this.error = null;
 
+    const onEvent = new Channel<any>();
+    onEvent.onmessage = (payload) => {
+      if (payload.chunk) {
+        this.appendChunk(payload.chunk);
+      }
+      if (payload.status === 'done') {
+        console.log('Stream finished');
+      }
+    };
+
     try {
-      const response = await sendMessage(content);
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: response,
-        timestamp: Date.now()
-      };
-      this.messages.push(assistantMessage);
+      await invokeCommand('send_message', {
+        message: content,
+        sessionId: this.sessionId,
+        temperature: settingsStore.settings.temperature,
+        maxTokens: settingsStore.settings.maxTokens,
+        onEvent
+      });
     } catch (err) {
-      console.error('Failed to send message:', err);
-      this.error = 'Failed to get response from model';
+      this.error = err instanceof Error ? err.message : String(err);
+      console.error("ERRO NO CHAT:", err);
     } finally {
       this.isLoading = false;
     }
   }
 
-  clear() {
+  async clear() {
     this.messages = [];
+    this.error = null;
+    this.sessionId = crypto.randomUUID();
+  }
+
+  async destroy() {
+    if (this.unlisten) {
+      this.unlisten();
+      this.unlisten = null;
+    }
+    this.messages = [];
+    this.error = null;
   }
 }
 

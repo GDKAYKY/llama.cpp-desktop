@@ -4,7 +4,9 @@
   import { Toaster } from "svelte-sonner";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
+  import { uiStore } from "$lib/stores/ui.svelte";
   import { onMount } from "svelte";
+  import ChatSidebar from "$lib/components/layout/ChatSidebar.svelte";
 
   let { children } = $props();
 
@@ -16,4 +18,15 @@
 
 <Toaster richColors position="bottom-right" />
 <ModeWatcher />
-{@render children()}
+
+<div
+  class="flex h-screen w-screen bg-background text-foreground overflow-hidden"
+>
+  <ChatSidebar
+    isSidebarOpen={uiStore.isSidebarOpen}
+    toggleSidebar={() => uiStore.toggleSidebar()}
+  />
+  <main class="relative flex grow flex-col overflow-hidden bg-background">
+    {@render children()}
+  </main>
+</div>

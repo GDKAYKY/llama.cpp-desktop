@@ -1,20 +1,24 @@
-<script>
-  import { tick } from "svelte";
-  import {
-    ChatSidebar,
-    ChatHeader,
-    ChatMessages,
-    ChatForm,
-  } from "$lib/components/app";
+<script lang="ts">
+  import { tick, onMount } from "svelte";
+  import ChatHeader from "$lib/components/layout/ChatHeader.svelte";
+  import ChatMessages from "$lib/components/chat/ChatMessages.svelte";
+  import ChatForm from "$lib/components/chat/ChatForm.svelte";
+  import { toast } from "svelte-sonner";
   import { chatStore } from "$lib/stores/chat.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
+  import { uiStore } from "$lib/stores/ui.svelte";
+  import { serverStore } from "$lib/stores/server.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
 
   let userInput = $state("");
-  let isSidebarOpen = $state(true);
-  let messagesEnd = $state();
-  let textarea = $state();
+  let messagesEnd: any = $state();
+  let textarea: any = $state();
   let isDropdownOpen = $state(false);
+
+  onMount(async () => {
+    // Initialize chat store
+    await chatStore.initialize();
+  });
 
   $effect(() => {
     if (chatStore.messages.length) {
@@ -32,22 +36,27 @@
   async function sendMessage() {
     if (!userInput.trim() || chatStore.isLoading) return;
 
+    if (!serverStore.isRunning) {
+      toast.error("Server is not running. Please select a model to start.");
+      return;
+    }
+
     const currentInput = userInput;
     userInput = "";
     resetTextareaHeight();
 
     await chatStore.send(currentInput);
+
+    if (chatStore.error) {
+      toast.error(`Failed to send message: ${chatStore.error}`);
+    }
   }
 
-  function handleKeydown(e) {
+  function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
-  }
-
-  function toggleSidebar() {
-    isSidebarOpen = !isSidebarOpen;
   }
 
   function handleInput() {
@@ -63,18 +72,51 @@
     }
   }
 
-  function toggleDropdown(e) {
+  function toggleDropdown(e: MouseEvent) {
     if (e) e.stopPropagation();
     isDropdownOpen = !isDropdownOpen;
   }
 
-  async function selectModel(model) {
+  async function selectModel(model: any) {
     modelsStore.selectModel(model);
     isDropdownOpen = false;
-    await chatStore.loadModel();
+
+    // Start server logic
+    const binaryPath = settingsStore.settings.llamaDirectory;
+    const modelPath = model.model_file_path;
+    const port = settingsStore.settings.serverPort;
+
+    if (!binaryPath) {
+      toast.error("Llama Server path not configured. Please go to Settings.");
+      return;
+    }
+
+    if (!modelPath) {
+      toast.error("Model path not found for selected model.");
+      return;
+    }
+
+    try {
+      toast.info("Starting llama-server...");
+      if (serverStore.isRunning) {
+        await serverStore.stopServer();
+      }
+      await serverStore.startServer(binaryPath, modelPath, port);
+
+      // Short delay to allow startup
+      setTimeout(() => {
+        if (serverStore.error) {
+          toast.error(`Server failed to start: ${serverStore.error}`);
+        } else {
+          toast.success(`Server started with ${model.name}`);
+        }
+      }, 1000);
+    } catch (err) {
+      toast.error(`Failed to start server: ${err}`);
+    }
   }
 
-  function handleClickOutside(e) {
+  function handleClickOutside(e: MouseEvent) {
     const dropdown = document.querySelector(".model-dropdown");
     const selector = document.querySelector(".model-selector-btn");
 
@@ -90,53 +132,28 @@
   );
 </script>
 
-<div class="app-container">
-  <ChatSidebar {isSidebarOpen} />
+<ChatHeader
+  isSidebarOpen={uiStore.isSidebarOpen}
+  toggleSidebar={() => uiStore.toggleSidebar()}
+  isLoading={chatStore.isLoading}
+  {toggleDropdown}
+  selectedModel={modelsStore.selectedModel}
+  {isDropdownOpen}
+  models={modelsStore.models}
+  {selectModel}
+  {handleClickOutside}
+  modelLoaded={chatStore.modelLoaded}
+/>
 
-  <main class="main-content">
-    <ChatHeader
-      {isSidebarOpen}
-      {toggleSidebar}
-      isLoading={chatStore.isLoading || chatStore.isModelLoading}
-      {toggleDropdown}
-      selectedModel={modelsStore.selectedModel}
-      {isDropdownOpen}
-      models={modelsStore.models}
-      {selectModel}
-      {handleClickOutside}
-      modelLoaded={chatStore.modelLoaded}
-      llama_cpp_path={settingsStore.settings.llamaPath}
-    />
+{#if isEmpty}
+  <div class="flex grow items-center justify-center p-5">
+    <div class="w-full max-w-3xl text-center">
+      <h1 class="mb-2 text-3xl font-semibold tracking-tight">llama.cpp</h1>
+      <p class="mb-10 text-lg text-muted-foreground">
+        Type a message or upload files to get started
+      </p>
 
-    {#if isEmpty}
-      <div class="welcome-screen">
-        <div class="welcome-container">
-          <h1 class="welcome-title">llama.cpp</h1>
-          <p class="welcome-subtitle">
-            Type a message or upload files to get started
-          </p>
-
-          <div class="welcome-form-wrapper">
-            <ChatForm
-              bind:userInput
-              modelLoaded={chatStore.modelLoaded}
-              isLoading={chatStore.isLoading}
-              onKeydown={handleKeydown}
-              onInput={handleInput}
-              onSend={sendMessage}
-              bind:textarea
-            />
-          </div>
-        </div>
-      </div>
-    {:else}
-      <ChatMessages
-        messages={chatStore.messages}
-        isLoading={chatStore.isLoading}
-        bind:messagesEnd
-      />
-
-      <div class="chat-form-wrapper">
+      <div class="w-full">
         <ChatForm
           bind:userInput
           modelLoaded={chatStore.modelLoaded}
@@ -145,64 +162,30 @@
           onInput={handleInput}
           onSend={sendMessage}
           bind:textarea
+          selectedModel={modelsStore.selectedModel}
         />
       </div>
-    {/if}
-  </main>
-</div>
+    </div>
+  </div>
+{:else}
+  <ChatMessages
+    messages={chatStore.messages}
+    isLoading={chatStore.isLoading}
+    bind:messagesEnd
+  />
 
-<style>
-  .app-container {
-    display: flex;
-    height: 100vh;
-    width: 100vw;
-  }
-
-  .main-content {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    background-color: var(--background);
-    position: relative;
-    overflow: hidden;
-  }
-
-  .welcome-screen {
-    flex-grow: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-
-  .welcome-container {
-    width: 100%;
-    max-width: 768px;
-    text-align: center;
-  }
-
-  .welcome-title {
-    font-size: 2rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    color: var(--foreground);
-    letter-spacing: -0.025em;
-  }
-
-  .welcome-subtitle {
-    font-size: 1.125rem;
-    color: var(--muted-foreground);
-    margin-bottom: 2.5rem;
-  }
-
-  .welcome-form-wrapper {
-    width: 100%;
-  }
-
-  .chat-form-wrapper {
-    position: sticky;
-    bottom: 0;
-    width: 100%;
-    z-index: 10;
-  }
-</style>
+  <div
+    class="sticky bottom-0 z-10 w-full bg-gradient-to-t from-background via-background/95 to-transparent pt-10"
+  >
+    <ChatForm
+      bind:userInput
+      modelLoaded={chatStore.modelLoaded}
+      isLoading={chatStore.isLoading}
+      onKeydown={handleKeydown}
+      onInput={handleInput}
+      onSend={sendMessage}
+      bind:textarea
+      selectedModel={modelsStore.selectedModel}
+    />
+  </div>
+{/if}
