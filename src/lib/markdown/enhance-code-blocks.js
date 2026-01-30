@@ -16,7 +16,9 @@ function createCopyButton(codeId) {
     type: "element",
     tagName: "button",
     properties: {
-      className: ["copy-code-btn"],
+      className: [
+        "group/copy flex cursor-pointer items-center rounded p-1 text-[#888] transition-all hover:bg-white/10 hover:text-white",
+      ],
       "data-code-id": codeId,
       title: "Copy code",
       type: "button",
@@ -31,18 +33,24 @@ function createHeader(language, codeId) {
   return {
     type: "element",
     tagName: "div",
-    properties: { className: ["code-block-header"] },
+    properties: {
+      className: [
+        "flex items-center justify-between border-b border-border bg-white/5 px-4 py-2 text-[0.875rem]",
+      ],
+    },
     children: [
       {
         type: "element",
         tagName: "span",
-        properties: { className: ["code-language"] },
+        properties: {
+          className: ["text-[0.75rem] font-medium uppercase text-[#888]"],
+        },
         children: [{ type: "text", value: language }],
       },
       {
         type: "element",
         tagName: "div",
-        properties: { className: ["code-block-actions"] },
+        properties: { className: ["flex items-center"] },
         children: actions,
       },
     ],
@@ -50,10 +58,21 @@ function createHeader(language, codeId) {
 }
 
 function createWrapper(header, preElement) {
+  // Add styling to pre element
+  if (preElement.properties) {
+    preElement.properties.className = [
+      "m-0 overflow-x-auto p-4 bg-[#1e1e1e] text-[#d4d4d4]",
+    ];
+  }
+
   return {
     type: "element",
     tagName: "div",
-    properties: { className: ["code-block-wrapper"] },
+    properties: {
+      className: [
+        "my-6 overflow-hidden rounded-xl border border-border bg-[#1e1e1e]",
+      ],
+    },
     children: [header, preElement],
   };
 }

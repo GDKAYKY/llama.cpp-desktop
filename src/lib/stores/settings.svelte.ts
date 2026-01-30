@@ -1,4 +1,4 @@
-import { loadConfig, saveConfig, resetConfig, DEFAULT_CONFIG } from '$lib/config.js';
+import { loadConfig, saveConfig, resetConfig, DEFAULT_CONFIG } from '$lib/config/index';
 
 class SettingsStore {
   settings = $state({ ...DEFAULT_CONFIG });
@@ -16,7 +16,6 @@ class SettingsStore {
       this.settings = { ...DEFAULT_CONFIG, ...config };
       this.error = null;
     } catch (err) {
-      console.error('Failed to load settings:', err);
       this.error = 'Failed to load settings';
     } finally {
       this.isLoading = false;
@@ -27,8 +26,8 @@ class SettingsStore {
     try {
       this.settings = { ...this.settings, ...newSettings };
       await saveConfig(this.settings);
+      this.error = null;
     } catch (err) {
-      console.error('Failed to update settings:', err);
       this.error = 'Failed to update settings';
     }
   }
@@ -37,8 +36,8 @@ class SettingsStore {
     try {
       const config = await resetConfig();
       this.settings = { ...DEFAULT_CONFIG, ...config };
+      this.error = null;
     } catch (err) {
-      console.error('Failed to reset settings:', err);
       this.error = 'Failed to reset settings';
     }
   }

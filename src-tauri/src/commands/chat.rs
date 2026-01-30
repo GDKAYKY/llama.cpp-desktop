@@ -1,19 +1,23 @@
 use crate::state::AppState;
-use tauri::State;
+use tauri::{ipc::Channel, State};
 
 #[tauri::command]
-pub async fn send_message(message: String, state: State<'_, AppState>) -> Result<String, String> {
+pub async fn send_message(
+    state: State<'_, AppState>,
+    session_id: String,
+    message: String,
+    temperature: f32,
+    max_tokens: i32,
+    on_event: Channel<serde_json::Value>,
+) -> Result<(), String> {
     state
-        .llama_service
-        .send_chat_message(
-            vec![crate::services::llama_cpp::ChatMessage {
-                role: "user".to_string(),
-                content: message,
-            }],
-            0.7,
-            0.95,
-            40,
-            512,
-        )
+        .orchestrator
+        .process(&session_id, message, temperature, max_tokens, on_event)
         .await
+}
+
+#[tauri::command]
+pub async fn clear_chat(state: State<'_, AppState>, session_id: String) -> Result<(), String> {
+    state.orchestrator.clear_session(&session_id).await;
+    Ok(())
 }
