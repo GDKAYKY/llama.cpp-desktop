@@ -15,15 +15,19 @@ class ChatStore {
   error = $state<string | null>(null);
   modelLoaded = $state(true);
 
-  sessionId = crypto.randomUUID();
+  sessionId = $state<string>('');
   unlisten: UnlistenFn | null = null;
 
   async initialize() {
     this.error = null;
     
-    // Persistence: only create session if doesn't exist
-    if (!this.sessionId) {
+    // Load from localStorage or create new
+    const savedSession = localStorage.getItem('llama_chat_session_id');
+    if (savedSession) {
+      this.sessionId = savedSession;
+    } else {
       this.sessionId = crypto.randomUUID();
+      localStorage.setItem('llama_chat_session_id', this.sessionId);
     }
   }
 
@@ -42,6 +46,12 @@ class ChatStore {
   }
 
   async send(content: string) {
+    // Ensure sessionId exists and is stored
+    if (!this.sessionId) {
+      this.sessionId = crypto.randomUUID();
+    }
+    localStorage.setItem('llama_chat_session_id', this.sessionId);
+
     const userMessage: Message = {
       role: 'user',
       content,
@@ -87,9 +97,15 @@ class ChatStore {
   }
 
   async clear() {
+    try {
+      await invokeCommand('clear_chat', { sessionId: this.sessionId });
+    } catch (err) {
+      console.warn("Failed to clear backend chat session:", err);
+    }
     this.messages = [];
     this.error = null;
     this.sessionId = crypto.randomUUID();
+    localStorage.setItem('llama_chat_session_id', this.sessionId);
   }
 
   async destroy() {

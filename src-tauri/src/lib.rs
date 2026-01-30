@@ -37,6 +37,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             commands::chat::send_message,
+            commands::chat::clear_chat,
             commands::models::parse_model_manifest,
             commands::models::scan_models_directory,
             commands::models::save_model_library,

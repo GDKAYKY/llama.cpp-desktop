@@ -43,7 +43,14 @@ impl ChatOrchestrator {
         // Streaming with user defined parameters
         let mut rx = self
             .service
-            .send_chat_message(messages, temperature, 0.95, 40, max_tokens)
+            .send_chat_message(
+                Some(session_id.to_string()),
+                messages,
+                temperature,
+                0.95,
+                40,
+                max_tokens,
+            )
             .await?;
 
         let mut full_response = String::new();

@@ -66,17 +66,27 @@ async function checkServerStatus() {
 ### Sending a Chat Message
 
 ```javascript
-async function sendMessage(userMessage) {
+import { Channel } from '@tauri-apps/api/core';
+
+async function sendMessage(userMessage, sessionId) {
+  const onEvent = new Channel();
+  onEvent.onmessage = (payload) => {
+    if (payload.chunk) {
+      console.log('Chunk:', payload.chunk);
+    }
+    if (payload.status === 'done') {
+      console.log('Finished');
+    }
+  };
+
   try {
-    const response = await invoke('send_chat_message', {
+    await invoke('send_message', {
       message: userMessage,
+      sessionId: sessionId || crypto.randomUUID(),
       temperature: 0.7,
-      top_p: 0.95,
-      top_k: 40,
-      max_tokens: 512,
+      maxTokens: 512,
+      onEvent
     });
-    console.log('Model response:', response);
-    return response;
   } catch (error) {
     console.error('Failed to send message:', error);
   }
@@ -85,22 +95,10 @@ async function sendMessage(userMessage) {
 
 ### Sending Chat with History
 
+The current implementation uses `session_id` to manage conversation history server-side. Simply continue sending messages with the same `sessionId`.
+
 ```javascript
-async function sendChatWithHistory(messages) {
-  try {
-    // messages format: [["user", "Hello"], ["assistant", "Hi there!"], ["user", "How are you?"]]
-    const response = await invoke('send_chat_with_history', {
-      messages: messages,
-      temperature: 0.7,
-      top_p: 0.95,
-      top_k: 40,
-      max_tokens: 512,
-    });
-    return response;
-  } catch (error) {
-    console.error('Failed to send message:', error);
-  }
-}
+// Already handled by send_message when using the same sessionId
 ```
 
 ### Getting Current Configuration
@@ -215,7 +213,8 @@ curl http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer no-key" \
   -d '{
-    "model": "gpt-3.5-turbo",
+    "model": "llama",
+    "session_id": "user-123",
     "messages": [
       {"role": "user", "content": "Hello"}
     ],

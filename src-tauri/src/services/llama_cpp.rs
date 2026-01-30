@@ -78,6 +78,7 @@ pub struct ChatMessage {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatRequest {
     pub model: String,
+    pub session_id: Option<String>,
     pub messages: Vec<ChatMessage>,
     pub temperature: f32,
     pub top_p: f32,
@@ -663,6 +664,7 @@ impl LlamaCppService {
 
     pub async fn send_chat_message(
         &self,
+        session_id: Option<String>,
         messages: Vec<ChatMessage>,
         temperature: f32,
         top_p: f32,
@@ -673,6 +675,7 @@ impl LlamaCppService {
         let id = ModelId(config.model_path);
         let request = ChatRequest {
             model: "unknown".to_string(),
+            session_id,
             messages,
             temperature,
             top_p,
