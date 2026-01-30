@@ -1,4 +1,4 @@
-use crate::services::llama_cpp::LlamaCppConfig;
+use crate::models::LlamaCppConfig;
 use crate::state::AppState;
 use tauri::command;
 use tauri::State;
@@ -21,8 +21,8 @@ pub async fn start_llama_server(
         n_gpu_layers,
     };
 
-    state.llama_service.start(config).await?;
-    Ok("Server started".to_string())
+    let pid = state.llama_service.start(config).await?;
+    Ok(pid.to_string())
 }
 
 #[command]

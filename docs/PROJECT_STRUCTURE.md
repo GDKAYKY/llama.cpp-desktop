@@ -25,6 +25,12 @@ llama-desktop/
 │     ├─ main.rs         # Entry point & setup
 │     ├─ commands/       # Tauri command handlers (IPC)
 │     │  └─ mod.rs
+│     ├─ models/         # Centralized Data Models (Shared Structs/Enums)
+│     │  ├─ mod.rs
+│     │  ├─ app_config.rs
+│     │  ├─ chat.rs
+│     │  ├─ llama.rs
+│     │  └─ manifest.rs
 │     ├─ state/          # Global AppState
 │     │  └─ mod.rs
 │     ├─ services/       # Core business logic (llama.cpp/ollama)
@@ -76,6 +82,13 @@ The backend is written in Rust and integrated directly into the Tauri applicatio
 - Tauri - Desktop application framework
 - Serde - Serialization and deserialization
 - llama-cpp-rs - (Optional) Rust bindings for llama.cpp
+
+#### Backend Models Standard
+All shared data structures (Structs and Enums) must be placed in `src-tauri/src/models/`. 
+- **Centralization**: Avoid defining structs inside `commands/` or `services/` if they are used by more than one module or if they represent core data entities.
+- **Organization**: Models are grouped by domain (e.g., `chat.rs`, `llama.rs`, `manifest.rs`).
+- **Cleanliness**: Services and Commands should only contain logic, importing their data structures from the `models` module.
+- **Portability**: Data structures that represent API contracts or state should be easily serializable (using `serde`).
 
 **Development:**
 ```bash

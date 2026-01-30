@@ -1,6 +1,4 @@
 use crate::state::AppState;
-use futures::StreamExt; // Required for stream.next()
-use serde_json::json;
 use tauri::{ipc::Channel, State};
 
 #[tauri::command]

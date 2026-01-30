@@ -1,7 +1,24 @@
-# Tauri + SvelteKit
+# Llama.cpp Desktop
 
-This template should help get you started developing with Tauri and SvelteKit in Vite.
+A Tauri-based desktop application for managing and running Llama.cpp models locally with a premium UI.
 
-## Recommended IDE Setup
+## 📚 Documentation
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
+- **[Project Structure](./docs/PROJECT_STRUCTURE.md)**: Detailed overview of the project layout.
+- **[Backend Architecture Standards](./docs/BACKEND_ARCHITECTURE.md)**: Mandatory coding standards for the Rust backend, including the **Centralized Models Standard**.
+- **[Model Setup Guide](./docs/MODELS_SETUP_GUIDE.md)**: How to configure and run models.
+
+## 🚀 Quick Start
+
+1.  **Prerequisites**: Install [Rust](https://rustup.rs/) and [Node.js](https://nodejs.org/).
+2.  **Dependencies**: `npm install`.
+3.  **Run**: `npm run dev`.
+
+## 🛠️ Development
+
+- **Frontend**: Svelte 5 + Vite.
+- **Backend**: Rust + Tauri v2.
+- **Standards**: All shared Rust models MUST be placed in `src-tauri/src/models/`.
+
+---
+*Built with ❤️ by the Llama Desktop Team.*

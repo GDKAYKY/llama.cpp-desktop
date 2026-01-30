@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -6,108 +5,18 @@ use std::time::Duration;
 use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot};
 
+use crate::models::{
+    ChatMessage, ChatRequest, LlamaCppConfig, ModelId, ModelInfo, ModelLibrary, ModelState,
+};
 // ==================================================================================
-// 1. Data Structures & Registry
-// ==================================================================================
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ModelId(pub String);
-
-impl std::fmt::Display for ModelId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-// Registry Structures matching modelLibrary.json
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelManifestLayer {
-    pub mediaType: String,
-    pub digest: String,
-    pub size: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelManifestConfig {
-    pub mediaType: String,
-    pub digest: String,
-    pub size: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelManifest {
-    pub schemaVersion: u32,
-    pub mediaType: String,
-    pub config: ModelManifestConfig,
-    pub layers: Vec<ModelManifestLayer>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelEntry {
-    pub provider: String,
-    pub library: String,
-    pub name: String,
-    pub version: String,
-    pub manifest: ModelManifest,
-    pub model_file_path: Option<String>,
-    pub full_identifier: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelLibrary {
-    pub models: Vec<ModelEntry>,
-}
-
-// Existing Config Structs (Preserved for compatibility)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LlamaCppConfig {
-    pub llama_cpp_path: String,
-    pub model_path: String,
-    pub port: u16,
-    pub ctx_size: u32,
-    pub parallel: u32,
-    pub n_gpu_layers: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatMessage {
-    pub role: String,
-    pub content: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ChatRequest {
-    pub model: String,
-    pub session_id: Option<String>,
-    pub messages: Vec<ChatMessage>,
-    pub temperature: f32,
-    pub top_p: f32,
-    pub top_k: i32,
-    pub max_tokens: i32,
-    pub stream: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChatChoice {
-    pub message: ChatMessage,
-    pub finish_reason: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChatResponse {
-    pub choices: Vec<ChatChoice>,
-    pub usage: serde_json::Value,
-}
-
-// ==================================================================================
-// 2. Actor Definition
+// 1. Actor Definition
 // ==================================================================================
 
 pub enum ActorMessage {
     Start {
         model_id: ModelId,
         config: LlamaCppConfig,
-        respond_to: oneshot::Sender<Result<(), String>>,
+        respond_to: oneshot::Sender<Result<u32, String>>,
     },
     Stop {
         model_id: ModelId,
@@ -129,22 +38,12 @@ pub enum ActorMessage {
     InternalStartComplete {
         model_id: ModelId,
         result: Result<(u16, Child, LlamaCppConfig), String>,
-        respond_to: oneshot::Sender<Result<(), String>>,
-    },
-}
-
-enum ModelState {
-    Stopped,
-    Starting,
-    Running {
-        port: u16,
-        child: Child,
-        config: LlamaCppConfig,
+        respond_to: oneshot::Sender<Result<u32, String>>,
     },
 }
 
 struct LlamaActor {
-    registry: HashMap<ModelId, ModelEntry>,
+    registry: HashMap<ModelId, ModelInfo>,
     states: HashMap<ModelId, ModelState>,
     receiver: mpsc::Receiver<ActorMessage>,
     client: reqwest::Client,
@@ -157,7 +56,7 @@ impl LlamaActor {
     fn new(
         receiver: mpsc::Receiver<ActorMessage>,
         self_sender: mpsc::Sender<ActorMessage>,
-        initial_registry: HashMap<ModelId, ModelEntry>,
+        initial_registry: HashMap<ModelId, ModelInfo>,
     ) -> Self {
         Self {
             registry: initial_registry,
@@ -187,6 +86,7 @@ impl LlamaActor {
                 } => {
                     let final_res = match result {
                         Ok((port, child, config)) => {
+                            let pid = child.id().unwrap_or(0);
                             self.states.insert(
                                 model_id.clone(),
                                 ModelState::Running {
@@ -196,7 +96,7 @@ impl LlamaActor {
                                 },
                             );
                             self.active_model = Some(model_id);
-                            Ok(())
+                            Ok(pid)
                         }
                         Err(e) => {
                             self.states.insert(model_id, ModelState::Stopped);
@@ -254,7 +154,7 @@ impl LlamaActor {
         &mut self,
         model_id: ModelId,
         config: LlamaCppConfig,
-        respond_to: oneshot::Sender<Result<(), String>>,
+        respond_to: oneshot::Sender<Result<u32, String>>,
     ) {
         // 1. Validation
         if let Some(state) = self.states.get(&model_id) {
@@ -302,7 +202,7 @@ impl LlamaActor {
     }
 
     async fn perform_start(
-        model_entry: Option<ModelEntry>,
+        model_entry: Option<ModelInfo>,
         config: LlamaCppConfig,
         client: reqwest::Client,
     ) -> Result<(u16, Child, LlamaCppConfig), String> {
@@ -333,7 +233,7 @@ impl LlamaActor {
             .unwrap_or(false);
 
         if !is_exec || llama_server_path.is_dir() {
-            let mut candidates = vec!["llama-server.exe", "llama-server"];
+            let candidates = vec!["llama-server.exe", "llama-server"];
 
             // Check in the provided directory
             let mut found = false;
@@ -619,7 +519,7 @@ impl LlamaCppService {
         Self { sender: tx }
     }
 
-    pub async fn start(&self, config: LlamaCppConfig) -> Result<(), String> {
+    pub async fn start(&self, config: LlamaCppConfig) -> Result<u32, String> {
         let id = ModelId(config.model_path.clone());
         let (tx, rx) = oneshot::channel();
         self.sender

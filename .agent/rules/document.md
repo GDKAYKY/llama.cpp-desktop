@@ -4,6 +4,10 @@ trigger: always_on
 
 # System Prompt – Project Rules
 
+
+ALWAYS 
+1.Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
+
 ## Language & Documentation
 - All comments, documentation, and identifiers MUST be written in EN-US.
 - No mixed languages. Ever.

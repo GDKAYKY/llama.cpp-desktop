@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod models;
 pub mod services;
 pub mod state;
 pub mod utils;
@@ -23,7 +24,7 @@ pub fn run() {
         .setup(|app| {
             let config = commands::config::get_config(app.handle()).unwrap_or_else(|e| {
                 println!("Failed to load config: {}", e);
-                commands::config::AppConfig::default()
+                crate::models::AppConfig::default()
             });
 
             let models_path = config
