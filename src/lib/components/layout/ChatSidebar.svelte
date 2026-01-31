@@ -1,63 +1,58 @@
 <script>
-  import { chatStore } from "$lib/stores/chat.svelte";
   import { goto } from "$app/navigation";
   import { cn } from "$lib/utils/cn.js";
   import {
-    Search,
-    SquarePen,
     PanelLeftClose,
     PanelLeftOpen,
-    Image,
-    Grid3x3,
-    FolderOpen,
     User,
     ChevronDown,
     Ellipsis,
     Sparkle,
     Settings,
-    HelpCircle,
-    LogOut,
+    CircleQuestionMark,
     MessageSquare,
     Box,
   } from "lucide-svelte";
   import { page } from "$app/state";
 
-  /** @type {{ isSidebarOpen: boolean, toggleSidebar: () => void }} */
   let { isSidebarOpen, toggleSidebar } = $props();
 
-  let activeMenu = $state("imagens");
   let showChatHistory = $state(true);
   let showProfileMenu = $state(false);
 
   const menuItems = [
     { id: "chat", label: "Chat", icon: MessageSquare, path: "/" },
-    { id: "models", label: "Modelos", icon: Box, path: "/models" },
+    { id: "models", label: "Models", icon: Box, path: "/models" },
     {
       id: "settings",
-      label: "Configurações",
+      label: "Settings",
       icon: Settings,
       path: "/settings",
     },
   ];
 
   const chatHistory = [
-    { id: "1", title: "Llama cpp", active: false },
-    { id: "2", title: "Estrutura Tauri e Rust", active: false },
-    { id: "3", title: "Erro DISM pacote permanente", active: false },
-    { id: "4", title: "Remover KB5074109 Passo a...", active: false },
-    { id: "5", title: "Erro no comando DISM", active: false },
-    { id: "6", title: "Direto ao ponto", active: false },
-    { id: "7", title: "Start Menu e Electron", active: false },
-    { id: "8", title: "Erro 0x800F0825 Windows", active: false },
+    { id: "1", title: "Llama cpp", active: true },
+    { id: "2", title: "Tauri and Rust Structure", active: false },
+    { id: "3", title: "DISM permanent package error", active: false },
   ];
 
-  function handleMenuClick(item) {
-    if (item.id === "chat" && page.url.pathname === "/") {
-      chatStore.clear();
-    } else {
-      goto(item.path);
-    }
-  }
+  const profileMenuItems = [
+    { id: "mcps", label: "MCPS", icon: Sparkle, action: "upgrade" },
+    {
+      id: "customization",
+      label: "Customization",
+      icon: Settings,
+      action: "customize",
+    },
+    {
+      id: "settings",
+      label: "Settings",
+      icon: Settings,
+      path: "/settings",
+    },
+    { id: "help", label: "Help", icon: CircleQuestionMark, action: "help" },
+  ];
 
   function toggleChatHistory() {
     showChatHistory = !showChatHistory;
@@ -67,234 +62,231 @@
     showProfileMenu = !showProfileMenu;
   }
 
-  function handleProfileMenuClick(/** @type {string} */ action) {
-    if (action === "settings") {
-      goto("/settings");
-    } else {
-      console.log("Profile action:", action);
-    }
+  function handleAction(item) {
+    if (item.path) goto(item.path);
     showProfileMenu = false;
+    // logic for other actions can be added here
   }
 </script>
 
 <aside
   class={cn(
-    "z-[100] flex h-screen shrink-0 flex-col overflow-hidden bg-sidebar transition-[width,padding] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
-    isSidebarOpen ? "w-[260px] p-0" : "w-[60px] p-0",
+    "z-[100] flex h-screen shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-300",
+    isSidebarOpen ? "w-[260px]" : "w-[60px]",
   )}
 >
-  <div
-    class={cn(
-      "flex h-full flex-col transition-[width,padding] duration-300",
-      isSidebarOpen ? "w-[260px] p-4 px-3" : "w-[60px] px-1 py-4",
-    )}
-  >
-    <div
-      class={cn(
-        "flex min-h-[48px] items-center gap-1 p-1 transition-[margin-bottom] duration-300",
-        isSidebarOpen
-          ? "mb-8 flex-row justify-start"
-          : "mb-4 flex-col justify-center gap-2",
-      )}
-    >
-      <button
-        class="flex cursor-pointer items-center justify-center rounded-lg bg-transparent p-2 text-[#b4b4b4] transition-all duration-200 hover:bg-[#2f2f2f] hover:text-white border-none"
-        onclick={toggleSidebar}
-        title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
-      >
-        {#if isSidebarOpen}
-          <PanelLeftClose size={22} strokeWidth={1.5} />
-        {:else}
-          <PanelLeftOpen size={22} strokeWidth={1.5} />
-        {/if}
-      </button>
-    </div>
-
-    <div
-      class={cn(
-        "scrollbar-hide flex grow flex-col gap-6 overflow-y-auto px-1 -mx-1 transition-opacity duration-300",
-        !isSidebarOpen && "hidden",
-      )}
-    >
-      <nav class="flex flex-col gap-2">
-        {#each menuItems as item}
-          <button
-            class={cn(
-              "flex w-full cursor-pointer items-center gap-3 rounded-lg border-none bg-transparent p-3 px-4 text-left text-[0.95rem] font-medium text-[#ececec] transition-colors duration-200 hover:bg-[#2f2f2f]",
-              page.url.pathname === item.path && "bg-[#3f3f3f] text-white",
-            )}
-            onclick={() => handleMenuClick(item)}
-            title={item.label}
-          >
-            <div class="flex shrink-0 items-center justify-center text-inherit">
-              {#if item.icon}
-                <item.icon size={20} strokeWidth={1.5} />
-              {/if}
-            </div>
-            <span class="overflow-hidden text-ellipsis whitespace-nowrap"
-              >{item.label}</span
-            >
-          </button>
-        {/each}
-
-        <div class="flex flex-col gap-2">
-          <button
-            class="flex cursor-pointer items-center justify-between border-none bg-transparent p-2 px-3 text-sm font-medium text-[#999] transition-colors duration-200 hover:text-[#ccc]"
-            onclick={toggleChatHistory}
-            title={showChatHistory
-              ? "Collapse chat history"
-              : "Expand chat history"}
-          >
-            <span class="whitespace-nowrap">Seus chats</span>
-            <div
-              class={cn(
-                "flex shrink-0 items-center justify-center transition-transform duration-300",
-                showChatHistory && "rotate-180",
-              )}
-            >
-              <ChevronDown size={18} strokeWidth={1.5} />
-            </div>
-          </button>
-
-          {#if showChatHistory}
-            <div class="flex flex-col gap-1">
-              {#each chatHistory as chat}
-                <button
-                  class={cn(
-                    "relative flex w-full cursor-pointer items-center justify-between overflow-hidden rounded-lg border-none bg-transparent p-2.5 px-3 text-left text-sm text-[#ececec] transition-colors duration-200 hover:bg-[#2f2f2f]",
-                    chat.active && "bg-[#3f3f3f] text-white font-medium",
-                  )}
-                  title={chat.title}
-                >
-                  <span
-                    class="mr-2 grow overflow-hidden text-ellipsis whitespace-nowrap"
-                    >{chat.title}</span
-                  >
-                  <div
-                    class="absolute right-2 flex items-center opacity-0 transition-opacity duration-200 bg-gradient-to-r from-transparent via-[#2f2f2f] to-[#2f2f2f] pl-4 group-hover:opacity-100"
-                  >
-                    <div
-                      class="flex h-6 w-6 items-center justify-center rounded hover:bg-[#3f3f3f]"
-                      role="button"
-                      tabindex="0"
-                      onclick={(e) => e.stopPropagation()}
-                      onkeydown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.stopPropagation();
-                        }
-                      }}
-                      title="Chat options"
-                    >
-                      <Ellipsis size={16} />
-                    </div>
-                  </div>
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      </nav>
-    </div>
-
-    <div
-      class={cn(
-        "relative mt-auto border-t border-[#2f2f2f] pt-4 transition-[padding] duration-300",
-        !isSidebarOpen && "border-t-0 pt-2",
-      )}
-    >
-      <div class="relative">
+  <div class="flex h-full flex-col">
+    <!-- HEADER -->
+    <div class="mb-auto shrink-0 pt-2.5 pb-2">
+      <div class="flex w-[60px] shrink-0 items-center justify-center">
         <button
-          class="w-full cursor-pointer rounded-lg bg-transparent p-0 transition-colors duration-200 hover:bg-[#2f2f2f] border-none focus-visible:outline-2 focus-visible:outline-[#0084ff] focus-visible:outline-offset-2"
-          onclick={toggleProfileMenu}
-          title="User menu"
+          class="flex h-10 w-10 items-center justify-center rounded-lg text-[#b4b4b4] transition-colors hover:bg-[#2f2f2f] hover:text-white"
+          onclick={toggleSidebar}
         >
+          {#if isSidebarOpen}
+            <PanelLeftClose size={20} strokeWidth={1.5} />
+          {:else}
+            <PanelLeftOpen size={20} strokeWidth={1.5} />
+          {/if}
+        </button>
+      </div>
+      <div
+        class={cn(
+          "overflow-hidden whitespace-nowrap transition-all duration-300",
+          isSidebarOpen ? "w-32 opacity-100" : "w-0 opacity-0",
+        )}
+      ></div>
+    </div>
+
+    <!-- TOP NAVIGATION (FIXED) -->
+    <nav class="flex shrink-0 flex-col">
+      {#each menuItems as item}
+        {@const isActive = page.url.pathname === item.path}
+        <button
+          class="group relative flex h-12 w-full cursor-pointer items-center border-none bg-transparent transition-colors duration-200"
+          onclick={() => handleAction(item)}
+          title={!isSidebarOpen ? item.label : ""}
+        >
+          <!-- Background Highlight -->
           <div
             class={cn(
-              "flex items-center gap-3 rounded-lg p-2.5 px-3 transition-colors duration-200",
-              !isSidebarOpen && "justify-center px-1 py-2",
+              "absolute transition-all duration-200 rounded-lg z-0",
+              isSidebarOpen
+                ? "inset-y-1 inset-x-2.5"
+                : "inset-y-1 left-[10px] w-10 h-10",
+              isActive
+                ? "bg-[#3f3f3f]"
+                : "bg-transparent group-hover:bg-[#2f2f2f]",
+            )}
+          ></div>
+
+          <div
+            class="relative z-10 flex w-[60px] shrink-0 items-center justify-center"
+          >
+            <div
+              class={cn(
+                "flex h-10 w-10 items-center justify-center transition-colors duration-200",
+                isActive
+                  ? "text-white"
+                  : "text-[#b4b4b4] group-hover:text-white",
+              )}
+            >
+              <item.icon size={20} strokeWidth={1.5} />
+            </div>
+          </div>
+          <div
+            class={cn(
+              "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300",
+              isSidebarOpen ? "w-40 opacity-100 ml-1" : "w-0 opacity-0 ml-0",
             )}
           >
-            <div class="flex items-center text-[#b4b4b4]">
-              <User size={24} strokeWidth={1.5} />
-            </div>
             <span
               class={cn(
-                "text-sm font-medium text-[#ececec] transition-opacity duration-300",
-                !isSidebarOpen && "hidden",
-              )}>Antigravity User</span
+                "text-[0.9rem] font-medium transition-colors duration-200",
+                isActive
+                  ? "text-white"
+                  : "text-[#ececec] group-hover:text-white",
+              )}
             >
+              {item.label}
+            </span>
+          </div>
+        </button>
+      {/each}
+    </nav>
+
+    <!-- CENTRAL AREA (SCROLLABLE) -->
+    <div
+      class={cn(
+        "scrollbar-hide mt-4 flex grow flex-col overflow-y-auto transition-opacity duration-300",
+        !isSidebarOpen && "pointer-events-none opacity-0",
+      )}
+    >
+      <div class="flex flex-col gap-2">
+        <button
+          class="flex cursor-pointer items-center justify-between p-2 px-6 text-xs font-medium text-[#999] transition-colors hover:text-[#ccc]"
+          onclick={toggleChatHistory}
+        >
+          <span class="whitespace-nowrap uppercase tracking-wider"
+            >Your chats</span
+          >
+          <ChevronDown
+            size={14}
+            strokeWidth={1.5}
+            class={cn("transition-transform", showChatHistory && "rotate-180")}
+          />
+        </button>
+
+        {#if showChatHistory}
+          <div class="flex flex-col gap-0.5 px-3">
+            {#each chatHistory as chat}
+              <button
+                class={cn(
+                  "group relative flex h-9 w-full items-center justify-between overflow-hidden rounded-lg px-3 text-left text-sm text-[#ececec] transition-colors hover:bg-[#2f2f2f]",
+                  chat.active && "bg-[#242424] text-white font-medium",
+                )}
+              >
+                <span class="truncate">{chat.title}</span>
+                <div
+                  class="absolute right-2 flex items-center opacity-0 transition-opacity group-hover:opacity-100"
+                >
+                  <div
+                    class="flex h-6 w-6 items-center justify-center rounded hover:bg-[#3f3f3f]"
+                    onclick={(e) => e.stopPropagation()}
+                    role="button"
+                    tabindex="0"
+                    onkeydown={(e) => e.key === "Enter" && e.stopPropagation()}
+                    aria-label="Options"
+                  >
+                    <Ellipsis size={14} />
+                  </div>
+                </div>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <!-- FOOTER (FIXED) -->
+    <div class="mt-auto shrink-0 border-t border-[#2f2f2f] pt-2 pb-2">
+      <div class="relative">
+        <button
+          class="group relative flex h-12 w-full cursor-pointer items-center border-none bg-transparent transition-colors duration-200"
+          onclick={toggleProfileMenu}
+        >
+          <!-- Background Highlight -->
+          <div
+            class={cn(
+              "absolute transition-all duration-200 rounded-lg z-0",
+              isSidebarOpen
+                ? "inset-y-1 inset-x-2"
+                : "inset-y-1 left-[10px] w-10 h-10",
+              showProfileMenu
+                ? "bg-[#3f3f3f]"
+                : "bg-transparent group-hover:bg-[#2f2f2f]",
+            )}
+          ></div>
+
+          <div
+            class="relative z-10 flex w-[60px] shrink-0 items-center justify-center"
+          >
+            <div
+              class={cn(
+                "flex h-10 w-10 items-center justify-center transition-colors duration-200",
+                showProfileMenu
+                  ? "text-white"
+                  : "text-[#b4b4b4] group-hover:text-white",
+              )}
+            >
+              <User size={22} strokeWidth={1.5} />
+            </div>
+          </div>
+          <div
+            class={cn(
+              "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300",
+              isSidebarOpen ? "w-40 opacity-100 ml-1" : "w-0 opacity-0 ml-0",
+            )}
+          >
+            <span
+              class={cn(
+                "text-sm font-medium transition-colors duration-200",
+                showProfileMenu
+                  ? "text-white"
+                  : "text-[#ececec] group-hover:text-white",
+              )}
+            >
+              Antigravity User
+            </span>
           </div>
         </button>
 
-        {#if showProfileMenu}
+        {#if showProfileMenu && isSidebarOpen}
           <div
-            class="absolute bottom-full left-0 right-0 z-[1000] mb-2 min-w-[240px] animate-in fade-in slide-in-from-bottom-2 rounded-xl border border-[#3f3f3f] bg-[#2a2a2a] shadow-[0_10px_25px_rgba(0,0,0,0.5)]"
+            class="absolute bottom-full left-2 right-2 z-1000 mb-2 min-w-[200px] animate-in fade-in slide-in-from-bottom-2 rounded-xl border border-[#3f3f3f] bg-[#2a2a2a] p-1 shadow-2xl"
           >
             <div
-              class="flex items-center gap-3 border-b border-[#3f3f3f] p-3 px-4"
+              class="flex items-center gap-3 border-b border-[#3f3f3f] p-3 mb-1"
             >
               <div
-                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#3f3f3f] text-[#b4b4b4]"
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#3f3f3f] text-[#b4b4b4]"
               >
-                <User size={20} strokeWidth={1.5} />
+                <User size={16} strokeWidth={1.5} />
               </div>
-              <div class="flex min-w-0 flex-col gap-1">
-                <div
-                  class="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold text-[#ececec]"
-                >
-                  Kayky Vitor
-                </div>
-                <div
-                  class="overflow-hidden text-ellipsis whitespace-nowrap text-[0.75rem] text-[#999]"
-                >
-                  @kaykyvitorgp
-                </div>
-              </div>
+              <span class="truncate text-sm font-semibold text-[#ececec]"
+                >User</span
+              >
             </div>
 
-            <div class="my-2 h-px bg-[#3f3f3f]"></div>
-
-            <button
-              class="flex w-full cursor-pointer items-center gap-3 border-none bg-transparent p-3 px-4 text-left text-sm font-medium text-[#ececec] transition-colors duration-200 hover:bg-[#3f3f3f]"
-              onclick={() => handleProfileMenuClick("upgrade")}
-            >
-              <Sparkle size={18} strokeWidth={1.5} />
-              <span>Fazer upgrade do plano</span>
-            </button>
-
-            <button
-              class="flex w-full cursor-pointer items-center gap-3 border-none bg-transparent p-3 px-4 text-left text-sm font-medium text-[#ececec] transition-colors duration-200 hover:bg-[#3f3f3f]"
-              onclick={() => handleProfileMenuClick("customize")}
-            >
-              <Settings size={18} strokeWidth={1.5} />
-              <span>Personalização</span>
-            </button>
-
-            <button
-              class="flex w-full cursor-pointer items-center gap-3 border-none bg-transparent p-3 px-4 text-left text-sm font-medium text-[#ececec] transition-colors duration-200 hover:bg-[#3f3f3f]"
-              onclick={() => handleProfileMenuClick("settings")}
-            >
-              <Settings size={18} strokeWidth={1.5} />
-              <span>Configurações</span>
-            </button>
-
-            <div class="my-2 h-px bg-[#3f3f3f]"></div>
-
-            <button
-              class="flex w-full cursor-pointer items-center gap-3 border-none bg-transparent p-3 px-4 text-left text-sm font-medium text-[#ececec] transition-colors duration-200 hover:bg-[#3f3f3f]"
-              onclick={() => handleProfileMenuClick("help")}
-            >
-              <HelpCircle size={18} strokeWidth={1.5} />
-              <span>Ajuda</span>
-            </button>
-
-            <button
-              class="flex w-full cursor-pointer items-center gap-3 border-none bg-transparent p-3 px-4 text-left text-sm font-medium text-[#ff6b6b] transition-colors duration-200 hover:bg-red-500/10"
-              onclick={() => handleProfileMenuClick("logout")}
-            >
-              <LogOut size={18} strokeWidth={1.5} />
-              <span>Sair</span>
-            </button>
+            {#each profileMenuItems as item}
+              <button
+                class="flex w-full items-center gap-3 rounded-lg p-2.5 px-3 text-left text-sm font-medium text-[#ececec] transition-colors hover:bg-[#3f3f3f]"
+                onclick={() => handleAction(item)}
+              >
+                <item.icon size={16} strokeWidth={1.5} />
+                <span>{item.label}</span>
+              </button>
+            {/each}
           </div>
         {/if}
       </div>
