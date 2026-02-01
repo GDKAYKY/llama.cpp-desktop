@@ -12,8 +12,10 @@
     CircleQuestionMark,
     MessageSquare,
     Box,
+    SquarePen,
   } from "lucide-svelte";
   import { page } from "$app/state";
+  import { chatStore } from "$lib/stores/chat.svelte";
 
   let { isSidebarOpen, toggleSidebar } = $props();
 
@@ -100,6 +102,46 @@
 
     <!-- TOP NAVIGATION (FIXED) -->
     <nav class="flex shrink-0 flex-col">
+      <!-- New Chat Button -->
+      <button
+        class="group relative flex h-12 w-full cursor-pointer items-center border-none bg-transparent transition-colors duration-200"
+        onclick={() => chatStore.clear()}
+        title={!isSidebarOpen ? "New Chat" : ""}
+      >
+        <!-- Background Highlight -->
+        <div
+          class={cn(
+            "absolute transition-all duration-200 rounded-lg z-0",
+            isSidebarOpen
+              ? "inset-y-1 inset-x-2.5"
+              : "inset-y-1 left-[10px] w-10 h-10",
+            "bg-transparent group-hover:bg-[#2f2f2f]",
+          )}
+        ></div>
+
+        <div
+          class="relative z-10 flex w-[60px] shrink-0 items-center justify-center"
+        >
+          <div
+            class="flex h-10 w-10 items-center justify-center text-[#b4b4b4] group-hover:text-white transition-colors duration-200"
+          >
+            <SquarePen size={20} strokeWidth={1.5} />
+          </div>
+        </div>
+        <div
+          class={cn(
+            "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300",
+            isSidebarOpen ? "w-40 opacity-100 ml-1" : "w-0 opacity-0 ml-0",
+          )}
+        >
+          <span
+            class="text-[0.9rem] font-medium text-[#ececec] group-hover:text-white transition-colors duration-200"
+          >
+            New Chat
+          </span>
+        </div>
+      </button>
+
       {#each menuItems as item}
         {@const isActive = page.url.pathname === item.path}
         <button

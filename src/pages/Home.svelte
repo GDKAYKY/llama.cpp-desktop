@@ -97,6 +97,14 @@
     }
 
     try {
+      if (
+        serverStore.isRunning &&
+        serverStore.currentConfig?.model_path === modelPath
+      ) {
+        toast.success(`Using already running model: ${model.name}`);
+        return;
+      }
+
       toast.info("Starting llama-server...");
       if (serverStore.isRunning) {
         await serverStore.stopServer();

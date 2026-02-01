@@ -1,9 +1,11 @@
 import { invokeCommand } from '$infrastructure/ipc';
+import type { LlamaCppConfig } from '$lib/types/backend';
 
 export interface ServerStatus {
     isRunning: boolean;
     isHealthy: boolean;
     error: string | null;
+    currentConfig: LlamaCppConfig | null;
 }
 
 class ServerStore {
@@ -11,6 +13,19 @@ class ServerStore {
     isHealthy = $state(false);
     error = $state<string | null>(null);
     isChecking = $state(false);
+    currentConfig = $state<LlamaCppConfig | null>(null);
+
+    constructor() {
+        this.init();
+    }
+
+    async init() {
+        await this.checkRunning();
+        if (this.isRunning) {
+            await this.checkHealth();
+            this.startHealthMonitoring();
+        }
+    }
 
     async startServer(binaryPath: string, modelPath: string, port: number = 8000, ctxSize: number = 4096, nGpuLayers: number = 33) {
         try {
@@ -40,6 +55,7 @@ class ServerStore {
             await invokeCommand('stop_llama_server');
             this.isRunning = false;
             this.isHealthy = false;
+            this.currentConfig = null;
             console.log('Server stopped');
         } catch (err) {
             this.error = err instanceof Error ? err.message : String(err);
@@ -64,10 +80,17 @@ class ServerStore {
 
     async checkRunning() {
         try {
-            const running = await invokeCommand('is_server_running');
-            this.isRunning = running as boolean;
+            const running = await invokeCommand('is_server_running') as boolean;
+            this.isRunning = running;
+            if (running) {
+                const config = await invokeCommand('get_llama_config') as LlamaCppConfig;
+                this.currentConfig = config;
+            } else {
+                this.currentConfig = null;
+            }
         } catch (err) {
             this.isRunning = false;
+            this.currentConfig = null;
             console.error('Failed to check if server is running:', err);
         }
     }
@@ -92,6 +115,7 @@ class ServerStore {
             isRunning: this.isRunning,
             isHealthy: this.isHealthy,
             error: this.error,
+            currentConfig: this.currentConfig,
         };
     }
 }

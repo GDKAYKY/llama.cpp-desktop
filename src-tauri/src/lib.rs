@@ -51,6 +51,7 @@ pub fn run() {
             commands::llama_cpp::stop_llama_server,
             commands::llama_cpp::check_server_health,
             commands::llama_cpp::is_server_running,
+            commands::llama_cpp::get_llama_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

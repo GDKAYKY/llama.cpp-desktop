@@ -1,13 +1,6 @@
 <script lang="ts">
   import { cn } from "$shared/cn.js";
-  import {
-    PanelLeftOpen,
-    SquarePen,
-    ChevronDown,
-    Check,
-    Loader2,
-  } from "lucide-svelte";
-  import { chatStore } from "$lib/stores/chat.svelte";
+  import { ChevronDown, Check, Loader2 } from "lucide-svelte";
 
   /** @type {{
    *   isSidebarOpen: boolean,
@@ -22,14 +15,16 @@
    *   modelLoaded: boolean
    * }} */
   let {
+    isSidebarOpen,
+    toggleSidebar,
     isLoading,
     toggleDropdown,
     selectedModel,
     isDropdownOpen,
     models,
-    LoaderCircle,
     selectModel,
     handleClickOutside,
+    modelLoaded,
   } = $props();
 </script>
 
@@ -38,8 +33,7 @@
 <header
   class="sticky top-0 z-50 flex h-[54px] items-center border-b border-border bg-background px-4"
 >
-  <!-- Left spacer to balance the right side width for perfect centering -->
-  <div class="flex min-w-[80px] shrink-0"></div>
+  <div class="flex min-w-[80px] shrink-0 items-center gap-2"></div>
 
   <div class="relative flex grow justify-center">
     <div class="relative flex w-full max-w-[400px] justify-center">
@@ -120,7 +114,7 @@
         class="flex items-center justify-center text-muted-foreground"
         aria-live="polite"
       >
-        <LoaderCircle class="h-4 w-4 animate-spin" />
+        <Loader2 class="h-4 w-4 animate-spin" />
       </div>
     {/if}
   </div>

@@ -159,11 +159,13 @@ impl LlamaActor {
         // 1. Validation
         if let Some(state) = self.states.get(&model_id) {
             match state {
-                ModelState::Running { .. } | ModelState::Starting => {
-                    let _ = respond_to.send(Err(format!(
-                        "Model {} is already running or starting",
-                        model_id
-                    )));
+                ModelState::Running { child, .. } => {
+                    let pid = child.id().unwrap_or(0);
+                    let _ = respond_to.send(Ok(pid));
+                    return;
+                }
+                ModelState::Starting => {
+                    let _ = respond_to.send(Err(format!("Model {} is already starting", model_id)));
                     return;
                 }
                 _ => {}

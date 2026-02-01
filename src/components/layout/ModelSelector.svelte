@@ -7,7 +7,15 @@
   } from "$lib/services/models.js";
   import { createEventDispatcher } from "svelte";
   import { cn } from "$shared/cn.js";
-  import { FolderOpen, Scan, Check, AlertTriangle, Box } from "lucide-svelte";
+  import {
+    FolderOpen,
+    Scan,
+    Check,
+    AlertTriangle,
+    Box,
+    Activity,
+  } from "lucide-svelte";
+  import { serverStore } from "$lib/stores/server.svelte";
 
   type Model = {
     name: string;
@@ -208,6 +216,15 @@
                 {model.version}
               </span>
             </div>
+
+            {#if serverStore.isRunning && serverStore.currentConfig?.model_path === model.model_file_path}
+              <div
+                class="flex items-center gap-1.5 text-[10px] font-bold text-green-400 uppercase tracking-wider"
+              >
+                <Activity size={12} class="animate-pulse" />
+                Running
+              </div>
+            {/if}
 
             <div class="space-y-1 text-xs">
               <div class="flex justify-between">

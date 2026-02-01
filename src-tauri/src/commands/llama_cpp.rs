@@ -53,3 +53,10 @@ pub async fn check_server_health(state: State<'_, AppState>) -> Result<bool, Str
         Err(_) => Ok(false),
     }
 }
+
+#[command]
+pub async fn get_llama_config(
+    state: State<'_, AppState>,
+) -> Result<Option<LlamaCppConfig>, String> {
+    Ok(state.llama_service.get_config().await)
+}
