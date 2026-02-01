@@ -1,4 +1,4 @@
-import { invokeCommand } from '$lib/ipc';
+import { invokeCommand } from '$infrastructure/ipc';
 
 export interface ServerStatus {
     isRunning: boolean;

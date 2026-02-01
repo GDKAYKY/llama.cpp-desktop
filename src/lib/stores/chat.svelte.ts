@@ -1,4 +1,4 @@
-import { invokeCommand } from '$lib/ipc';
+import { invokeCommand } from '$infrastructure/ipc';
 import { Channel } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { settingsStore } from '$lib/stores/settings.svelte';
@@ -94,6 +94,16 @@ class ChatStore {
     } finally {
       this.isLoading = false;
     }
+  }
+
+  async editMessage(index: number, content: string) {
+    if (this.isLoading) return;
+    
+    // Remove all messages from this index onwards
+    this.messages = this.messages.slice(0, index);
+    
+    // Send the new version
+    await this.send(content);
   }
 
   async clear() {

@@ -6,7 +6,7 @@
   import { modelsStore } from "$lib/stores/models.svelte";
   import { uiStore } from "$lib/stores/ui.svelte";
   import { onMount } from "svelte";
-  import ChatSidebar from "$lib/components/layout/ChatSidebar.svelte";
+  import ChatSidebar from "$components/layout/ChatSidebar.svelte";
 
   let { children } = $props();
 
