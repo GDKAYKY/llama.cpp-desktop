@@ -1,4 +1,4 @@
-import { invokeCommand } from "../ipc";
+import { invokeCommand } from "../infrastructure/ipc";
 import type { AppConfig } from "./AppConfig";
 import { DEFAULT_CONFIG } from "./defaultConfig";
 

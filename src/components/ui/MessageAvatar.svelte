@@ -1,5 +1,5 @@
 <script>
-  import { cn } from "$lib/utils/cn.js";
+  import { cn } from "$shared/cn.js";
   /** @type {{ role: 'user' | 'assistant' | 'system', class?: string }} */
   let { role, class: className } = $props();
 </script>

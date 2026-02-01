@@ -7,7 +7,7 @@
   import { getConfigPath } from "$lib/config/index";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
-  import { cn } from "$lib/utils/cn.js";
+  import { cn } from "$shared/cn.js";
   import { X } from "lucide-svelte";
 
   let configPath = $state("");

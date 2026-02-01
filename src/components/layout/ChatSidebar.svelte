@@ -1,6 +1,6 @@
 <script>
   import { goto } from "$app/navigation";
-  import { cn } from "$lib/utils/cn.js";
+  import { cn } from "$shared/cn.js";
   import {
     PanelLeftClose,
     PanelLeftOpen,

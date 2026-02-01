@@ -1,4 +1,4 @@
-import { invokeCommand } from '../ipc';
+import { invokeCommand } from '../infrastructure/ipc';
 import { open } from '@tauri-apps/plugin-dialog';
 
 /** 

@@ -13,10 +13,10 @@
   import { rehypeEnhanceLinks } from "$lib/markdown/enhance-links.js";
   import { rehypeEnhanceCodeBlocks } from "$lib/markdown/enhance-code-blocks.js";
   import { remarkLiteralHtml } from "$lib/markdown/literal-html.js";
-  import { preprocessLaTeX } from "$lib/utils/latex-protection.js";
-  import { copyCodeToClipboard } from "$lib/utils/clipboard.js";
+  import { preprocessLaTeX } from "$shared/latex-protection.js";
+  import { copyCodeToClipboard } from "$shared/clipboard.js";
   import { mode } from "mode-watcher";
-  import { cn } from "$lib/utils/cn.js";
+  import { cn } from "$shared/cn.js";
   import "highlight.js/styles/github-dark.css";
   import "katex/dist/katex.min.css";
 

@@ -4,7 +4,7 @@
     OrchestratorService,
     useConversation,
   } from "$lib/services/orchestrator";
-  import { cn } from "$lib/utils/cn.js";
+  import { cn } from "$shared/cn.js";
   import type { Message, GenerationParams } from "$lib/types/backend";
   import { DEFAULT_GENERATION_PARAMS } from "$lib/types/backend";
   import { Eraser, Plus, Send, Info, X } from "lucide-svelte";

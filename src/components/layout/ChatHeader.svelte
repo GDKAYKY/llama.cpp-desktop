@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { cn } from "$lib/utils/cn.js";
+  import { cn } from "$shared/cn.js";
   import {
     PanelLeftOpen,
     SquarePen,

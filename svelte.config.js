@@ -12,6 +12,8 @@ const config = {
     }),
     alias: {
       $components: "src/components",
+      $infrastructure: "src/lib/infrastructure",
+      $shared: "src/lib/shared",
     },
   },
 };

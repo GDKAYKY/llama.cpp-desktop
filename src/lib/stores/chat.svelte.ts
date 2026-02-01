@@ -1,4 +1,4 @@
-import { invokeCommand } from '$lib/ipc';
+import { invokeCommand } from '$infrastructure/ipc';
 import { Channel } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { settingsStore } from '$lib/stores/settings.svelte';

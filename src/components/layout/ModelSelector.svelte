@@ -6,7 +6,7 @@
     loadModelLibrary,
   } from "$lib/services/models.js";
   import { createEventDispatcher } from "svelte";
-  import { cn } from "$lib/utils/cn.js";
+  import { cn } from "$shared/cn.js";
   import { FolderOpen, Scan, Check, AlertTriangle, Box } from "lucide-svelte";
 
   type Model = {
