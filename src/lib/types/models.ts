@@ -5,7 +5,14 @@ export interface Model {
     library: string;
     full_identifier: string;
     manifest: {
+        config: {
+            mediaType: string;
+            digest: string;
+            size: number;
+        };
         layers: Array<{
+            mediaType: string;
+            digest: string;
             size: number;
         }>;
     };

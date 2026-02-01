@@ -1,10 +1,5 @@
 <script lang="ts">
-  import {
-    selectModelsDirectory,
-    scanModelsDirectory,
-    saveModelLibrary,
-    loadModelLibrary,
-  } from "$lib/services/models.js";
+  import { modelsStore, type Model } from "$lib/stores/models.svelte";
   import { createEventDispatcher } from "svelte";
   import { cn } from "$shared/cn.js";
   import {
@@ -14,110 +9,96 @@
     AlertTriangle,
     Box,
     Activity,
+    Square,
+    MoreVertical,
+    Copy,
+    FileText,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
 
-  type Model = {
-    name: string;
-    version: string;
-    provider: string;
-    library: string;
-    full_identifier: string;
-    manifest: { layers: Array<{ size: number }> };
-    model_file_path?: string;
-  };
-
   const dispatch = createEventDispatcher();
+  let activeDropdown = $state<string | null>(null);
 
-  let modelsRoot = $state("");
-  let models = $state<Model[]>([]);
-  let selectedModel = $state<Model | null>(null);
-  let loading = $state(false);
-  let error = $state("");
-  let libraryPath = $state("");
-  let successMessage = $state("");
+  function toggleDropdown(id: string, e: MouseEvent) {
+    e.stopPropagation();
+    activeDropdown = activeDropdown === id ? null : id;
+  }
 
-  async function handleSelectDirectory() {
-    try {
-      error = "";
-      successMessage = "";
-      const selected = await selectModelsDirectory();
-      if (selected) {
-        modelsRoot = selected;
-        libraryPath = `${selected}/modelLibrary.json`;
-        await loadExistingLibrary();
+  function handleAction(action: string, model: Model, e: MouseEvent) {
+    e.stopPropagation();
+    activeDropdown = null;
+
+    if (action === "copy-path") {
+      if (model.model_file_path) {
+        navigator.clipboard.writeText(model.model_file_path);
+        // You might want to add a toast here, but I'll stick to the core request
       }
-    } catch (err) {
-      error = `Failed to select directory: ${err instanceof Error ? err.message : String(err)}`;
-      console.error(err);
+    } else if (action === "view-manifest") {
+      console.log("Viewing manifest for:", model.name, model.manifest);
+      // Logic for viewing manifest could be a modal or another page,
+      // but for now, we're just adding the dropdown structure.
     }
   }
 
-  async function loadExistingLibrary() {
-    try {
-      loading = true;
-      const existingModels = await loadModelLibrary(libraryPath);
-      if (existingModels.length > 0) {
-        models = existingModels;
-        successMessage = `Loaded ${existingModels.length} model(s) from library`;
-      }
-    } catch (err) {
-      console.log("No existing library found, will scan directory");
-    } finally {
-      loading = false;
-    }
+  async function handleSelectDirectory() {
+    await modelsStore.selectDirectory();
   }
 
   async function handleScanDirectory() {
-    if (!modelsRoot) {
-      error = "Please select a models directory first";
-      return;
-    }
-
-    try {
-      loading = true;
-      error = "";
-      successMessage = "";
-      models = await scanModelsDirectory(modelsRoot);
-
-      if (models.length > 0) {
-        await saveModelLibrary(libraryPath, models);
-        successMessage = `Found and saved ${models.length} model(s)`;
-      } else {
-        error = "No models found in the selected directory";
-      }
-    } catch (err) {
-      error = `Failed to scan directory: ${err instanceof Error ? err.message : String(err)}`;
-      console.error(err);
-    } finally {
-      loading = false;
-    }
+    await modelsStore.scan();
   }
 
   function handleSelectModel(model: Model) {
-    selectedModel = model;
-    successMessage = "";
+    modelsStore.selectModel(model);
   }
 
   function handleLoadModel() {
-    if (!selectedModel) {
-      error = "Please select a model first";
+    if (!modelsStore.selectedModel) {
+      modelsStore.error = "Please select a model first";
       return;
     }
 
     // Dispatch event to parent component
     dispatch("modelSelected", {
-      model: selectedModel,
+      model: modelsStore.selectedModel,
     });
 
-    successMessage = `Model "${selectedModel.name}:${selectedModel.version}" is ready to use`;
+    modelsStore.successMessage = `Model "${modelsStore.selectedModel.name}:${modelsStore.selectedModel.version}" is ready to use`;
   }
 
   function formatSize(bytes: number) {
-    const gb = bytes / 1024 ** 3;
-    return `${gb.toFixed(2)} GB`;
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  }
+
+  function getTotalSize(model: Model) {
+    return model.manifest.layers.reduce((acc, layer) => acc + layer.size, 0);
+  }
+
+  function getModelMetadata(version: string) {
+    // Look for patterns like 7b, 8b, 70b
+    const paramMatch = version.match(/\b(\d+\.?\d*b)\b/i);
+    // Look for quantization patterns
+    const quantMatch = version.match(/(q\d+_\w+)|(q\d+)|(fp16)|(bf16)|(f16)/i);
+
+    return {
+      params: paramMatch ? paramMatch[0].toUpperCase() : null,
+      quant: quantMatch ? quantMatch[0].toUpperCase() : null,
+    };
+  }
+
+  function getShortDigest(digest: string) {
+    if (!digest) return "";
+    const parts = digest.split(":");
+    const hash = parts[1] || parts[0];
+    return hash.substring(0, 12);
   }
 </script>
+
+<svelte:window onclick={() => (activeDropdown = null)} />
 
 <div class="mx-auto max-w-7xl p-6 text-foreground">
   <div
@@ -133,69 +114,71 @@
     <div class="flex flex-wrap gap-2">
       <button
         onclick={handleSelectDirectory}
-        disabled={loading}
+        disabled={modelsStore.isLoading}
         class="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-white/5 disabled:opacity-50"
       >
         <FolderOpen size={18} />
         Select Models Directory
       </button>
 
-      {#if modelsRoot}
+      {#if modelsStore.modelsRoot}
         <button
           onclick={handleScanDirectory}
-          disabled={loading}
+          disabled={modelsStore.isLoading}
           class="flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50"
         >
-          <Scan size={18} class={cn(loading && "animate-spin")} />
-          {loading ? "Scanning..." : "Scan for Models"}
+          <Scan size={18} class={cn(modelsStore.isLoading && "animate-spin")} />
+          {modelsStore.isLoading ? "Scanning..." : "Scan for Models"}
         </button>
       {/if}
     </div>
   </div>
 
-  {#if modelsRoot}
+  {#if modelsStore.modelsRoot}
     <div
       class="mb-6 rounded-lg border border-border bg-white/[0.02] p-3 font-mono text-sm text-muted-foreground"
     >
-      <span class="mr-2 font-bold text-foreground">Path:</span>{modelsRoot}
+      <span class="mr-2 font-bold text-foreground">Path:</span
+      >{modelsStore.modelsRoot}
     </div>
   {/if}
 
-  {#if error}
+  {#if modelsStore.error}
     <div
       class="mb-6 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
     >
       <AlertTriangle size={18} />
-      {error}
+      {modelsStore.error}
     </div>
   {/if}
 
-  {#if successMessage}
+  {#if modelsStore.successMessage}
     <div
       class="mb-6 flex items-center gap-3 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400"
     >
       <Check size={18} />
-      {successMessage}
+      {modelsStore.successMessage}
     </div>
   {/if}
 
-  {#if models.length > 0}
+  {#if modelsStore.models.length > 0}
     <div class="space-y-6">
       <div
         class="flex items-center justify-between border-b border-border pb-4"
       >
         <h3 class="flex items-center gap-2 text-lg font-medium">
           <Box size={20} class="text-muted-foreground" />
-          Available Models ({models.length})
+          Available Models ({modelsStore.models.length})
         </h3>
       </div>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {#each models as model}
+        {#each modelsStore.models as model}
           <div
             class={cn(
               "relative flex cursor-pointer flex-col gap-4 rounded-xl border-2 p-5 transition-all",
-              selectedModel?.full_identifier === model.full_identifier
+              modelsStore.selectedModel?.full_identifier ===
+                model.full_identifier
                 ? "border-primary bg-primary/5 shadow-md"
                 : "border-border bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]",
             )}
@@ -207,42 +190,132 @@
             <div
               class="flex items-center justify-between gap-2 border-b border-border pb-3"
             >
-              <h4 class="truncate font-semibold text-foreground">
-                {model.name}
-              </h4>
-              <span
-                class="shrink-0 rounded bg-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary uppercase"
-              >
-                {model.version}
-              </span>
+              <div class="flex min-w-0 flex-col">
+                <h4 class="truncate font-semibold text-foreground">
+                  {model.name}
+                </h4>
+                <div class="flex items-center gap-2">
+                  <span
+                    class="shrink-0 rounded bg-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary uppercase"
+                  >
+                    {model.version}
+                  </span>
+                </div>
+              </div>
+
+              <div class="relative flex items-center gap-1">
+                <button
+                  class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+                  onclick={(e) => toggleDropdown(model.full_identifier, e)}
+                >
+                  <MoreVertical size={16} />
+                </button>
+
+                {#if activeDropdown === model.full_identifier}
+                  <div
+                    class="absolute right-0 top-8 z-50 w-48 overflow-hidden rounded-lg border border-border bg-secondary shadow-xl"
+                  >
+                    <button
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-white/5"
+                      onclick={(e) => handleAction("copy-path", model, e)}
+                    >
+                      <Copy size={14} />
+                      Copy File Path
+                    </button>
+                    <button
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-white/5"
+                      onclick={(e) => handleAction("view-manifest", model, e)}
+                    >
+                      <FileText size={14} />
+                      View Manifest
+                    </button>
+                  </div>
+                {/if}
+              </div>
             </div>
 
             {#if serverStore.isRunning && serverStore.currentConfig?.model_path === model.model_file_path}
-              <div
-                class="flex items-center gap-1.5 text-[10px] font-bold text-green-400 uppercase tracking-wider"
-              >
-                <Activity size={12} class="animate-pulse" />
-                Running
+              <div class="flex items-center justify-between gap-1.5">
+                <div
+                  class="flex items-center gap-1.5 text-[10px] font-bold text-green-400 uppercase tracking-wider"
+                >
+                  <Activity size={12} class="animate-pulse" />
+                  Running
+                </div>
+                <button
+                  class="flex items-center gap-1 rounded bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-400 border border-red-500/30 transition-all hover:bg-red-500/40 hover:text-red-100"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    serverStore.stopServer();
+                  }}
+                  title="Stop execution"
+                >
+                  <Square size={10} fill="currentColor" />
+                  STOP
+                </button>
               </div>
             {/if}
 
-            <div class="space-y-1 text-xs">
-              <div class="flex justify-between">
-                <span class="text-muted-foreground">Provider:</span>
-                <span class="font-medium">{model.provider}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-muted-foreground">Library:</span>
-                <span class="font-medium">{model.library}</span>
-              </div>
-              {#if model.manifest.layers[0]}
-                <div class="flex justify-between">
-                  <span class="text-muted-foreground">Size:</span>
-                  <span class="font-medium"
-                    >{formatSize(model.manifest.layers[0].size)}</span
+            <div class="grid grid-cols-2 gap-2">
+              {#each Object.entries(getModelMetadata(model.version)) as [key, value]}
+                {#if value}
+                  <div
+                    class="flex flex-col rounded-md bg-white/5 p-1.5 border border-white/5"
                   >
-                </div>
-              {/if}
+                    <span
+                      class="text-[9px] uppercase text-muted-foreground font-bold tracking-wider"
+                      >{key === "params" ? "Parameters" : "Quant"}</span
+                    >
+                    <span
+                      class="font-mono text-[10px] font-bold text-foreground/90"
+                      >{value}</span
+                    >
+                  </div>
+                {/if}
+              {/each}
+              <div
+                class="flex flex-col rounded-md bg-white/5 p-1.5 border border-white/5"
+              >
+                <span
+                  class="text-[9px] uppercase text-muted-foreground font-bold tracking-wider"
+                  >Total Size</span
+                >
+                <span class="font-mono text-[10px] font-bold text-foreground/90"
+                  >{formatSize(getTotalSize(model))}</span
+                >
+              </div>
+              <div
+                class="flex flex-col rounded-md bg-white/5 p-1.5 border border-white/5"
+              >
+                <span
+                  class="text-[9px] uppercase text-muted-foreground font-bold tracking-wider"
+                  >Digest</span
+                >
+                <span class="font-mono text-[10px] font-bold text-foreground/90"
+                  >{getShortDigest(model.manifest.config.digest)}</span
+                >
+              </div>
+            </div>
+
+            <div class="space-y-1 pt-1">
+              <div class="flex items-center justify-between text-[10px]">
+                <span class="text-muted-foreground">Provider</span>
+                <span class="font-medium text-foreground/80"
+                  >{model.provider}</span
+                >
+              </div>
+              <div class="flex items-center justify-between text-[10px]">
+                <span class="text-muted-foreground">Library</span>
+                <span class="font-medium text-foreground/80"
+                  >{model.library}</span
+                >
+              </div>
+              <div class="flex items-center justify-between text-[10px]">
+                <span class="text-muted-foreground">Layers</span>
+                <span class="font-medium text-foreground/80"
+                  >{model.manifest.layers.length} files</span
+                >
+              </div>
             </div>
 
             {#if !model.model_file_path}
@@ -254,7 +327,7 @@
               </div>
             {/if}
 
-            {#if selectedModel?.full_identifier === model.full_identifier}
+            {#if modelsStore.selectedModel?.full_identifier === model.full_identifier}
               <div
                 class="absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
               >
@@ -263,57 +336,6 @@
             {/if}
           </div>
         {/each}
-      </div>
-    </div>
-  {/if}
-
-  {#if selectedModel}
-    <div
-      class="mt-12 rounded-2xl border border-border bg-secondary p-8 shadow-xl"
-    >
-      <div
-        class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-6"
-      >
-        <div>
-          <h3 class="text-xl font-bold">Selected Model</h3>
-          <p class="text-sm text-muted-foreground">
-            Ready to initialize and run
-          </p>
-        </div>
-        <button
-          class="cursor-pointer rounded-xl bg-primary px-8 py-3 font-semibold text-primary-foreground transition-all hover:scale-105 hover:bg-primary/90 shadow-lg shadow-primary/20"
-          onclick={handleLoadModel}
-        >
-          Load This Model
-        </button>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4 text-sm">
-        <div class="flex justify-between border-b border-border/50 py-2">
-          <span class="text-muted-foreground">Name</span>
-          <span class="font-medium">{selectedModel.name}</span>
-        </div>
-        <div class="flex justify-between border-b border-border/50 py-2">
-          <span class="text-muted-foreground">Version</span>
-          <span class="font-medium">{selectedModel.version}</span>
-        </div>
-        <div class="flex justify-between border-b border-border/50 py-2">
-          <span class="text-muted-foreground">Provider</span>
-          <span class="font-medium">{selectedModel.provider}</span>
-        </div>
-        <div class="flex justify-between border-b border-border/50 py-2">
-          <span class="text-muted-foreground">Identifier</span>
-          <span class="font-mono text-xs">{selectedModel.full_identifier}</span>
-        </div>
-        {#if selectedModel.model_file_path}
-          <div class="col-span-1 md:col-span-2 flex flex-col gap-2 pt-2">
-            <span class="text-muted-foreground">File Path</span>
-            <code
-              class="block break-all rounded bg-input p-3 text-xs leading-relaxed"
-              >{selectedModel.model_file_path}</code
-            >
-          </div>
-        {/if}
       </div>
     </div>
   {/if}

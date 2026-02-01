@@ -1,6 +1,7 @@
 <script lang="ts">
   import { cn } from "$shared/cn.js";
-  import { ChevronDown, Check, Loader2 } from "lucide-svelte";
+  import { ChevronDown, Check, Loader2, Square } from "lucide-svelte";
+  import { serverStore } from "$lib/stores/server.svelte";
 
   /** @type {{
    *   isSidebarOpen: boolean,
@@ -106,7 +107,22 @@
     </div>
   </div>
 
-  <div class="flex min-w-[80px] shrink-0 items-center justify-end gap-2">
+  <div class="flex min-w-[80px] shrink-0 items-center justify-end gap-3">
+    {#if serverStore.isRunning}
+      <button
+        onclick={() => serverStore.stopServer()}
+        class="group flex h-8 items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 pl-2 pr-3 text-red-400 transition-all hover:bg-red-500/20 hover:text-red-300 shadow-sm"
+        title="Stop Server"
+      >
+        <Square
+          size={12}
+          fill="currentColor"
+          class="transition-transform group-hover:scale-110"
+        />
+        <span class="text-[10px] font-bold uppercase tracking-wider">Stop</span>
+      </button>
+    {/if}
+
     {#if isLoading}
       <div
         class="flex items-center justify-center text-muted-foreground"

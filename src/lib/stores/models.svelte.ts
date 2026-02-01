@@ -40,7 +40,6 @@ class ModelsStore {
       const existingModels = await loadModelLibrary(this.libraryPath);
       if (existingModels.length > 0) {
         this.models = existingModels;
-        this.successMessage = `Loaded ${existingModels.length} model(s) from library`;
       }
     } catch (err) {
       console.log('No existing library found or failed to load');
@@ -75,6 +74,7 @@ class ModelsStore {
   }
 
   async refresh() {
+    if (!this.modelsRoot) return;
     await this.loadLibrary();
     if (this.models.length === 0) {
         await this.scan();
