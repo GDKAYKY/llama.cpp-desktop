@@ -88,6 +88,22 @@ class ChatStore {
       // but conceptually we might want to reset it on fresh load to avoid state pollution in backend orchestrator.
       this.sessionId = crypto.randomUUID(); 
       localStorage.setItem('llama_chat_session_id', this.sessionId);
+      
+      // Hydrate Backend Context
+      try {
+          const contextPayload = history.map(h => ({
+              role: h.role,
+              content: h.content
+          }));
+          
+          await invokeCommand('load_history_context', {
+              sessionId: this.sessionId,
+              messages: contextPayload
+          });
+          console.log("Backend context hydrated for session:", this.sessionId);
+      } catch (err) {
+          console.warn("Failed to hydrate backend context:", err);
+      }
   }
 
   appendChunk(chunk: string) {

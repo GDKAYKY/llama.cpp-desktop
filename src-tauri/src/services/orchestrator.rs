@@ -84,4 +84,9 @@ impl ChatOrchestrator {
         let mut sessions = self.sessions.lock().await;
         sessions.remove(session_id);
     }
+
+    pub async fn set_session_history(&self, session_id: &str, history: Vec<ChatMessage>) {
+        let mut sessions = self.sessions.lock().await;
+        sessions.insert(session_id.to_string(), history);
+    }
 }

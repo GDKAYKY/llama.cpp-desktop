@@ -21,3 +21,18 @@ pub async fn clear_chat(state: State<'_, AppState>, session_id: String) -> Resul
     state.orchestrator.clear_session(&session_id).await;
     Ok(())
 }
+
+use crate::models::ChatMessage;
+
+#[tauri::command]
+pub async fn load_history_context(
+    state: State<'_, AppState>,
+    session_id: String,
+    messages: Vec<ChatMessage>,
+) -> Result<(), String> {
+    state
+        .orchestrator
+        .set_session_history(&session_id, messages)
+        .await;
+    Ok(())
+}
