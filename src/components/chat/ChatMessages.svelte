@@ -11,8 +11,8 @@
   class="scrollbar-hide flex w-full grow flex-col overflow-y-auto pt-16 md:pt-24"
 >
   <div class="flex flex-col gap-10 pb-8">
-    {#each messages as msg}
-      <ChatMessage message={msg} />
+    {#each messages as msg, i}
+      <ChatMessage message={msg} index={i} />
     {/each}
     {#if isLoading}
       <div class="w-full">

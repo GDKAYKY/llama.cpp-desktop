@@ -96,6 +96,16 @@ class ChatStore {
     }
   }
 
+  async editMessage(index: number, content: string) {
+    if (this.isLoading) return;
+    
+    // Remove all messages from this index onwards
+    this.messages = this.messages.slice(0, index);
+    
+    // Send the new version
+    await this.send(content);
+  }
+
   async clear() {
     try {
       await invokeCommand('clear_chat', { sessionId: this.sessionId });
