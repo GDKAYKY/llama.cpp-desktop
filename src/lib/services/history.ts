@@ -85,6 +85,13 @@ export async function updateConversationTitle(conversationId: number, title: str
     await db.conversations.update(conversationId, { title });
 }
 
+export async function deleteConversation(conversationId: number) {
+    await db.transaction('rw', db.conversations, db.messages, async () => {
+        await db.messages.where('conversationId').equals(conversationId).delete();
+        await db.conversations.delete(conversationId);
+    });
+}
+
 export async function getRecentConversations(limit: number = 20): Promise<Conversation[]> {
     // Dexie doesn't support complex sorting easily without hooks or compound indices for everything.
     // 'conversations' is indexed by ++id, title, updatedAt.

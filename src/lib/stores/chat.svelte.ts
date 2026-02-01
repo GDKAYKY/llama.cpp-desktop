@@ -10,6 +10,7 @@ import {
   findRelevantContext,
   getRecentConversations,
   updateConversationTitle,
+  deleteConversation,
   type Conversation
 } from '$lib/services/history';
 
@@ -246,6 +247,22 @@ class ChatStore {
     localStorage.setItem('llama_chat_session_id', this.sessionId);
     this.activeConversationId = await createConversation('New Chat');
     await this.loadRecentConversations();
+  }
+
+  async deleteChat(id: number) {
+      await deleteConversation(id);
+      await this.loadRecentConversations();
+      
+      if (this.activeConversationId === id) {
+          if (this.history.length > 0) {
+              const nextChat = this.history[0];
+              if (nextChat && nextChat.id) {
+                  await this.loadConversation(nextChat.id);
+              }
+          } else {
+              await this.clear();
+          }
+      }
   }
 
   async generateTitle(conversationId: number, userFirstMsg: string, aiFirstMsg: string) {

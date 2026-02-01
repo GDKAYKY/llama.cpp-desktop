@@ -13,7 +13,14 @@
     MessageSquare,
     Box,
     SquarePen,
+    Share,
+    Users,
+    Pencil,
+    Pin,
+    Archive,
+    Trash2,
   } from "lucide-svelte";
+  import { DropdownMenu } from "bits-ui";
   import { page } from "$app/state";
   import { chatStore } from "$lib/stores/chat.svelte";
 
@@ -21,6 +28,15 @@
 
   let showChatHistory = $state(true);
   let showProfileMenu = $state(false);
+
+  // Track which chat menu is open (by chat ID)
+  let activeMenuId = $state(null);
+
+  // Close menus when clicking outside
+  function handleGlobalClick(event) {
+    // Logic handled by svelte:window or simple backdrop
+    activeMenuId = null;
+  }
 
   const menuItems = [
     { id: "chat", label: "Chat", icon: MessageSquare, path: "/" },
@@ -70,6 +86,8 @@
     // logic for other actions can be added here
   }
 </script>
+
+<svelte:window onclick={handleGlobalClick} />
 
 <aside
   class={cn(
@@ -222,30 +240,83 @@
         {#if showChatHistory}
           <div class="flex flex-col gap-0.5 px-3">
             {#each chatStore.history as chat}
-              <button
+              <div
                 class={cn(
                   "group relative flex h-9 w-full items-center justify-between overflow-hidden rounded-lg px-3 text-left text-sm text-[#ececec] transition-colors hover:bg-[#2f2f2f]",
                   chatStore.activeConversationId === chat.id &&
                     "bg-[#242424] text-white font-medium",
                 )}
-                onclick={() => chat.id && chatStore.loadConversation(chat.id)}
               >
-                <span class="truncate">{chat.title}</span>
-                <div
-                  class="absolute right-2 flex items-center opacity-0 transition-opacity group-hover:opacity-100"
+                <button
+                  class="flex-grow truncate text-left h-full outline-none bg-transparent border-none p-0 cursor-pointer text-inherit font-inherit"
+                  onclick={() => chat.id && chatStore.loadConversation(chat.id)}
                 >
-                  <div
-                    class="flex h-6 w-6 items-center justify-center rounded hover:bg-[#3f3f3f]"
-                    onclick={(e) => e.stopPropagation()}
-                    role="button"
-                    tabindex="0"
-                    onkeydown={(e) => e.key === "Enter" && e.stopPropagation()}
-                    aria-label="Options"
-                  >
-                    <Ellipsis size={14} />
-                  </div>
+                  {chat.title}
+                </button>
+
+                <div
+                  class="absolute right-2 flex items-center opacity-0 transition-opacity group-hover:opacity-100 has-[[data-state=open]]:opacity-100"
+                >
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger
+                      class="flex h-6 w-6 items-center justify-center rounded hover:bg-[#3f3f3f] text-[#b4b4b4] hover:text-white transition-colors data-[state=open]:bg-[#3f3f3f] data-[state=open]:text-white"
+                    >
+                      <Ellipsis size={14} />
+                    </DropdownMenu.Trigger>
+
+                    <DropdownMenu.Content
+                      class="z-[200] w-56 overflow-hidden rounded-xl border border-[#3f3f3f] bg-[#1e1e1e] p-1 shadow-2xl focus:outline-none"
+                      align="end"
+                      sideOffset={8}
+                    >
+                      <DropdownMenu.Item
+                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
+                      >
+                        <Share size={14} />
+                        <span>Share - WIP</span>
+                      </DropdownMenu.Item>
+
+                      <DropdownMenu.Item
+                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
+                        onclick={() => {
+                          /* Rename logic */
+                        }}
+                      >
+                        <Pencil size={14} />
+                        <span>Rename</span>
+                      </DropdownMenu.Item>
+
+                      <DropdownMenu.Separator
+                        class="my-1 h-[1px] bg-[#2f2f2f]"
+                      />
+
+                      <DropdownMenu.Item
+                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
+                      >
+                        <Pin size={14} />
+                        <span>Pin Chat</span>
+                      </DropdownMenu.Item>
+
+                      <DropdownMenu.Item
+                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
+                      >
+                        <Archive size={14} />
+                        <span>Arquivar</span>
+                      </DropdownMenu.Item>
+
+                      <DropdownMenu.Item
+                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ff6b6b] transition-colors outline-none data-[highlighted]:bg-[#3f2f2f] data-[highlighted]:text-[#ff4b4b]"
+                        onclick={() => {
+                          if (chat.id) chatStore.deleteChat(chat.id);
+                        }}
+                      >
+                        <Trash2 size={14} />
+                        <span>Remove</span>
+                      </DropdownMenu.Item>
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Root>
                 </div>
-              </button>
+              </div>
             {/each}
           </div>
         {/if}
@@ -300,7 +371,7 @@
                   : "text-[#ececec] group-hover:text-white",
               )}
             >
-              Antigravity User
+              User
             </span>
           </div>
         </button>
