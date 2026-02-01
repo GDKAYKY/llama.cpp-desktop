@@ -1,7 +1,7 @@
 <script>
   import ChatMessage from "./ChatMessage.svelte";
-  import TypingIndicator from "../ui/TypingIndicator.svelte";
-  import MessageAvatar from "../ui/MessageAvatar.svelte";
+  import TypingIndicator from "$components/ui/TypingIndicator.svelte";
+  import MessageAvatar from "$components/ui/MessageAvatar.svelte";
 
   /** @type {{ messages: Array<{role: string, content: string}>, isLoading: boolean, messagesEnd: HTMLElement }} */
   let { messages, isLoading, messagesEnd = $bindable() } = $props();

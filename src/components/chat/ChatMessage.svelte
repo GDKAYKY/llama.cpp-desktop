@@ -1,6 +1,6 @@
 <script>
-  import MessageAvatar from "../ui/MessageAvatar.svelte";
-  import MarkdownContent from "../ui/MarkdownContent.svelte";
+  import MessageAvatar from "$components/ui/MessageAvatar.svelte";
+  import MarkdownContent from "$components/ui/MarkdownContent.svelte";
 
   /** @type {{ message: { role: string, content: string } }} */
   let { message } = $props();

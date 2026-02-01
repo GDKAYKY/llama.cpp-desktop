@@ -4,7 +4,7 @@
     scanModelsDirectory,
     saveModelLibrary,
     loadModelLibrary,
-  } from "../../services/models.js";
+  } from "$lib/services/models.js";
   import { createEventDispatcher } from "svelte";
   import { cn } from "$lib/utils/cn.js";
   import { FolderOpen, Scan, Check, AlertTriangle, Box } from "lucide-svelte";
