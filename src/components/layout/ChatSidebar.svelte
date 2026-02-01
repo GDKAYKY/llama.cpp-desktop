@@ -221,12 +221,14 @@
 
         {#if showChatHistory}
           <div class="flex flex-col gap-0.5 px-3">
-            {#each chatHistory as chat}
+            {#each chatStore.history as chat}
               <button
                 class={cn(
                   "group relative flex h-9 w-full items-center justify-between overflow-hidden rounded-lg px-3 text-left text-sm text-[#ececec] transition-colors hover:bg-[#2f2f2f]",
-                  chat.active && "bg-[#242424] text-white font-medium",
+                  chatStore.activeConversationId === chat.id &&
+                    "bg-[#242424] text-white font-medium",
                 )}
+                onclick={() => chat.id && chatStore.loadConversation(chat.id)}
               >
                 <span class="truncate">{chat.title}</span>
                 <div
