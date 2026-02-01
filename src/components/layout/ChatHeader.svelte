@@ -15,8 +15,6 @@
    *   modelLoaded: boolean
    * }} */
   let {
-    isSidebarOpen,
-    toggleSidebar,
     isLoading,
     toggleDropdown,
     selectedModel,
