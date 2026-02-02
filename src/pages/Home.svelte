@@ -164,7 +164,7 @@
       <div class="w-full">
         <ChatForm
           bind:userInput
-          modelLoaded={chatStore.modelLoaded}
+          modelLoaded={serverStore.isRunning}
           isLoading={chatStore.isLoading}
           onKeydown={handleKeydown}
           onInput={handleInput}

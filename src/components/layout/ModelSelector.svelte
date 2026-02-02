@@ -20,6 +20,8 @@
   import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
   import { Play } from "lucide-svelte";
 
+  import ModelCard from "./ModelCard.svelte";
+
   const dispatch = createEventDispatcher();
   let activeDropdown = $state<string | null>(null);
 
@@ -68,44 +70,6 @@
     });
 
     modelsStore.successMessage = `Model "${modelsStore.selectedModel.name}:${modelsStore.selectedModel.version}" is ready to use`;
-  }
-
-  function formatSize(bytes: number) {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB", "TB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  }
-
-  function getTotalSize(model: Model) {
-    return model.manifest.layers.reduce((acc, layer) => acc + layer.size, 0);
-  }
-
-  function getModelMetadata(version: string) {
-    // Look for patterns like 7b, 8b, 70b
-    const paramMatch = version.match(/\b(\d+\.?\d*b)\b/i);
-    // Look for quantization patterns
-    const quantMatch = version.match(/(q\d+_\w+)|(q\d+)|(fp16)|(bf16)|(f16)/i);
-
-    return {
-      params: paramMatch ? paramMatch[0].toUpperCase() : null,
-      quant: quantMatch ? quantMatch[0].toUpperCase() : null,
-    };
-  }
-
-  function getShortDigest(digest: string) {
-    if (!digest) return "";
-    const parts = digest.split(":");
-    const hash = parts[1] || parts[0];
-    return hash.substring(0, 12);
-  }
-
-  function isModelRunning(model: Model) {
-    return (
-      serverStore.isRunning &&
-      serverStore.currentConfig?.model_path === model.model_file_path
-    );
   }
 
   async function handleLaunchModel(model: Model, e: MouseEvent) {
@@ -195,152 +159,15 @@
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {#each modelsStore.models as model}
-          <div
-            class={cn(
-              "relative flex cursor-pointer flex-col gap-4 rounded-xl border-1 p-5 transition-all",
-              modelsStore.selectedModel?.full_identifier ===
-                model.full_identifier
-                ? "border-primary bg-primary/5 shadow-md"
-                : "border-border bg-white/2 hover:border-white/20 hover:bg-white/5",
-            )}
-            onclick={() => handleSelectModel(model)}
-            role="button"
-            tabindex="0"
-            onkeydown={(e) => e.key === "Enter" && handleSelectModel(model)}
-          >
-            <div
-              class="flex items-center justify-between gap-2 border-b border-border pb-3"
-            >
-              <div class="flex min-w-0 flex-col">
-                <h4 class="truncate font-semibold text-foreground">
-                  {model.name}
-                </h4>
-                <div class="flex items-center gap-2">
-                  <span
-                    class="shrink-0 rounded bg-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary uppercase"
-                  >
-                    {model.version}
-                  </span>
-                </div>
-              </div>
-
-              <div class="relative flex items-center gap-1">
-                <button
-                  class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-                  onclick={(e) => toggleDropdown(model.full_identifier, e)}
-                >
-                  <MoreVertical size={16} />
-                </button>
-
-                {#if activeDropdown === model.full_identifier}
-                  <div
-                    class="absolute right-0 top-8 z-50 w-48 overflow-hidden rounded-lg border border-border bg-secondary shadow-xl"
-                  >
-                    <button
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-white/5"
-                      onclick={(e) => handleAction("copy-path", model, e)}
-                    >
-                      <Copy size={14} />
-                      Copy File Path
-                    </button>
-                    <button
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-white/5"
-                      onclick={(e) => handleAction("view-manifest", model, e)}
-                    >
-                      <FileText size={14} />
-                      View Manifest
-                    </button>
-                  </div>
-                {/if}
-              </div>
-            </div>
-
-            {#if isModelRunning(model)}
-              <ModelUsageGraph
-                vramUsage={serverStore.serverMetrics?.vram_usage || 0}
-                gpuUsage={serverStore.serverMetrics?.gpu_usage || 0}
-              />
-            {/if}
-
-            <div class="grid grid-cols-2 gap-2">
-              {#each Object.entries(getModelMetadata(model.version)) as [key, value]}
-                {#if value}
-                  <div
-                    class="flex flex-col rounded-md bg-white/5 p-1.5 border border-white/5"
-                  >
-                    <span
-                      class="text-[9px] uppercase text-muted-foreground font-bold tracking-wider"
-                      >{key === "params" ? "Parameters" : "Quant"}</span
-                    >
-                    <span
-                      class="font-mono text-[10px] font-bold text-foreground/90"
-                      >{value}</span
-                    >
-                  </div>
-                {/if}
-              {/each}
-              <div
-                class="flex flex-col rounded-md bg-white/5 p-1.5 border border-white/5"
-              >
-                <span
-                  class="text-[9px] uppercase text-muted-foreground font-bold tracking-wider"
-                  >Total Size</span
-                >
-                <span class="font-mono text-[10px] font-bold text-foreground/90"
-                  >{formatSize(getTotalSize(model))}</span
-                >
-              </div>
-              <div
-                class="flex flex-col rounded-md bg-white/5 p-1.5 border border-white/5"
-              >
-                <span
-                  class="text-[9px] uppercase text-muted-foreground font-bold tracking-wider"
-                  >Digest</span
-                >
-                <span class="font-mono text-[10px] font-bold text-foreground/90"
-                  >{getShortDigest(model.manifest.config.digest)}</span
-                >
-              </div>
-            </div>
-
-            <div class="space-y-1 pt-1">
-              <div class="flex items-center justify-between text-[10px]">
-                <span class="text-muted-foreground">Provider</span>
-                <span class="font-medium text-foreground/80"
-                  >{model.provider}</span
-                >
-              </div>
-              <div class="flex items-center justify-between text-[10px]">
-                <span class="text-muted-foreground">Library</span>
-                <span class="font-medium text-foreground/80"
-                  >{model.library}</span
-                >
-              </div>
-              <div class="flex items-center justify-between text-[10px]">
-                <span class="text-muted-foreground">Layers</span>
-                <span class="font-medium text-foreground/80"
-                  >{model.manifest.layers.length} files</span
-                >
-              </div>
-            </div>
-
-            {#if !model.model_file_path}
-              <div
-                class="mt-2 flex items-center gap-2 text-[10px] font-medium text-orange-400"
-              >
-                <AlertTriangle size={12} />
-                Model file not found
-              </div>
-            {/if}
-
-            {#if modelsStore.selectedModel?.full_identifier === model.full_identifier}
-              <div
-                class="absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
-              >
-                <Check size={16} strokeWidth={3} />
-              </div>
-            {/if}
-          </div>
+          <ModelCard
+            {model}
+            isSelected={modelsStore.selectedModel?.full_identifier ===
+              model.full_identifier}
+            {activeDropdown}
+            onSelect={handleSelectModel}
+            onToggleDropdown={toggleDropdown}
+            onAction={handleAction}
+          />
         {/each}
       </div>
     </div>

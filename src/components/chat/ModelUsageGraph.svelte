@@ -35,9 +35,7 @@
   }
 </script>
 
-<div
-  class="mt-4 flex flex-col gap-3 rounded-xl bg-[#171717] p-3 border border-white/5 shadow-inner"
->
+<div class="flex flex-col gap-3 rounded-xl bg-[#171717] p-3">
   <div
     class="grid grid-cols-[repeat(20,10px)] gap-[3px] justify-start overflow-hidden"
   >
