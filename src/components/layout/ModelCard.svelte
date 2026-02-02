@@ -159,11 +159,12 @@
 
   <div
     class={!isModelRunning(model)
-      ? "invisible pointer-events-none select-none"
-      : ""}
+      ? "opacity-50 pointer-events-none select-none transition-all duration-500"
+      : "transition-all duration-500"}
   >
     <ModelUsageGraph
       isRunning={isModelRunning(model)}
+      isMock={!isModelRunning(model)}
       vramUsage={isModelRunning(model)
         ? serverStore.serverMetrics?.vram_usage || 0
         : 0}

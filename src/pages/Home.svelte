@@ -190,7 +190,7 @@
     <div class="pointer-events-auto w-full flex flex-col items-center">
       <ChatForm
         bind:userInput
-        modelLoaded={chatStore.modelLoaded}
+        modelLoaded={serverStore.isRunning}
         isLoading={chatStore.isLoading}
         onKeydown={handleKeydown}
         onInput={handleInput}
