@@ -25,6 +25,14 @@
     selectModel,
     handleClickOutside,
   } = $props();
+
+  function getModelMetadata(version: string) {
+    const combined = version.toLowerCase();
+    const quantMatch = combined.match(
+      /(iq\d+_[a-z0-9_]+)|(q\d+_[a-z0-9_]+)|(q\d+_[a-z0-9])|(q\d+)|(fp16)|(bf16)|(f16)|(f32)/i,
+    );
+    return quantMatch ? quantMatch[0].toUpperCase() : null;
+  }
 </script>
 
 <svelte:window on:click={handleClickOutside} />
@@ -97,10 +105,12 @@
                     <ModelLogo name={model.name} size={18} />
                   </div>
                   <div class="flex min-w-0 flex-col">
-                    <span
-                      class="overflow-hidden text-ellipsis whitespace-nowrap font-medium"
-                      >{model.name}</span
-                    >
+                    <div class="flex items-center gap-2">
+                      <span
+                        class="overflow-hidden text-ellipsis whitespace-nowrap font-medium"
+                        >{model.name}</span
+                      >
+                    </div>
                     <span
                       class="overflow-hidden text-ellipsis whitespace-nowrap text-[0.75rem] text-muted-foreground"
                       >{model.full_identifier}</span

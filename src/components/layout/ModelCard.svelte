@@ -13,6 +13,9 @@
     Fingerprint,
     Play,
     Square,
+    Binary,
+    Tag,
+    Info,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
@@ -55,15 +58,60 @@
     return model.manifest.layers.reduce((acc, layer) => acc + layer.size, 0);
   }
 
-  function getModelMetadata(version: string) {
-    const paramMatch = version.match(/\b(\d+\.?\d*b)\b/i);
-    const quantMatch = version.match(/(q\d+_\w+)|(q\d+)|(fp16)|(bf16)|(f16)/i);
+  function getModelMetadata(model: Model) {
+    const combined =
+      `${model.name} ${model.version} ${model.model_file_path || ""} ${model.library} ${model.full_identifier}`.toLowerCase();
+
+    // Match 8b, 70B, etc. with common separators
+    const paramMatch = combined.match(
+      /(?:^|[\-\.\s_:])(\d+\.?\d*b)(?:$|[\-\.\s_:])/i,
+    );
+    // Support Q4_K_M, Q5_0, IQ4_XS, fp16, etc.
+    const quantMatch = combined.match(
+      /(iq\d+_[a-z0-9_]+)|(q\d+_[a-z0-9_]+)|(q\d+_[a-z0-9])|(q\d+)|(fp16)|(bf16)|(f16)|(f32)/i,
+    );
+    const formatMatch = combined.match(
+      /\b(gguf|safetensors|awq|gptq|exl2|onnx|mlx|ggml)\b/i,
+    );
+    const typeMatch = combined.match(
+      /\b(instruct|chat|coder|vision|rl|base|moe|uncensored|distilled)\b/i,
+    );
+
+    let format =
+      formatMatch?.[0].toUpperCase() ||
+      (combined.includes("gguf") ? "GGUF" : null);
+
+    // Advanced heuristics for models without explicit extensions
+    if (!format) {
+      const isOllama = model.provider.toLowerCase() === "ollama";
+      const hasQuant = !!quantMatch;
+      const nameLower = model.name.toLowerCase();
+
+      // If it's Ollama, has quantization patterns, or llama library -> it's GGUF
+      if (isOllama || hasQuant || model.library === "llama") {
+        format = "GGUF";
+      } else if (
+        /\b(llama|mistral|qwen|phi|gemma|deepseek|yi|stable|starcoder|command|internlm|grok|smollm|nemotron|granite)\b/i.test(
+          combined,
+        )
+      ) {
+        format = "GGUF";
+      }
+    }
 
     return {
-      params: paramMatch ? paramMatch[0].toUpperCase() : null,
+      params:
+        paramMatch?.[1].toUpperCase() ||
+        combined.match(/\b\d+\.?\d*b\b/i)?.[0].toUpperCase() ||
+        combined.match(/\d+\.?\d*b/i)?.[0].toUpperCase() ||
+        null,
       quant: quantMatch ? quantMatch[0].toUpperCase() : null,
+      format: format,
+      type: typeMatch ? typeMatch[0].toUpperCase() : null,
     };
   }
+
+  const metadata = $derived(getModelMetadata(model));
 
   function getShortDigest(digest: string) {
     if (!digest) return "";
@@ -97,9 +145,11 @@
         <ModelLogo name={model.name} size={18} />
       </div>
       <div class="flex min-w-0 flex-col">
-        <h4 class="truncate font-semibold text-foreground">
-          {model.name}
-        </h4>
+        <div class="flex items-center gap-2">
+          <h4 class="truncate font-semibold text-foreground">
+            {model.name}
+          </h4>
+        </div>
         <span class="text-[10px] text-muted-foreground">
           {model.version}
         </span>
@@ -176,23 +226,28 @@
 
   <div class="rounded-lg bg-white/5 p-2.5">
     <div class="grid grid-cols-3 gap-2">
-      {#each Object.entries(getModelMetadata(model.version)) as [key, value]}
-        {#if value}
-          <div class="flex flex-col">
-            <span
-              class="text-[9px] font-bold tracking-wider text-muted-foreground uppercase"
-              >{key === "params" ? "Parameters" : "Quant"}</span
-            >
-            <span class="font-mono text-[10px] font-bold text-foreground/90"
-              >{value}</span
-            >
-          </div>
-        {/if}
-      {/each}
       <div class="flex flex-col">
         <span
           class="text-[9px] font-bold tracking-wider text-muted-foreground uppercase"
-          >Total Size</span
+          >Params</span
+        >
+        <span class="font-mono text-[10px] font-bold text-foreground/90"
+          >{metadata.params || "N/A"}</span
+        >
+      </div>
+      <div class="flex flex-col">
+        <span
+          class="text-[9px] font-bold tracking-wider text-muted-foreground uppercase"
+          >Format</span
+        >
+        <span class="font-mono text-[10px] font-bold text-foreground/90"
+          >{metadata.format || "N/A"}</span
+        >
+      </div>
+      <div class="flex flex-col">
+        <span
+          class="text-[9px] font-bold tracking-wider text-muted-foreground uppercase"
+          >Size</span
         >
         <span class="font-mono text-[10px] font-bold text-foreground/90"
           >{formatSize(getTotalSize(model))}</span
@@ -204,6 +259,15 @@
   <div class="mt-auto space-y-1 pt-2">
     <div class="flex items-center justify-between text-[10px]">
       <div class="flex items-center gap-1.5 text-muted-foreground">
+        <Binary size={10} />
+        <span>Quantization</span>
+      </div>
+      <span class="font-mono font-medium text-foreground/80"
+        >{metadata.quant || "None"}</span
+      >
+    </div>
+    <div class="flex items-center justify-between text-[10px]">
+      <div class="flex items-center gap-1.5 text-muted-foreground">
         <Box size={10} />
         <span>Provider</span>
       </div>
@@ -212,10 +276,21 @@
     <div class="flex items-center justify-between text-[10px]">
       <div class="flex items-center gap-1.5 text-muted-foreground">
         <Library size={10} />
-        <span>Library</span>
+        <span>Architecture</span>
       </div>
       <span class="font-medium text-foreground/80">{model.library}</span>
     </div>
+    {#if metadata.type}
+      <div class="flex items-center justify-between text-[10px]">
+        <div class="flex items-center gap-1.5 text-muted-foreground">
+          <Tag size={10} />
+          <span>Type</span>
+        </div>
+        <span class="font-medium text-foreground/80 uppercase"
+          >{metadata.type}</span
+        >
+      </div>
+    {/if}
     <div class="flex items-center justify-between text-[10px]">
       <div class="flex items-center gap-1.5 text-muted-foreground">
         <Layers size={10} />
