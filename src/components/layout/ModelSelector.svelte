@@ -8,6 +8,7 @@
     Check,
     AlertTriangle,
     Box,
+    Bot,
     Activity,
     Square,
     MoreVertical,
@@ -18,7 +19,8 @@
   import { chatStore } from "$lib/stores/chat.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
-  import { Play } from "lucide-svelte";
+  import ModelLogo from "./ModelLogo.svelte";
+  import { Play, Rocket } from "lucide-svelte";
 
   import ModelCard from "./ModelCard.svelte";
 
@@ -69,7 +71,7 @@
       model: modelsStore.selectedModel,
     });
 
-    modelsStore.successMessage = `Model "${modelsStore.selectedModel.name}:${modelsStore.selectedModel.version}" is ready to use`;
+    modelsStore.successMessage = `Ready to chat with ${modelsStore.selectedModel.name}`;
   }
 
   async function handleLaunchModel(model: Model, e: MouseEvent) {
@@ -128,21 +130,47 @@
     </div>
   {/if}
 
-  {#if modelsStore.error}
+  {#if modelsStore.successMessage}
     <div
-      class="mb-6 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
+      class="mb-6 flex animate-in fade-in slide-in-from-top-2 duration-300 items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary"
     >
-      <AlertTriangle size={18} />
-      {modelsStore.error}
+      <div class="flex items-center gap-3">
+        <div
+          class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/20"
+        >
+          <ModelLogo name={modelsStore.selectedModel?.name || ""} size={18} />
+        </div>
+        <div>
+          <p class="font-semibold text-foreground">Model selected</p>
+          <p class="text-xs text-muted-foreground">
+            {modelsStore.successMessage}
+          </p>
+        </div>
+      </div>
+      <button
+        onclick={() => modelsStore.clearMessages()}
+        class="text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <Check size={18} />
+      </button>
     </div>
   {/if}
 
-  {#if modelsStore.successMessage}
+  {#if modelsStore.error}
     <div
-      class="mb-6 flex items-center gap-3 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400"
+      class="mb-6 flex animate-in fade-in slide-in-from-top-2 duration-300 items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
     >
-      <Check size={18} />
-      {modelsStore.successMessage}
+      <AlertTriangle size={18} />
+      <div class="flex-1">
+        <p class="font-semibold text-red-100">Error</p>
+        <p class="text-xs opacity-80">{modelsStore.error}</p>
+      </div>
+      <button
+        onclick={() => modelsStore.clearMessages()}
+        class="opacity-60 hover:opacity-100 transition-opacity"
+      >
+        <Square size={14} />
+      </button>
     </div>
   {/if}
 
@@ -152,7 +180,7 @@
         class="flex items-center justify-between border-b border-border pb-4"
       >
         <h3 class="flex items-center gap-2 text-lg font-medium">
-          <Box size={20} class="text-muted-foreground" />
+          <Bot size={20} class="text-muted-foreground" />
           Available Models ({modelsStore.models.length})
         </h3>
       </div>

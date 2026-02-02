@@ -2,6 +2,7 @@
   import ChatMessage from "./ChatMessage.svelte";
   import TypingIndicator from "$components/ui/TypingIndicator.svelte";
   import MessageAvatar from "$components/ui/MessageAvatar.svelte";
+  import { modelsStore } from "$lib/stores/models.svelte";
 
   /** @type {{ messages: Array<{role: string, content: string}>, isLoading: boolean, messagesEnd: HTMLElement }} */
   let { messages, isLoading, messagesEnd = $bindable() } = $props();
@@ -15,7 +16,10 @@
     {#if isLoading}
       <div class="w-full">
         <div class="mx-auto flex max-w-3xl gap-6 px-6">
-          <MessageAvatar role="assistant" />
+          <MessageAvatar
+            role="assistant"
+            modelName={modelsStore.selectedModel?.name}
+          />
           <div class="grow text-base text-foreground min-w-0">
             <TypingIndicator />
           </div>

@@ -4,6 +4,7 @@
   import { cn } from "$shared/cn.js";
   import { Copy, Pencil } from "lucide-svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
+  import { modelsStore } from "$lib/stores/models.svelte";
   import { toast } from "svelte-sonner";
 
   /** @type {{ message: { role: string, content: string }, index: number }} */
@@ -49,7 +50,10 @@
   >
     {#if message.role !== "user"}
       <div class="flex-shrink-0">
-        <MessageAvatar role={message.role} />
+        <MessageAvatar
+          role={message.role}
+          modelName={modelsStore.selectedModel?.name}
+        />
       </div>
     {/if}
 

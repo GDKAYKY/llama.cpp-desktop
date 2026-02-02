@@ -14,6 +14,7 @@
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
+  import ModelLogo from "./ModelLogo.svelte";
 
   interface Props {
     model: Model;
@@ -88,14 +89,19 @@
     class="flex items-center justify-between gap-2 border-b border-border pb-2"
   >
     <div class="flex min-w-0 items-center gap-2">
-      <h4 class="truncate font-semibold text-foreground">
-        {model.name}
-      </h4>
-      <span
-        class="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+      <div
+        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 p-1.5 text-muted-foreground/50"
       >
-        {model.version}
-      </span>
+        <ModelLogo name={model.name} size={18} />
+      </div>
+      <div class="flex min-w-0 flex-col">
+        <h4 class="truncate font-semibold text-foreground">
+          {model.name}
+        </h4>
+        <span class="text-[10px] text-muted-foreground">
+          {model.version}
+        </span>
+      </div>
     </div>
 
     <div class="relative flex shrink-0 items-center gap-1">

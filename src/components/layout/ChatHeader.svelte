@@ -2,6 +2,7 @@
   import { cn } from "$shared/cn.js";
   import { ChevronDown, Check, LoaderCircle, Square } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
+  import ModelLogo from "./ModelLogo.svelte";
 
   /** @type {{
    *   isSidebarOpen: boolean,
@@ -42,6 +43,11 @@
         aria-expanded={isDropdownOpen ? "true" : "false"}
         onclick={toggleDropdown}
       >
+        <div
+          class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/5 p-1"
+        >
+          <ModelLogo name={selectedModel?.name || ""} size={16} />
+        </div>
         <span class="overflow-hidden text-ellipsis whitespace-nowrap">
           {selectedModel ? selectedModel.name : "Select a model"}
         </span>
@@ -84,15 +90,22 @@
                 )}
                 onclick={() => selectModel(model)}
               >
-                <div class="flex min-w-0 flex-col">
-                  <span
-                    class="overflow-hidden text-ellipsis whitespace-nowrap font-medium"
-                    >{model.name}</span
+                <div class="flex min-w-0 items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 p-1.5"
                   >
-                  <span
-                    class="overflow-hidden text-ellipsis whitespace-nowrap text-[0.75rem] text-muted-foreground"
-                    >{model.full_identifier}</span
-                  >
+                    <ModelLogo name={model.name} size={18} />
+                  </div>
+                  <div class="flex min-w-0 flex-col">
+                    <span
+                      class="overflow-hidden text-ellipsis whitespace-nowrap font-medium"
+                      >{model.name}</span
+                    >
+                    <span
+                      class="overflow-hidden text-ellipsis whitespace-nowrap text-[0.75rem] text-muted-foreground"
+                      >{model.full_identifier}</span
+                    >
+                  </div>
                 </div>
 
                 {#if selectedModel?.full_identifier === model.full_identifier}
