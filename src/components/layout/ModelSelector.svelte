@@ -23,9 +23,12 @@
   import { Play, Rocket } from "lucide-svelte";
 
   import ModelCard from "./ModelCard.svelte";
+  import Modal from "$components/ui/Modal.svelte";
 
   const dispatch = createEventDispatcher();
   let activeDropdown = $state<string | null>(null);
+  let viewingManifest = $state<Model | null>(null);
+  let showCopySuccess = $state(false);
 
   function toggleDropdown(id: string, e: MouseEvent) {
     e.stopPropagation();
@@ -39,12 +42,15 @@
     if (action === "copy-path") {
       if (model.model_file_path) {
         navigator.clipboard.writeText(model.model_file_path);
-        // You might want to add a toast here, but I'll stick to the core request
+        showCopySuccess = true;
+        setTimeout(() => (showCopySuccess = false), 2000);
       }
     } else if (action === "view-manifest") {
-      console.log("Viewing manifest for:", model.name, model.manifest);
-      // Logic for viewing manifest could be a modal or another page,
-      // but for now, we're just adding the dropdown structure.
+      viewingManifest = model;
+    } else if (action === "start-model") {
+      handleLaunchModel(model, e);
+    } else if (action === "stop-model") {
+      serverStore.stopServer();
     }
   }
 
@@ -200,4 +206,66 @@
       </div>
     </div>
   {/if}
+
+  {#if showCopySuccess}
+    <div
+      class="fixed bottom-8 left-1/2 z-[100] -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none"
+    >
+      <div
+        class="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg"
+      >
+        Path copied to clipboard!
+      </div>
+    </div>
+  {/if}
+
+  <Modal
+    title={`Manifest: ${viewingManifest?.name}:${viewingManifest?.version}`}
+    isOpen={!!viewingManifest}
+    onClose={() => (viewingManifest = null)}
+  >
+    {#if viewingManifest}
+      <div class="space-y-4">
+        <div class="rounded-lg bg-black/20 p-4">
+          <pre
+            class="overflow-auto text-[11px] font-mono leading-relaxed text-foreground/80">
+            {JSON.stringify(viewingManifest.manifest, null, 2)}
+          </pre>
+        </div>
+
+        <div class="space-y-2">
+          <h4
+            class="text-sm font-semibold text-muted-foreground uppercase tracking-wider"
+          >
+            Storage Info
+          </h4>
+          <div class="grid grid-cols-2 gap-4 text-xs">
+            <div class="rounded-md bg-white/5 p-2">
+              <span class="block text-muted-foreground">Provider</span>
+              <span class="font-mono">{viewingManifest.provider}</span>
+            </div>
+            <div class="rounded-md bg-white/5 p-2">
+              <span class="block text-muted-foreground">Full ID</span>
+              <span class="font-mono">{viewingManifest.full_identifier}</span>
+            </div>
+          </div>
+        </div>
+
+        {#if viewingManifest.model_file_path}
+          <div class="space-y-2">
+            <h4
+              class="text-sm font-semibold text-muted-foreground uppercase tracking-wider"
+            >
+              Physical Path
+            </h4>
+            <div
+              class="rounded-md bg-white/5 p-3 font-mono text-[10px] break-all"
+            >
+              {viewingManifest.model_file_path}
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </Modal>
 </div>

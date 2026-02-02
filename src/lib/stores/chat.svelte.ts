@@ -2,6 +2,8 @@ import { invokeCommand } from '$infrastructure/ipc';
 import { Channel } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { settingsStore } from '$lib/stores/settings.svelte';
+import { modelsStore } from '$lib/stores/models.svelte';
+import { serverStore } from '$lib/stores/server.svelte';
 import { 
   db, 
   saveMessage, 
@@ -18,6 +20,7 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
+  model?: string;
 }
 
 class ChatStore {
@@ -80,7 +83,8 @@ class ChatStore {
       this.messages = history.map(h => ({
           role: h.role,
           content: h.content,
-          timestamp: h.timestamp
+          timestamp: h.timestamp,
+          model: h.model
       }));
       this.activeConversationId = id;
       
@@ -185,7 +189,20 @@ class ChatStore {
         console.log('Stream finished');
         // 5. Save Assistant Message to DB
         if (this.activeConversationId && this.currentAssistantResponse) {
-            await saveMessage(this.activeConversationId, 'assistant', this.currentAssistantResponse);
+            // Get the model that is ACTUALLY running in the server
+            const runningModelPath = serverStore.currentConfig?.model_path;
+            const modelInLibrary = modelsStore.models.find(m => m.model_file_path === runningModelPath);
+            const modelName = modelInLibrary?.name || "Unknown Model";
+
+            await saveMessage(this.activeConversationId, 'assistant', this.currentAssistantResponse, modelName);
+            
+            // Set model on the last message in store too
+            if (this.messages.length > 0) {
+                const lastMsg = this.messages[this.messages.length - 1];
+                if (lastMsg.role === 'assistant') {
+                    lastMsg.model = modelName;
+                }
+            }
             
             // 6. Auto-generate Title if this is the first exchange (2 messages: User + Assistant)
             // And title is "New Chat" (or roughly check if we haven't generated one yet)

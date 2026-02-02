@@ -56,7 +56,7 @@
   <div class="flex items-center justify-between border-t border-white/5 pt-2">
     <span
       class="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/40"
-      >Hardware Telemetry</span
+      >Model Usage</span
     >
     <div class="flex gap-4 items-center">
       <div class="flex items-center gap-1.5">

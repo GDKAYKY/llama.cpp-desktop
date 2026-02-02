@@ -50,10 +50,7 @@
   >
     {#if message.role !== "user"}
       <div class="flex-shrink-0">
-        <MessageAvatar
-          role={message.role}
-          modelName={modelsStore.selectedModel?.name}
-        />
+        <MessageAvatar role={message.role} modelName={message.model} />
       </div>
     {/if}
 
@@ -145,6 +142,13 @@
         {/if}
       {:else}
         <div class="w-full min-w-0 text-foreground">
+          {#if message.role === "assistant" && message.model}
+            <div
+              class="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60"
+            >
+              {message.model}
+            </div>
+          {/if}
           <MarkdownContent content={message.content} />
         </div>
       {/if}

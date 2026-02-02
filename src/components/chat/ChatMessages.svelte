@@ -8,7 +8,7 @@
   let { messages, isLoading, messagesEnd = $bindable() } = $props();
 </script>
 
-<div class="flex w-full grow flex-col pb-44 pt-16 md:pt-24">
+<div class="flex w-full grow flex-col">
   <div class="flex flex-col pb-8">
     {#each messages as msg, i}
       <ChatMessage message={msg} index={i} />

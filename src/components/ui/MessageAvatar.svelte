@@ -13,7 +13,7 @@
 
 <div
   class={cn(
-    "flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[2px] text-[12px] font-bold text-white",
+    "flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg text-[12px] font-bold text-white",
     role === "user" && "bg-[#5436da]",
     role === "system" && "bg-blue-500",
     role === "assistant" && "bg-primary/10 overflow-hidden", // Primary tint for logo background

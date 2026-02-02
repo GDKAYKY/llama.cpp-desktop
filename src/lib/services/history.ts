@@ -14,6 +14,7 @@ export interface ChatMessage {
   tokens: number;
   keywords: string[];
   timestamp: number;
+  model?: string;
 }
 
 export class ChatDatabase extends Dexie {
@@ -22,9 +23,11 @@ export class ChatDatabase extends Dexie {
 
   constructor() {
     super('LlamaDesktopDB');
-    this.version(1).stores({
+    this.version(2).stores({
       conversations: '++id, title, updatedAt',
-      messages: '++id, conversationId, role, *keywords, timestamp'
+      messages: '++id, conversationId, role, *keywords, timestamp, model'
+    }).upgrade(trans => {
+        // Upgrade logic if needed, but for adding a field/index Dexie handles it mostly
     });
   }
 }
@@ -57,14 +60,15 @@ export function estimateTokens(text: string): number {
 
 // --- Service Logic ---
 
-export async function saveMessage(conversationId: number, role: 'user' | 'assistant' | 'system', content: string) {
+export async function saveMessage(conversationId: number, role: 'user' | 'assistant' | 'system', content: string, model?: string) {
   await db.messages.add({
     conversationId,
     role,
     content,
     tokens: estimateTokens(content),
     keywords: extractKeywords(content),
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    model
   });
   
   await db.conversations.update(conversationId, { updatedAt: Date.now() });

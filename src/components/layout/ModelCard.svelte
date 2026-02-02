@@ -11,6 +11,8 @@
     Library,
     Layers,
     Fingerprint,
+    Play,
+    Square,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
@@ -130,6 +132,26 @@
             <FileText size={14} />
             View Manifest
           </button>
+
+          <div class="my-1 border-t border-border"></div>
+
+          {#if isModelRunning(model)}
+            <button
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/10"
+              onclick={(e) => onAction("stop-model", model, e)}
+            >
+              <Square size={14} />
+              Stop Model
+            </button>
+          {:else}
+            <button
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-green-400 hover:bg-green-500/10"
+              onclick={(e) => onAction("start-model", model, e)}
+            >
+              <Play size={14} />
+              Start Model
+            </button>
+          {/if}
         </div>
       {/if}
     </div>
