@@ -16,6 +16,7 @@
     Binary,
     Tag,
     Info,
+    Activity,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
@@ -119,6 +120,33 @@
     const hash = parts[1] || parts[0];
     return hash.substring(0, 12);
   }
+
+  const currentStatus = $derived.by(() => {
+    if (!model.model_file_path) {
+      return {
+        label: "Model file not found",
+        icon: AlertTriangle,
+        color: "text-orange-400",
+      };
+    }
+
+    if (isModelRunning(model)) {
+      if (!serverStore.isHealthy && serverStore.error) {
+        return {
+          label: serverStore.error,
+          icon: AlertTriangle,
+          color: "text-red-400",
+        };
+      }
+      return {
+        label: "Model is running",
+        icon: Activity,
+        color: "text-green-400",
+      };
+    }
+
+    return null;
+  });
 </script>
 
 <div
@@ -311,12 +339,15 @@
     </div>
   </div>
 
-  {#if !model.model_file_path}
+  {#if currentStatus}
     <div
-      class="mt-2 flex items-center gap-2 text-[10px] font-medium text-orange-400"
+      class={cn(
+        "absolute bottom-0 left-6 z-20 flex translate-y-1/2 items-center gap-1.5 rounded bg-[#0f0f0f] px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight shadow-sm transition-all",
+        currentStatus.color,
+      )}
     >
-      <AlertTriangle size={12} />
-      Model file not found
+      <currentStatus.icon size={10} strokeWidth={3} />
+      <span class="truncate">{currentStatus.label}</span>
     </div>
   {/if}
 
