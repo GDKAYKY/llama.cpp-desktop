@@ -33,8 +33,14 @@ llama-desktop/
 │     │  └─ manifest.rs
 │     ├─ state/          # Global AppState
 │     │  └─ mod.rs
-│     ├─ services/       # Core business logic (llama.cpp/ollama)
-│     │  └─ mod.rs
+│     ├─ services/       # Core business logic (Actor-based services)
+│     │  ├─ mod.rs
+│     │  ├─ orchestrator.rs # High-level chat orchestration
+│     │  └─ llama/       # Llama service implementation (Actor + Logic)
+│     ├─ infrastructure/ # IO and external process management
+│     │  ├─ mod.rs
+│     │  ├─ nvidia_smi.rs # GPU metrics collection
+│     │  └─ llama/       # Low-level llama-server process handling
 │     └─ utils/          # Helper modules
 │
 ├─ package.json          # Node dependencies & scripts
@@ -72,10 +78,10 @@ npm run dev:frontend  # Start frontend dev server on port 5173
 The backend is written in Rust and integrated directly into the Tauri application. It handles model execution, file system access, and system-level operations.
 
 **Key Files:**
-- `src-tauri/src/main.rs` - Application entry point and Tauri setup
-- `src-tauri/src/commands/` - Rust functions exposed as Tauri commands
-- `src-tauri/src/state.rs` - Global application state management
-- `src-tauri/Cargo.toml` - Rust crate dependencies
+- **`src-tauri/src/services/`**: Modular logic separated into Actors and high-level services like Orchestrator.
+- **`src-tauri/src/infrastructure/`**: Direct interactions with external binaries (`llama-server`) and hardware (`nvidia-smi`).
+- **`src-tauri/src/commands/`**: Rust functions exposed as Tauri commands.
+- **`src-tauri/src/state/`**: Global application state management.
 
 **Key Technologies:**
 - Rust - High-performance backend language

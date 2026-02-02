@@ -1,5 +1,5 @@
 use crate::models::ChatMessage;
-use crate::services::llama_cpp::LlamaCppService;
+use crate::services::llama::service::LlamaCppService;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::ipc::Channel;

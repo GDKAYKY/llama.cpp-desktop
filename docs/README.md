@@ -1,23 +1,23 @@
 # Llama Desktop
 
-A Tauri-based desktop application for running Ollama models locally.
+A Tauri-based desktop application for running models locally using llama.cpp.
 
 [![CI/CD](https://github.com/GDKAYKY/llama.cpp-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/GDKAYKY/llama.cpp-desktop/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/GDKAYKY/llama.cpp-desktop/branch/main/graph/badge.svg)](https://codecov.io/gh/GDKAYKY/llama.cpp-desktop)
 
 ## Features
 
-- 🚀 Desktop app built with Tauri v2
-- 🦀 Rust backend for model management
-- 📦 Ollama model integration
-- 🧪 Comprehensive test coverage
-- 🔄 CI/CD with GitHub Actions
+- Desktop app built with Tauri v2
+- Rust backend for model management
+- Ollama model integration
+- Comprehensive test coverage
+- CI/CD with GitHub Actions
 
 ## Prerequisites
 
 - Node.js 18+ 
 - Rust (install from https://rustup.rs/)
-- Ollama models in `E:\models` (Windows)
+- Ollama models in E:\models (Windows)
 
 ## Installation
 
@@ -72,10 +72,15 @@ npm run build
 ## Project Structure
 
 ```
-├── src/                    # Frontend (HTML/JS/CSS)
+├── src/                    # Frontend (Svelte + Tailwind)
 ├── src-tauri/             # Tauri backend (Rust)
-├── test/                  # Test files
-├── .github/workflows/     # CI/CD workflows
+│   ├── src/
+│   │   ├── commands/      # IPC Command handlers
+│   │   ├── infrastructure/# Logic for external IO (llama-server, nvidia-smi)
+│   │   ├── services/      # Business logic and Actors
+│   │   ├── models/        # Shared data structures
+│   │   └── state/         # Global AppState
+├── docs/                  # Project documentation
 └── package.json           # Dependencies and scripts
 ```
 

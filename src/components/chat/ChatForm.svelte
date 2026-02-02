@@ -44,7 +44,7 @@
 
 <svelte:window on:click={handleClickOutside} />
 
-<div class="mx-auto w-full max-w-3xl px-4 pb-6">
+<div class="mx-auto w-full max-w-3xl px-4">
   <form
     class="rounded-3xl border border-border bg-secondary p-3 px-4 shadow-sm transition-shadow focus-within:shadow-md"
     onsubmit={(e: SubmitEvent) => {
@@ -132,7 +132,9 @@
     </div>
   </form>
 
-  <p class="mt-3 text-center text-[0.75rem] text-muted-foreground opacity-80">
+  <p
+    class="mb-2 mt-2 text-center text-[0.75rem] text-muted-foreground opacity-80"
+  >
     Llama-desktop can make mistakes. Check important info.
   </p>
 </div>

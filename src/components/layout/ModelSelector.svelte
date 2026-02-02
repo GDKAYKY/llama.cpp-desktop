@@ -262,43 +262,6 @@
               />
             {/if}
 
-            {#if isModelRunning(model)}
-              <div class="flex items-center justify-between gap-1.5">
-                <div
-                  class="flex items-center gap-1.5 text-[10px] font-bold text-green-400 uppercase tracking-wider"
-                >
-                  <Activity size={12} class="animate-pulse" />
-                  Running
-                </div>
-                <button
-                  class="flex items-center gap-1 rounded bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-400 border border-red-500/30 transition-all hover:bg-red-500/40 hover:text-red-100"
-                  onclick={(e) => {
-                    e.stopPropagation();
-                    serverStore.stopServer();
-                  }}
-                  title="Stop execution"
-                >
-                  <Square size={10} fill="currentColor" />
-                  STOP
-                </button>
-              </div>
-            {:else if modelsStore.selectedModel?.full_identifier === model.full_identifier}
-              <div class="flex items-center justify-between gap-1.5">
-                <div
-                  class="text-[10px] font-bold text-muted-foreground uppercase"
-                >
-                  Ready to launch
-                </div>
-                <button
-                  class="flex items-center gap-1.5 rounded bg-primary/20 px-3 py-1 text-[10px] font-bold text-primary border border-primary/30 transition-all hover:bg-primary/30"
-                  onclick={(e) => handleLaunchModel(model, e)}
-                >
-                  <Play size={10} fill="currentColor" />
-                  LAUNCH
-                </button>
-              </div>
-            {/if}
-
             <div class="grid grid-cols-2 gap-2">
               {#each Object.entries(getModelMetadata(model.version)) as [key, value]}
                 {#if value}

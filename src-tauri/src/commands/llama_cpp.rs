@@ -42,7 +42,11 @@ pub async fn check_server_health(state: State<'_, AppState>) -> Result<bool, Str
         return Ok(false);
     }
 
-    let config = state.llama_service.get_config().await.ok_or("No config")?;
+    let config = state
+        .llama_service
+        .get_config()
+        .await
+        .ok_or_else(|| "No config".to_string())?;
     let url = format!("http://localhost:{}/health", config.port);
 
     let client = reqwest::Client::new();

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { cn } from "$shared/cn.js";
-  import { ChevronDown, Check, Loader2, Square } from "lucide-svelte";
+  import { ChevronDown, Check, LoaderCircle, Square } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
 
   /** @type {{
@@ -23,14 +23,13 @@
     models,
     selectModel,
     handleClickOutside,
-    modelLoaded,
   } = $props();
 </script>
 
 <svelte:window on:click={handleClickOutside} />
 
 <header
-  class="sticky top-0 z-50 flex h-[54px] items-center border-b border-border bg-background px-4"
+  class="sticky top-0 z-50 flex h-[54px] items-center bg-background px-2 p-2 shadow-2xl shadow-background"
 >
   <div class="flex min-w-[80px] shrink-0 items-center gap-2"></div>
 
@@ -38,7 +37,7 @@
     <div class="relative flex w-full max-w-[400px] justify-center">
       <button
         type="button"
-        class="flex max-w-full cursor-pointer items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-white/5"
+        class="flex max-w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-white/5"
         aria-haspopup="listbox"
         aria-expanded={isDropdownOpen ? "true" : "false"}
         onclick={toggleDropdown}
@@ -128,7 +127,7 @@
         class="flex items-center justify-center text-muted-foreground"
         aria-live="polite"
       >
-        <Loader2 class="h-4 w-4 animate-spin" />
+        <LoaderCircle class="h-4 w-4 animate-spin" />
       </div>
     {/if}
   </div>

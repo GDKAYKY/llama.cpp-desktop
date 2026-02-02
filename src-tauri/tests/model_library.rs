@@ -1,5 +1,5 @@
 use llama_desktop_lib::commands::models::{
-    load_model_library, parse_model_manifest, save_model_library,
+    load_model_library, parse_model_manifest, save_model_library, scan_models_directory,
 };
 use llama_desktop_lib::models::{ManifestConfig, ManifestLayer, ModelInfo, ModelManifest};
 use std::fs;
@@ -76,7 +76,7 @@ async fn test_model_manifest_parsing() {
         .unwrap()
         .contains(blob_filename));
 
-    println!("\x1b[30;42m SUCESS \x1b[0m {}", testname);
+    println!("\x1b[30;42m SUCCESS \x1b[0m {}", testname);
 }
 
 #[tokio::test]
@@ -133,5 +133,60 @@ async fn test_model_library_persistence() {
         "test-provider:test-model:1.0"
     );
 
-    println!("\x1b[30;42m SUCESS \x1b[0m {}", testname);
+    println!("\x1b[30;42m SUCCESS \x1b[0m {}", testname);
+}
+
+#[tokio::test]
+async fn test_scan_models_directory() {
+    let testname = "test_scan_models_directory";
+
+    // 1. Setup temp dir
+    let dir = tempdir().expect("Failed to create temp dir");
+    let root_path = dir.path();
+
+    // 2. Create structure
+    // manifests/registry.ollama.ai/library/llama3/latest
+    let manifest_dir = root_path.join("manifests/registry.ollama.ai/library/llama3");
+    fs::create_dir_all(&manifest_dir).expect("Failed to create manifest dir");
+    let manifest_path = manifest_dir.join("latest");
+
+    // 3. Write manifest
+    let model_digest = "sha256:60e05f212f026038317a94420e7f41530777085750d5e1f7bd8cc5961d1d86d5";
+    let manifest_json = format!(
+        r#"{{
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+        "config": {{
+            "mediaType": "application/vnd.docker.container.image.v1+json",
+            "digest": "sha256:dcee128a1ea55610667e4529241517409254b1f6920f666b6c0e86b24508e6f0",
+            "size": 3942
+        }},
+        "layers": [
+            {{
+                "mediaType": "application/vnd.ollama.image.model",
+                "digest": "{}",
+                "size": 4661196144
+            }}
+        ]
+    }}"#,
+        model_digest
+    );
+    fs::write(&manifest_path, manifest_json).expect("Failed to write manifest file");
+
+    // 4. Run scan
+    let models = scan_models_directory(root_path.to_str().unwrap().to_string())
+        .await
+        .expect("Failed to scan models directory");
+
+    // 5. Verify
+    assert_eq!(models.len(), 1);
+    let model = &models[0];
+    assert_eq!(model.provider, "registry.ollama.ai");
+    assert_eq!(model.library, "library");
+    assert_eq!(model.name, "llama3");
+    assert_eq!(model.version, "latest");
+    // Since we didn't create the blob, model_file_path should be None
+    assert!(model.model_file_path.is_none());
+
+    println!("\x1b[30;42m SUCCESS \x1b[0m {}", testname);
 }
