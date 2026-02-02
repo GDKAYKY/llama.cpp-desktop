@@ -15,11 +15,6 @@
   let textarea: any = $state();
   let isDropdownOpen = $state(false);
 
-  onMount(async () => {
-    // Initialize chat store
-    await chatStore.initialize();
-  });
-
   $effect(() => {
     if (chatStore.messages.length) {
       scrollToBottom();

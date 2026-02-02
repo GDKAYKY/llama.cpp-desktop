@@ -19,7 +19,7 @@
   }
 </script>
 
-<div class="flex h-screen w-full flex-col bg-background text-foreground">
+<div class="flex h-full w-full flex-col bg-background text-foreground">
   <div class="grow overflow-y-auto">
     <ModelSelector on:modelSelected={handleModelSelected} />
   </div>

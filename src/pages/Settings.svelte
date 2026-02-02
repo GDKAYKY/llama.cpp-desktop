@@ -119,7 +119,7 @@
 </script>
 
 <div
-  class="mx-auto h-screen max-w-[900px] overflow-y-auto px-5 py-10 text-foreground"
+  class="mx-auto h-full max-w-[900px] overflow-y-auto px-5 py-10 text-foreground"
 >
   <div
     class="mb-8 flex items-center justify-between border-b border-border pb-5"

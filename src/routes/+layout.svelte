@@ -5,6 +5,7 @@
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
   import { uiStore } from "$lib/stores/ui.svelte";
+  import { chatStore } from "$lib/stores/chat.svelte";
   import { onMount } from "svelte";
   import ChatSidebar from "$components/layout/ChatSidebar.svelte";
 
@@ -13,6 +14,7 @@
   onMount(async () => {
     await settingsStore.init();
     await modelsStore.refresh();
+    await chatStore.initialize();
   });
 </script>
 
