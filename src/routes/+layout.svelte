@@ -26,7 +26,7 @@
     isSidebarOpen={uiStore.isSidebarOpen}
     toggleSidebar={() => uiStore.toggleSidebar()}
   />
-  <main class="relative flex grow flex-col overflow-hidden bg-background">
+  <main class="relative flex grow flex-col overflow-y-auto bg-background">
     {@render children()}
   </main>
 </div>

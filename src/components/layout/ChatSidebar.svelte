@@ -148,8 +148,8 @@
         </div>
         <div
           class={cn(
-            "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300",
-            isSidebarOpen ? "w-40 opacity-100 ml-1" : "w-0 opacity-0 ml-0",
+            "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300 text-left",
+            isSidebarOpen ? "opacity-100 flex-1" : "w-0 opacity-0",
           )}
         >
           <span
@@ -196,8 +196,8 @@
           </div>
           <div
             class={cn(
-              "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300",
-              isSidebarOpen ? "w-40 opacity-100 ml-1" : "w-0 opacity-0 ml-0",
+              "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300 text-left",
+              isSidebarOpen ? "opacity-100 flex-1" : "w-0 opacity-0",
             )}
           >
             <span
@@ -218,7 +218,7 @@
     <!-- CENTRAL AREA (SCROLLABLE) -->
     <div
       class={cn(
-        "scrollbar-hide mt-4 flex grow flex-col overflow-y-auto transition-opacity duration-300",
+        "mt-4 flex grow flex-col overflow-y-auto transition-opacity duration-300",
         !isSidebarOpen && "pointer-events-none opacity-0",
       )}
     >
@@ -359,8 +359,8 @@
           </div>
           <div
             class={cn(
-              "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300",
-              isSidebarOpen ? "w-40 opacity-100 ml-1" : "w-0 opacity-0 ml-0",
+              "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300 text-left",
+              isSidebarOpen ? "opacity-100 flex-1" : "w-0 opacity-0",
             )}
           >
             <span

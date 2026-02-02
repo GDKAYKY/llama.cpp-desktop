@@ -44,9 +44,9 @@
 
 <svelte:window on:click={handleClickOutside} />
 
-<div class="mx-auto w-full max-w-3xl px-4">
+<div class="mx-auto w-full max-w-3xl px-4 md:px-6">
   <form
-    class="rounded-3xl border border-border bg-secondary p-3 px-4 shadow-sm transition-shadow focus-within:shadow-md"
+    class="rounded-[28px] border border-white/10 bg-[#2f2f2f] p-3 px-4 shadow-xl transition-all focus-within:border-white/20 focus-within:bg-[#353535]/90"
     onsubmit={(e: SubmitEvent) => {
       e.preventDefault();
       onSend();
@@ -122,7 +122,7 @@
           <button
             type="submit"
             disabled={!userInput.trim() || isLoading || !modelLoaded}
-            class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-muted-foreground text-background transition-all hover:enabled:scale-105 hover:enabled:bg-foreground disabled:cursor-not-allowed disabled:opacity-30"
+            class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-white text-black transition-all hover:enabled:scale-105 hover:enabled:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
             title="Send message"
           >
             <ArrowUp size={20} strokeWidth={2.5} />
@@ -131,10 +131,4 @@
       </div>
     </div>
   </form>
-
-  <p
-    class="mb-2 mt-2 text-center text-[0.75rem] text-muted-foreground opacity-80"
-  >
-    Llama-desktop can make mistakes. Check important info.
-  </p>
 </div>

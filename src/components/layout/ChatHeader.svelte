@@ -29,7 +29,7 @@
 <svelte:window on:click={handleClickOutside} />
 
 <header
-  class="sticky top-0 z-50 flex h-[54px] items-center bg-background px-2 p-2 shadow-2xl shadow-background"
+  class="sticky top-0 z-50 flex h-[60px] items-center bg-background px-4 p-2 shadow-background shadow-2xl"
 >
   <div class="flex min-w-[80px] shrink-0 items-center gap-2"></div>
 

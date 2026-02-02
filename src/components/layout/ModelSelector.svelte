@@ -197,11 +197,11 @@
         {#each modelsStore.models as model}
           <div
             class={cn(
-              "relative flex cursor-pointer flex-col gap-4 rounded-xl border-2 p-5 transition-all",
+              "relative flex cursor-pointer flex-col gap-4 rounded-xl border-1 p-5 transition-all",
               modelsStore.selectedModel?.full_identifier ===
                 model.full_identifier
                 ? "border-primary bg-primary/5 shadow-md"
-                : "border-border bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]",
+                : "border-border bg-white/2 hover:border-white/20 hover:bg-white/5",
             )}
             onclick={() => handleSelectModel(model)}
             role="button"

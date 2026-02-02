@@ -182,16 +182,27 @@
     bind:messagesEnd
   />
 
-  <div class="sticky bottom-0 z-10 w-full">
-    <ChatForm
-      bind:userInput
-      modelLoaded={chatStore.modelLoaded}
-      isLoading={chatStore.isLoading}
-      onKeydown={handleKeydown}
-      onInput={handleInput}
-      onSend={sendMessage}
-      bind:textarea
-      selectedModel={modelsStore.selectedModel}
-    />
+  <!-- Floating Chat Form at the bottom of the main scroll container -->
+  <div
+    class="pointer-events-none sticky bottom-0 z-10 mt-auto flex w-full flex-col items-center pb-2"
+    style="background: linear-gradient(to bottom, transparent 40%, #212121 40%)"
+  >
+    <div class="pointer-events-auto w-full flex flex-col items-center">
+      <ChatForm
+        bind:userInput
+        modelLoaded={chatStore.modelLoaded}
+        isLoading={chatStore.isLoading}
+        onKeydown={handleKeydown}
+        onInput={handleInput}
+        onSend={sendMessage}
+        bind:textarea
+        selectedModel={modelsStore.selectedModel}
+      />
+      <p
+        class="mt-2 text-center text-[0.75rem] text-muted-foreground opacity-80"
+      >
+        Llama-desktop can make mistakes. Check important info.
+      </p>
+    </div>
   </div>
 {/if}
