@@ -1,4 +1,4 @@
-use crate::models::LlamaCppConfig;
+use crate::models::{LlamaCppConfig, ServerMetrics};
 use crate::state::AppState;
 use tauri::command;
 use tauri::State;
@@ -59,4 +59,11 @@ pub async fn get_llama_config(
     state: State<'_, AppState>,
 ) -> Result<Option<LlamaCppConfig>, String> {
     Ok(state.llama_service.get_config().await)
+}
+
+#[command]
+pub async fn get_server_metrics(
+    state: State<'_, AppState>,
+) -> Result<Option<ServerMetrics>, String> {
+    Ok(state.llama_service.get_metrics().await)
 }

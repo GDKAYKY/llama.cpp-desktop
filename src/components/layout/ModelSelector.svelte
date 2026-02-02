@@ -15,6 +15,10 @@
     FileText,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
+  import { chatStore } from "$lib/stores/chat.svelte";
+  import { settingsStore } from "$lib/stores/settings.svelte";
+  import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
+  import { Play } from "lucide-svelte";
 
   const dispatch = createEventDispatcher();
   let activeDropdown = $state<string | null>(null);
@@ -95,6 +99,23 @@
     const parts = digest.split(":");
     const hash = parts[1] || parts[0];
     return hash.substring(0, 12);
+  }
+
+  function isModelRunning(model: Model) {
+    return (
+      serverStore.isRunning &&
+      serverStore.currentConfig?.model_path === model.model_file_path
+    );
+  }
+
+  async function handleLaunchModel(model: Model, e: MouseEvent) {
+    e.stopPropagation();
+    if (!model.model_file_path) return;
+
+    await serverStore.startServer(
+      settingsStore.settings.llamaDirectory,
+      model.model_file_path,
+    );
   }
 </script>
 
@@ -234,7 +255,14 @@
               </div>
             </div>
 
-            {#if serverStore.isRunning && serverStore.currentConfig?.model_path === model.model_file_path}
+            {#if isModelRunning(model)}
+              <ModelUsageGraph
+                vramUsage={serverStore.serverMetrics?.vram_usage || 0}
+                gpuUsage={serverStore.serverMetrics?.gpu_usage || 0}
+              />
+            {/if}
+
+            {#if isModelRunning(model)}
               <div class="flex items-center justify-between gap-1.5">
                 <div
                   class="flex items-center gap-1.5 text-[10px] font-bold text-green-400 uppercase tracking-wider"
@@ -252,6 +280,21 @@
                 >
                   <Square size={10} fill="currentColor" />
                   STOP
+                </button>
+              </div>
+            {:else if modelsStore.selectedModel?.full_identifier === model.full_identifier}
+              <div class="flex items-center justify-between gap-1.5">
+                <div
+                  class="text-[10px] font-bold text-muted-foreground uppercase"
+                >
+                  Ready to launch
+                </div>
+                <button
+                  class="flex items-center gap-1.5 rounded bg-primary/20 px-3 py-1 text-[10px] font-bold text-primary border border-primary/30 transition-all hover:bg-primary/30"
+                  onclick={(e) => handleLaunchModel(model, e)}
+                >
+                  <Play size={10} fill="currentColor" />
+                  LAUNCH
                 </button>
               </div>
             {/if}

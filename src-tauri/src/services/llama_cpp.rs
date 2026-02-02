@@ -7,7 +7,9 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::models::{
     ChatMessage, ChatRequest, LlamaCppConfig, ModelId, ModelInfo, ModelLibrary, ModelState,
+    ServerMetrics,
 };
+use sysinfo::{CpuRefreshKind, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
 // ==================================================================================
 // 1. Actor Definition
 // ==================================================================================
@@ -34,6 +36,9 @@ pub enum ActorMessage {
     GetConfig {
         respond_to: oneshot::Sender<Option<LlamaCppConfig>>,
     },
+    GetMetrics {
+        respond_to: oneshot::Sender<Option<ServerMetrics>>,
+    },
     // Internal completion message
     InternalStartComplete {
         model_id: ModelId,
@@ -50,6 +55,7 @@ struct LlamaActor {
     active_model: Option<ModelId>,
     // Store self sender for internal messages
     self_sender: mpsc::Sender<ActorMessage>,
+    sys: System,
 }
 
 impl LlamaActor {
@@ -65,6 +71,11 @@ impl LlamaActor {
             client: reqwest::Client::new(),
             active_model: None,
             self_sender,
+            sys: System::new_with_specifics(
+                RefreshKind::nothing()
+                    .with_processes(ProcessRefreshKind::nothing().with_cpu())
+                    .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
+            ),
         }
     }
 
@@ -145,6 +156,38 @@ impl LlamaActor {
                         None
                     };
                     let _ = respond_to.send(config);
+                }
+                ActorMessage::GetMetrics { respond_to } => {
+                    let metrics = if let Some(id) = &self.active_model {
+                        if let Some(ModelState::Running { child, .. }) = self.states.get(id) {
+                            if let Some(pid) = child.id() {
+                                let pid_sys = sysinfo::Pid::from(pid as usize);
+                                self.sys.refresh_processes_specifics(
+                                    ProcessesToUpdate::Some(&[pid_sys]),
+                                    true,
+                                    ProcessRefreshKind::nothing().with_cpu(),
+                                );
+                                if let Some(process) = self.sys.process(pid_sys) {
+                                    let (gpu_usage, vram_usage) = ServerMetrics::get_gpu_metrics_for_pid(pid);
+                                    Some(ServerMetrics {
+                                        cpu_usage: process.cpu_usage(),
+                                        mem_usage: process.memory(),
+                                        gpu_usage: gpu_usage,
+                                        vram_usage: vram_usage,
+                                    })
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                    let _ = respond_to.send(metrics);
                 }
             }
         }
@@ -602,6 +645,15 @@ impl LlamaCppService {
         let _ = self
             .sender
             .send(ActorMessage::GetConfig { respond_to: tx })
+            .await;
+        rx.await.unwrap_or(None)
+    }
+
+    pub async fn get_metrics(&self) -> Option<ServerMetrics> {
+        let (tx, rx) = oneshot::channel();
+        let _ = self
+            .sender
+            .send(ActorMessage::GetMetrics { respond_to: tx })
             .await;
         rx.await.unwrap_or(None)
     }
