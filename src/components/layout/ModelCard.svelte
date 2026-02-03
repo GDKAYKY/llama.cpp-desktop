@@ -132,6 +132,7 @@
         label: "Model file not found",
         icon: AlertTriangle,
         color: "text-orange-400",
+        badgeColor: "bg-orange-500",
       };
     }
 
@@ -140,13 +141,15 @@
         return {
           label: serverStore.error,
           icon: AlertTriangle,
-          color: "text-red-400",
+          color: "text-orange-400",
+          badgeColor: "bg-orange-500",
         };
       }
       return {
         label: "Model is running",
         icon: Activity,
         color: "text-green-400",
+        badgeColor: "bg-green-500",
       };
     }
 
@@ -154,6 +157,10 @@
   });
 
   const borderColors = $derived.by(() => {
+    if (currentStatus?.icon === AlertTriangle) {
+      if (isSelected) return "border-orange-300 group-hover:border-orange-100";
+      return "border-orange-500 group-hover:border-orange-400";
+    }
     if (isSelected) return "border-primary";
     if (isModelRunning(model))
       return "border-[#416b418f] group-hover:border-[#347034] group-active:!border-[#8fff94]";
@@ -182,12 +189,12 @@
     )}
     style={currentStatus && statusWidth > 0
       ? `
-      -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 1px), transparent calc(100% - 1px)), linear-gradient(to right, black ${BORDER_GAP_LEFT}px, transparent ${BORDER_GAP_LEFT}px, transparent calc(16px + ${statusWidth}px + 12px), black calc(16px + ${statusWidth}px + 12px));
+      -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 1px), transparent calc(100% - 1px)), linear-gradient(to right, black ${BORDER_GAP_LEFT}px, transparent ${BORDER_GAP_LEFT}px, transparent calc(16px + ${statusWidth}px + 7px), black calc(16px + ${statusWidth}px + 7px));
       -webkit-mask-composite: source-over;
       -webkit-mask-size: 100% 100%, 100% 1px;
       -webkit-mask-position: 0 0, 0 100%;
       -webkit-mask-repeat: no-repeat;
-      mask-image: linear-gradient(to bottom, black calc(100% - 1px), transparent calc(100% - 1px)), linear-gradient(to right, black ${BORDER_GAP_LEFT}px, transparent ${BORDER_GAP_LEFT}px, transparent calc(16px + ${statusWidth}px + 12px), black calc(16px + ${statusWidth}px + 12px));
+      mask-image: linear-gradient(to bottom, black calc(100% - 1px), transparent calc(100% - 1px)), linear-gradient(to right, black ${BORDER_GAP_LEFT}px, transparent ${BORDER_GAP_LEFT}px, transparent calc(16px + ${statusWidth}px + 7px), black calc(16px + ${statusWidth}px + 7px));
       mask-composite: add;
       mask-size: 100% 100%, 100% 1px;
       mask-position: 0 0, 0 100%;
@@ -389,6 +396,15 @@
       class="absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
     >
       <Check size={16} strokeWidth={3} />
+    </div>
+  {:else if currentStatus?.icon === AlertTriangle}
+    <div
+      class={cn(
+        "absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full text-white shadow-lg",
+        currentStatus.badgeColor,
+      )}
+    >
+      <AlertTriangle size={16} strokeWidth={3} />
     </div>
   {/if}
 </div>
