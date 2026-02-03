@@ -52,3 +52,12 @@ This document provides a detailed breakdown of the responsibilities for each maj
 *The "Container". Dependency injection and global state.*
 
 - **`mod.rs`**: Initializes and holds instances of all services (`LlamaCppService`, `Orchestrator`).
+
+## 6. Binding Layer (`src-tauri/src`)
+*Connects the layers and handles the IPC registry.*
+
+- **`ipc_handlers.rs`**:
+    - **Owner**: IPC Management
+    - **Logic**: Registry of all `#[tauri::command]` functions.
+    - **Responsibilities**: Centralizing command registration to keep `lib.rs` and `main.rs` clean.
+

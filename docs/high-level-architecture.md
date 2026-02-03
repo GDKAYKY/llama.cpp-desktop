@@ -98,7 +98,10 @@ flowchart TB
 
 ### 3. Streaming Chat
 1. **Frontend**: User sends a prompt.
-2. **Orchestrator**: Appends user message to history.
-3. **Infra**: Sets up a `reqwest::Client` to stream SSE events from `localhost:PORT/v1/chat/completions`.
-4. **Frontend**: Receives real-time chunks via Tauri `Channel`.
-5. **Orchestrator**: Persists final assistant response when stream finishes.
+2. **Frontend (ChatStore)**: Queries **Dexie DB** for relevant past context (Hybrid Search).
+3. **Frontend (ChatStore)**: Injects context into the prompt and calls `send_message` IPC.
+4. **Orchestrator**: Appends user message to in-memory session history.
+5. **Infra**: Sets up a `reqwest::Client` to stream SSE events.
+6. **Frontend**: Receives real-time chunks and updates the UI.
+7. **Frontend (ChatStore)**: Persists final response and metadata (model name, tokens) to **Dexie DB**.
+

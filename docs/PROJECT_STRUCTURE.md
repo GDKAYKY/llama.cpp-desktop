@@ -16,38 +16,33 @@ This architecture enables clear separation of concerns, performance, and cross-p
 llama-desktop/
 ├─ src/                  # Svelte (frontend)
 │  ├─ lib/               # Shared components and logic
-│  ├─ routes/            # Pages and layouts
-│  └─ app.html           # HTML template
+│  │  ├─ services/       # Frontend-only logic (Dexie, history)
+│  │  ├─ stores/         # Svelte stores (Chat, Server, Models)
+│  │  ├─ infrastructure/ # IPC wrapper
+│  │  └─ ...
+│  ├─ components/        # UI components (ModelCard, Message, etc.)
+│  ├─ pages/             # App pages (Home, Settings, Models)
+│  └─ App.svelte         # Main entry component
 │
 ├─ src-tauri/            # Rust (backend Tauri)
-│  ├─ Cargo.toml
-│  └─ src/
-│     ├─ main.rs         # Entry point & setup
-│     ├─ commands/       # Tauri command handlers (IPC)
-│     │  └─ mod.rs
-│     ├─ models/         # Centralized Data Models (Shared Structs/Enums)
-│     │  ├─ mod.rs
-│     │  ├─ app_config.rs
-│     │  ├─ chat.rs
-│     │  ├─ llama.rs
-│     │  └─ manifest.rs
-│     ├─ state/          # Global AppState
-│     │  └─ mod.rs
-│     ├─ services/       # Core business logic (Actor-based services)
-│     │  ├─ mod.rs
-│     │  ├─ orchestrator.rs # High-level chat orchestration
-│     │  └─ llama/       # Llama service implementation (Actor + Logic)
-│     ├─ infrastructure/ # IO and external process management
-│     │  ├─ mod.rs
-│     │  ├─ nvidia_smi.rs # GPU metrics collection
-│     │  └─ llama/       # Low-level llama-server process handling
-│     └─ utils/          # Helper modules
+│  ├─ src/
+│  │  ├─ main.rs         # Setup entry point
+│  │  ├─ lib.rs          # Core Tauri application logic
+│  │  ├─ commands/       # Tauri command handlers (per-domain files)
+│  │  ├─ commands.rs     # Registry of command modules
+│  │  ├─ models/         # Shared data structures
+│  │  ├─ models.rs       # Registry of model modules
+│  │  ├─ services/       # Core business logic (Actor services)
+│  │  ├─ services.rs     # Registry of service modules
+│  │  ├─ state/          # Global AppState (single state.rs)
+│  │  ├─ ipc_handlers.rs  # Centralized IPC command registration
+│  │  └─ infrastructure/ # IO and hardware management
 │
-├─ package.json          # Node dependencies & scripts
-├─ svelte.config.js
-├─ vite.config.ts
-├─ tauri.conf.json       # Tauri app configuration
+├─ docs/                  # Project documentation (indexed by README.md)
+├─ package.json           # Node dependencies & scripts
+├─ tauri.conf.json        # Tauri configuration
 └─ README.md
+
 ```
 
 ## Layer Descriptions

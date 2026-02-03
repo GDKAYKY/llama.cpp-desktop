@@ -348,13 +348,17 @@
           >
             <div
               class={cn(
-                "flex h-10 w-10 items-center justify-center transition-colors duration-200",
+                "flex h-8 w-8 items-center justify-center transition-colors duration-200",
                 showProfileMenu
                   ? "text-white"
                   : "text-[#b4b4b4] group-hover:text-white",
               )}
             >
-              <User size={22} strokeWidth={1.5} />
+              <img
+                src="/logo.png"
+                alt="User"
+                class="h-full w-full object-contain"
+              />
             </div>
           </div>
           <div
@@ -383,10 +387,12 @@
             <div
               class="flex items-center gap-3 border-b border-[#3f3f3f] p-3 mb-1"
             >
-              <div
-                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#3f3f3f] text-[#b4b4b4]"
-              >
-                <User size={16} strokeWidth={1.5} />
+              <div class="flex h-8 w-8 shrink-0 items-center justify-center">
+                <img
+                  src="/logo.png"
+                  alt="User"
+                  class="h-full w-full object-contain"
+                />
               </div>
               <span class="truncate text-sm font-semibold text-[#ececec]"
                 >User</span
