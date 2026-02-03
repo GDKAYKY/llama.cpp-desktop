@@ -29,3 +29,11 @@ pub enum ModelState {
         config: LlamaCppConfig,
     },
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerMetrics {
+    pub cpu_usage: f32,
+    pub mem_usage: u64,
+    pub gpu_usage: Option<f32>,
+    pub vram_usage: Option<f32>, // VRAM usage percentage (0-100%)
+}

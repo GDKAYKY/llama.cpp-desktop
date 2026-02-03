@@ -156,6 +156,7 @@ The component provides:
 - Automatic scanning and parsing
 - Visual model cards with metadata
 - Model selection interface
+- Start/Stop inference server directly from the UI
 - Persistent storage in modelLibrary.json
 
 ## Backend Commands
@@ -171,6 +172,16 @@ await invoke('parse_model_manifest', {
   modelsRoot: 'path/to/models/root'
 });
 ```
+
+```
+
+### Starting/Stopping Models
+
+You can now control the inference server directly from each model card in the library. Click the three dots (⋮) on a model card to access:
+- **Start Model**: Launches the llama-server with the selected model.
+- **Stop Model**: Terminates the currently running server.
+- **Copy File Path**: Copies the full path of the GGUF file to clipboard.
+- **View Manifest**: Logs the manifest details to the console.
 
 ### `scan_models_directory`
 Scan entire models directory.

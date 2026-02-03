@@ -63,13 +63,8 @@ pub async fn parse_model_manifest(
     // Parse the path to extract components
     let (provider, library, name, version) = parse_model_path(&model_path)?;
 
-    // Read the manifest file
-    let manifest_content = fs::read_to_string(&model_path)
-        .map_err(|e| format!("Failed to read manifest file: {}", e))?;
-
-    // Parse JSON
-    let manifest: ModelManifest = serde_json::from_str(&manifest_content)
-        .map_err(|e| format!("Failed to parse manifest JSON: {}", e))?;
+    // Read and parse manifest file
+    let manifest: ModelManifest = crate::utils::read_json(Path::new(&model_path))?;
 
     // Find the model file (first layer with model mediaType)
     let model_layer = manifest
@@ -150,11 +145,7 @@ pub async fn save_model_library(
 ) -> Result<(), String> {
     let library = ModelLibrary { models };
 
-    let json = serde_json::to_string_pretty(&library)
-        .map_err(|e| format!("Failed to serialize model library: {}", e))?;
-
-    fs::write(&library_path, json)
-        .map_err(|e| format!("Failed to write model library file: {}", e))?;
+    crate::utils::save_json(Path::new(&library_path), &library)?;
 
     Ok(())
 }
@@ -165,11 +156,7 @@ pub async fn load_model_library(library_path: String) -> Result<Vec<ModelInfo>, 
         return Ok(Vec::new());
     }
 
-    let content = fs::read_to_string(&library_path)
-        .map_err(|e| format!("Failed to read model library: {}", e))?;
-
-    let library: ModelLibrary = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse model library: {}", e))?;
+    let library: ModelLibrary = crate::utils::read_json(Path::new(&library_path))?;
 
     Ok(library.models)
 }

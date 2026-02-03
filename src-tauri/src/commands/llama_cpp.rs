@@ -1,4 +1,4 @@
-use crate::models::LlamaCppConfig;
+use crate::models::{LlamaCppConfig, ServerMetrics};
 use crate::state::AppState;
 use tauri::command;
 use tauri::State;
@@ -42,7 +42,11 @@ pub async fn check_server_health(state: State<'_, AppState>) -> Result<bool, Str
         return Ok(false);
     }
 
-    let config = state.llama_service.get_config().await.ok_or("No config")?;
+    let config = state
+        .llama_service
+        .get_config()
+        .await
+        .ok_or_else(|| "No config".to_string())?;
     let url = format!("http://localhost:{}/health", config.port);
 
     let client = reqwest::Client::new();
@@ -52,4 +56,18 @@ pub async fn check_server_health(state: State<'_, AppState>) -> Result<bool, Str
         Ok(res) => Ok(res.status().is_success()),
         Err(_) => Ok(false),
     }
+}
+
+#[command]
+pub async fn get_llama_config(
+    state: State<'_, AppState>,
+) -> Result<Option<LlamaCppConfig>, String> {
+    Ok(state.llama_service.get_config().await)
+}
+
+#[command]
+pub async fn get_server_metrics(
+    state: State<'_, AppState>,
+) -> Result<Option<ServerMetrics>, String> {
+    Ok(state.llama_service.get_metrics().await)
 }

@@ -1,4 +1,4 @@
-use crate::services::llama_cpp::LlamaCppService;
+use crate::services::llama::LlamaCppService;
 use crate::services::orchestrator::ChatOrchestrator;
 
 pub struct AppState {

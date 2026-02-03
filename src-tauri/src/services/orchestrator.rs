@@ -1,5 +1,5 @@
 use crate::models::ChatMessage;
-use crate::services::llama_cpp::LlamaCppService;
+use crate::services::llama::service::LlamaCppService;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::ipc::Channel;
@@ -83,5 +83,10 @@ impl ChatOrchestrator {
     pub async fn clear_session(&self, session_id: &str) {
         let mut sessions = self.sessions.lock().await;
         sessions.remove(session_id);
+    }
+
+    pub async fn set_session_history(&self, session_id: &str, history: Vec<ChatMessage>) {
+        let mut sessions = self.sessions.lock().await;
+        sessions.insert(session_id.to_string(), history);
     }
 }

@@ -29,13 +29,7 @@ pub fn get_config(app: &AppHandle) -> Result<AppConfig, String> {
         return Ok(AppConfig::default());
     }
 
-    let content = fs::read_to_string(&config_path)
-        .map_err(|e| format!("Failed to read config file: {}", e))?;
-
-    let config: AppConfig =
-        serde_json::from_str(&content).map_err(|e| format!("Failed to parse config: {}", e))?;
-
-    Ok(config)
+    crate::utils::read_json(&config_path)
 }
 
 #[command]
@@ -47,10 +41,7 @@ pub async fn load_config(app: AppHandle) -> Result<AppConfig, String> {
 pub async fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     let config_path = build_config_file_path(&app).map_err(|e| e.to_string())?;
 
-    let json = serde_json::to_string_pretty(&config)
-        .map_err(|e| format!("Failed to serialize config: {}", e))?;
-
-    fs::write(&config_path, json).map_err(|e| format!("Failed to write config file: {}", e))?;
+    crate::utils::save_json(&config_path, &config)?;
 
     Ok(())
 }

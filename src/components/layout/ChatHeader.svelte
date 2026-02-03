@@ -1,13 +1,8 @@
 <script lang="ts">
   import { cn } from "$shared/cn.js";
-  import {
-    PanelLeftOpen,
-    SquarePen,
-    ChevronDown,
-    Check,
-    Loader2,
-  } from "lucide-svelte";
-  import { chatStore } from "$lib/stores/chat.svelte";
+  import { ChevronDown, Check, LoaderCircle, Square } from "lucide-svelte";
+  import { serverStore } from "$lib/stores/server.svelte";
+  import ModelLogo from "./ModelLogo.svelte";
 
   /** @type {{
    *   isSidebarOpen: boolean,
@@ -27,29 +22,38 @@
     selectedModel,
     isDropdownOpen,
     models,
-    LoaderCircle,
     selectModel,
     handleClickOutside,
   } = $props();
+
+  function getModelMetadata(version: string) {
+    const combined = version.toLowerCase();
+    const quantMatch = combined.match(
+      /(iq\d+_[a-z0-9_]+)|(q\d+_[a-z0-9_]+)|(q\d+_[a-z0-9])|(q\d+)|(fp16)|(bf16)|(f16)|(f32)/i,
+    );
+    return quantMatch ? quantMatch[0].toUpperCase() : null;
+  }
 </script>
 
 <svelte:window on:click={handleClickOutside} />
 
 <header
-  class="sticky top-0 z-50 flex h-[54px] items-center border-b border-border bg-background px-4"
+  class="sticky top-0 z-50 flex h-[60px] items-center bg-background px-4 p-2 shadow-background shadow-2xl"
 >
-  <!-- Left spacer to balance the right side width for perfect centering -->
-  <div class="flex min-w-[80px] shrink-0"></div>
-
   <div class="relative flex grow justify-center">
     <div class="relative flex w-full max-w-[400px] justify-center">
       <button
         type="button"
-        class="flex max-w-full cursor-pointer items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-white/5"
+        class="flex max-w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-white/5"
         aria-haspopup="listbox"
         aria-expanded={isDropdownOpen ? "true" : "false"}
         onclick={toggleDropdown}
       >
+        <div
+          class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/5 p-1"
+        >
+          <ModelLogo name={selectedModel?.name || ""} size={16} />
+        </div>
         <span class="overflow-hidden text-ellipsis whitespace-nowrap">
           {selectedModel ? selectedModel.name : "Select a model"}
         </span>
@@ -92,15 +96,24 @@
                 )}
                 onclick={() => selectModel(model)}
               >
-                <div class="flex min-w-0 flex-col">
-                  <span
-                    class="overflow-hidden text-ellipsis whitespace-nowrap font-medium"
-                    >{model.name}</span
+                <div class="flex min-w-0 items-center gap-3">
+                  <div
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 p-1.5"
                   >
-                  <span
-                    class="overflow-hidden text-ellipsis whitespace-nowrap text-[0.75rem] text-muted-foreground"
-                    >{model.full_identifier}</span
-                  >
+                    <ModelLogo name={model.name} size={18} />
+                  </div>
+                  <div class="flex min-w-0 flex-col">
+                    <div class="flex items-center gap-2">
+                      <span
+                        class="overflow-hidden text-ellipsis whitespace-nowrap font-medium"
+                        >{model.name}</span
+                      >
+                    </div>
+                    <span
+                      class="overflow-hidden text-ellipsis whitespace-nowrap text-[0.75rem] text-muted-foreground"
+                      >{model.full_identifier}</span
+                    >
+                  </div>
                 </div>
 
                 {#if selectedModel?.full_identifier === model.full_identifier}
@@ -114,7 +127,7 @@
     </div>
   </div>
 
-  <div class="flex min-w-[80px] shrink-0 items-center justify-end gap-2">
+  <div class="flex min-w-[80px] shrink-0 items-center justify-end gap-3">
     {#if isLoading}
       <div
         class="flex items-center justify-center text-muted-foreground"

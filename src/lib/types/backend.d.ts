@@ -63,3 +63,12 @@ export const DEFAULT_GENERATION_PARAMS: GenerationParams = {
     top_p: 0.9,
     top_k: 40,
 };
+
+export interface LlamaCppConfig {
+    llama_cpp_path: String;
+    model_path: String;
+    port: number;
+    ctx_size: number;
+    parallel: number;
+    n_gpu_layers: number;
+}

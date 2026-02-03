@@ -1,94 +1,30 @@
-# Llama Desktop
+# Project Documentation index
 
-A Tauri-based desktop application for running Ollama models locally.
+Welcome to the Llama Desktop documentation. This directory contains detailed information about the project's architecture, setup, and features.
 
-[![CI/CD](https://github.com/GDKAYKY/llama.cpp-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/GDKAYKY/llama.cpp-desktop/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/GDKAYKY/llama.cpp-desktop/branch/main/graph/badge.svg)](https://codecov.io/gh/GDKAYKY/llama.cpp-desktop)
+## 🧭 Navigation
 
-## Features
+### 🏗️ Architecture & Structure
+- **[High-Level Architecture](./high-level-architecture.md)**: A birds-eye view of how the system components interact.
+- **[Backend Architecture](./BACKEND_ARCHITECTURE.md)**: Standards and conventions for the Rust backend.
+- **[Project Structure](./PROJECT_STRUCTURE.md)**: Detailed directory and file organization.
+- **[File Responsibilities](./file-responsibilities.md)**: breakdown of what each major file does.
 
-- 🚀 Desktop app built with Tauri v2
-- 🦀 Rust backend for model management
-- 📦 Ollama model integration
-- 🧪 Comprehensive test coverage
-- 🔄 CI/CD with GitHub Actions
+### 🚀 Getting Started
+- **[Models Setup Guide](./MODELS_SETUP_GUIDE.md)**: How to acquire and organize GGUF models.
+- **[Llama.cpp Integration](./LLAMA_CPP_INTEGRATION.md)**: How to configure and use the llama.cpp backend.
+- **[Model Path Configuration](./MODEL_PATH.md)**: Details on how the app locates models.
 
-## Prerequisites
+### ✨ Features
+- **[Chat History & Context](./CHAT_HISTORY.md)**: Persistent storage (Dexie), hybrid search, and context retrieval.
+- **[UI & Design](./UI_AND_DESIGN.md)**: Design principles, aesthetics, and branding logic.
+- **[Model Parsing](./MODEL_PARSING_README.md)**: Technical details on how GGUF manifests are parsed.
 
-- Node.js 18+ 
-- Rust (install from https://rustup.rs/)
-- Ollama models in `E:\models` (Windows)
+---
 
-## Installation
+## 🛠️ Developer Quick Links
+- [Main README](../README.md)
+- [Configuration Template](./llama_config_template.json)
 
-```bash
-npm install
-```
-
-## Development
-
-```bash
-npm run dev
-```
-
-This will start the Tauri development server with hot reload.
-
-## Testing
-
-Run all tests:
-```bash
-npm test
-```
-
-Watch mode:
-```bash
-npm run test:watch
-```
-
-Coverage report:
-```bash
-npm run test:coverage
-```
-
-## Linting
-
-Check code style:
-```bash
-npm run lint
-```
-
-Fix issues:
-```bash
-npm run lint:fix
-```
-
-## Building
-
-Build for production:
-```bash
-npm run build
-```
-
-## Project Structure
-
-```
-├── src/                    # Frontend (HTML/JS/CSS)
-├── src-tauri/             # Tauri backend (Rust)
-├── test/                  # Test files
-├── .github/workflows/     # CI/CD workflows
-└── package.json           # Dependencies and scripts
-```
-
-## CI/CD
-
-GitHub Actions automatically:
-- Runs tests on push/PR
-- Tests on multiple OS (Ubuntu, Windows, macOS)
-- Tests on multiple Node versions (18.x, 20.x)
-- Generates coverage reports
-- Builds Tauri app for all platforms
-- Uploads artifacts
-
-## License
-
-ISC
+---
+*Last updated: 2026-02-03*

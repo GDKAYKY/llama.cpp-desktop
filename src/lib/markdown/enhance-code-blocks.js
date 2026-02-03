@@ -35,7 +35,7 @@ function createHeader(language, codeId) {
     tagName: "div",
     properties: {
       className: [
-        "flex items-center justify-between border-b border-border bg-white/5 px-4 py-2 text-[0.875rem]",
+        "flex items-center justify-between border-border bg-grey px-4 py-2 text-[0.875rem]",
       ],
     },
     children: [
@@ -61,7 +61,7 @@ function createWrapper(header, preElement) {
   // Add styling to pre element
   if (preElement.properties) {
     preElement.properties.className = [
-      "m-0 overflow-x-auto p-4 bg-[#1e1e1e] text-[#d4d4d4]",
+      "m-0 overflow-x-auto bg-[#1e1e1e] text-[#d4d4d4]",
     ];
   }
 
@@ -69,9 +69,7 @@ function createWrapper(header, preElement) {
     type: "element",
     tagName: "div",
     properties: {
-      className: [
-        "my-6 overflow-hidden rounded-xl border border-border bg-[#1e1e1e]",
-      ],
+      className: ["my-6 overflow-hidden rounded-xl shadow-xl bg-[#1e1e1e]"],
     },
     children: [header, preElement],
   };
