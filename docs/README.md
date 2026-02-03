@@ -14,6 +14,7 @@ Welcome to the Llama Desktop documentation. This directory contains detailed inf
 - **[Models Setup Guide](./MODELS_SETUP_GUIDE.md)**: How to acquire and organize GGUF models.
 - **[Llama.cpp Integration](./LLAMA_CPP_INTEGRATION.md)**: How to configure and use the llama.cpp backend.
 - **[Model Path Configuration](./MODEL_PATH.md)**: Details on how the app locates models.
+- **[Release Process](./RELEASE_PROCESS.md)**: Steps to build and package the application.
 
 ### ✨ Features
 - **[Chat History & Context](./CHAT_HISTORY.md)**: Persistent storage (Dexie), hybrid search, and context retrieval.

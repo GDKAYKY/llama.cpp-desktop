@@ -40,6 +40,8 @@
 <header
   class="sticky top-0 z-50 flex h-[60px] items-center bg-background px-4 p-2 shadow-background shadow-2xl"
 >
+  <div class="flex min-w-[80px] shrink-0"></div>
+
   <div class="relative flex grow justify-center">
     <div class="relative flex w-full max-w-[400px] justify-center">
       <button
