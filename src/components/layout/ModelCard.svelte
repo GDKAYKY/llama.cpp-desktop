@@ -31,6 +31,9 @@
     onAction: (action: string, model: Model, e: MouseEvent) => void;
   }
 
+  const BORDER_GAP_LEFT = 5;
+  const BORDER_GAP_RIGHT = 16;
+
   let {
     model,
     isSelected,
@@ -39,6 +42,8 @@
     onToggleDropdown,
     onAction,
   }: Props = $props();
+
+  let statusWidth = $state(0);
 
   function isModelRunning(model: Model) {
     return (
@@ -147,22 +152,49 @@
 
     return null;
   });
+
+  const borderColors = $derived.by(() => {
+    if (isSelected) return "border-primary";
+    if (isModelRunning(model))
+      return "border-[#416b418f] group-hover:border-[#347034] group-active:!border-[#8fff94]";
+    return "border-border group-hover:border-white/20";
+  });
 </script>
 
 <div
   class={cn(
-    "relative flex h-[400px] cursor-pointer flex-col gap-2 rounded-xl border p-4 transition-all",
+    "group relative flex h-[400px] cursor-pointer flex-col gap-2 rounded-xl p-4 transition-all",
     isSelected
-      ? "border-primary bg-primary/5 active:scale-[0.98] active:duration-0"
+      ? "bg-primary/5 active:scale-[0.98] active:duration-0"
       : isModelRunning(model)
-        ? "border-[#416b418f] bg-white/2 hover:border-[#347034] hover:bg-white/5 active:!border-[#8fff94] active:scale-[0.98] active:duration-0"
-        : "border-border bg-white/2 hover:border-white/20 hover:bg-white/5 active:scale-[0.98] active:duration-0",
+        ? "bg-white/2 hover:bg-white/5 active:scale-[0.98] active:duration-0"
+        : "bg-white/2 hover:bg-white/5 active:scale-[0.98] active:duration-0",
   )}
   onclick={() => onSelect(model)}
   role="button"
   tabindex="0"
   onkeydown={(e) => e.key === "Enter" && onSelect(model)}
 >
+  <div
+    class={cn(
+      "pointer-events-none absolute inset-0 rounded-xl border transition-all",
+      borderColors,
+    )}
+    style={currentStatus && statusWidth > 0
+      ? `
+      -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 1px), transparent calc(100% - 1px)), linear-gradient(to right, black ${BORDER_GAP_LEFT}px, transparent ${BORDER_GAP_LEFT}px, transparent calc(16px + ${statusWidth}px + 12px), black calc(16px + ${statusWidth}px + 12px));
+      -webkit-mask-composite: source-over;
+      -webkit-mask-size: 100% 100%, 100% 1px;
+      -webkit-mask-position: 0 0, 0 100%;
+      -webkit-mask-repeat: no-repeat;
+      mask-image: linear-gradient(to bottom, black calc(100% - 1px), transparent calc(100% - 1px)), linear-gradient(to right, black ${BORDER_GAP_LEFT}px, transparent ${BORDER_GAP_LEFT}px, transparent calc(16px + ${statusWidth}px + 12px), black calc(16px + ${statusWidth}px + 12px));
+      mask-composite: add;
+      mask-size: 100% 100%, 100% 1px;
+      mask-position: 0 0, 0 100%;
+      mask-repeat: no-repeat;
+    `.trim()
+      : ""}
+  ></div>
   <div
     class="flex items-center justify-between gap-2 border-b border-border pb-2"
   >
@@ -341,8 +373,9 @@
 
   {#if currentStatus}
     <div
+      bind:clientWidth={statusWidth}
       class={cn(
-        "absolute bottom-0 left-6 z-20 flex translate-y-1/2 items-center gap-1.5 rounded bg-[#0f0f0f] px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight shadow-sm transition-all",
+        "absolute bottom-0 left-4 z-[100] flex translate-y-1/2 items-center gap-1.5 text-[9px] font-bold uppercase tracking-tight transition-all",
         currentStatus.color,
       )}
     >
