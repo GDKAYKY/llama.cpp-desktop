@@ -1,13 +1,37 @@
 import { visit } from "unist-util-visit";
 
-const COPY_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy-icon lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
-
-function createRawHtmlElement(html) {
+function createCopyIcon() {
   return {
     type: "element",
-    tagName: "span",
-    properties: {},
-    children: [{ type: "raw", value: html }],
+    tagName: "svg",
+    properties: {
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "16",
+      height: "16",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      className: ["lucide", "lucide-copy-icon", "lucide-copy"],
+    },
+    children: [
+      {
+        type: "element",
+        tagName: "rect",
+        properties: { width: "14", height: "14", x: "8", y: "8", rx: "2", ry: "2" },
+        children: [],
+      },
+      {
+        type: "element",
+        tagName: "path",
+        properties: {
+          d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
+        },
+        children: [],
+      },
+    ],
   };
 }
 
@@ -17,13 +41,13 @@ function createCopyButton(codeId) {
     tagName: "button",
     properties: {
       className: [
-        "group/copy flex cursor-pointer items-center rounded p-1 text-[#888] transition-all hover:bg-white/10 hover:text-white",
+        "copy-code-btn group/copy flex cursor-pointer items-center rounded p-1 transition-all",
       ],
       "data-code-id": codeId,
       title: "Copy code",
       type: "button",
     },
-    children: [createRawHtmlElement(COPY_ICON_SVG)],
+    children: [createCopyIcon()],
   };
 }
 
@@ -35,7 +59,7 @@ function createHeader(language, codeId) {
     tagName: "div",
     properties: {
       className: [
-        "flex items-center justify-between border-border bg-grey px-4 py-2 text-[0.875rem]",
+        "code-block-header flex items-center justify-between px-4 py-2 text-[0.875rem]",
       ],
     },
     children: [
@@ -43,14 +67,14 @@ function createHeader(language, codeId) {
         type: "element",
         tagName: "span",
         properties: {
-          className: ["text-[0.75rem] font-medium uppercase text-[#888]"],
+          className: ["code-block-language text-[0.75rem] font-medium uppercase"],
         },
         children: [{ type: "text", value: language }],
       },
       {
         type: "element",
         tagName: "div",
-        properties: { className: ["flex items-center"] },
+        properties: { className: ["code-block-actions flex items-center"] },
         children: actions,
       },
     ],
@@ -61,7 +85,7 @@ function createWrapper(header, preElement) {
   // Add styling to pre element
   if (preElement.properties) {
     preElement.properties.className = [
-      "m-0 overflow-x-auto bg-[#1e1e1e] text-[#d4d4d4]",
+      "code-block-pre m-0 overflow-x-auto",
     ];
   }
 
@@ -69,7 +93,7 @@ function createWrapper(header, preElement) {
     type: "element",
     tagName: "div",
     properties: {
-      className: ["my-6 overflow-hidden rounded-xl shadow-xl bg-[#1e1e1e]"],
+      className: ["code-block-wrapper my-6 overflow-hidden rounded-xl shadow-xl"],
     },
     children: [header, preElement],
   };

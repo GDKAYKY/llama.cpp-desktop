@@ -1,5 +1,34 @@
 import { visit } from "unist-util-visit";
 
+const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"]);
+const SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
+
+function isSafeUrl(rawHref) {
+  if (!rawHref) return false;
+  const href = String(rawHref).trim();
+
+  if (
+    href.startsWith("#") ||
+    href.startsWith("/") ||
+    href.startsWith("./") ||
+    href.startsWith("../") ||
+    href.startsWith("//")
+  ) {
+    return true;
+  }
+
+  if (!SCHEME_PATTERN.test(href)) {
+    return true;
+  }
+
+  try {
+    const { protocol } = new URL(href);
+    return SAFE_PROTOCOLS.has(protocol);
+  } catch {
+    return false;
+  }
+}
+
 export const rehypeEnhanceLinks = () => {
   return (tree) => {
     visit(tree, "element", (node, index, parent) => {
@@ -7,6 +36,12 @@ export const rehypeEnhanceLinks = () => {
 
       const props = node.properties ?? {};
       if (!props.href) return;
+
+      if (!isSafeUrl(props.href)) {
+        node.tagName = "span";
+        node.properties = {};
+        return;
+      }
 
       props.target = "_blank";
       props.rel = "noopener noreferrer";
