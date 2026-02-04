@@ -1,10 +1,13 @@
 use std::collections::HashMap;
-use sysinfo::{CpuRefreshKind, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
-use tokio::sync::{mpsc, oneshot};
+use std::sync::Arc;
+use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
 
+use crate::infrastructure::llama::process::ProcessManager;
 use crate::infrastructure::llama::server::LlamaServer;
-use crate::infrastructure::nvidia_smi::NvidiaSmi;
-use crate::models::{ChatRequest, LlamaCppConfig, ModelId, ModelInfo, ModelState, ServerMetrics};
+use crate::infrastructure::metrics::MetricsProvider;
+use crate::models::{
+    ActiveModel, ChatRequest, LlamaCppConfig, ModelId, ModelInfo, ModelState, ServerMetrics,
+};
 
 pub enum ActorMessage {
     Start {
@@ -44,9 +47,11 @@ pub struct LlamaActor {
     states: HashMap<ModelId, ModelState>,
     receiver: mpsc::Receiver<ActorMessage>,
     client: reqwest::Client,
-    active_model: Option<ModelId>,
+    active_model: ActiveModel,
     self_sender: mpsc::Sender<ActorMessage>,
-    sys: System,
+    process_manager: Arc<dyn ProcessManager>,
+    metrics: Arc<dyn MetricsProvider>,
+    model_locks: HashMap<ModelId, Arc<TokioMutex<()>>>,
 }
 
 impl LlamaActor {
@@ -54,6 +59,8 @@ impl LlamaActor {
         receiver: mpsc::Receiver<ActorMessage>,
         self_sender: mpsc::Sender<ActorMessage>,
         initial_registry: HashMap<ModelId, ModelInfo>,
+        process_manager: Arc<dyn ProcessManager>,
+        metrics: Arc<dyn MetricsProvider>,
     ) -> Self {
         Self {
             registry: initial_registry,
@@ -62,11 +69,9 @@ impl LlamaActor {
             client: reqwest::Client::new(),
             active_model: None,
             self_sender,
-            sys: System::new_with_specifics(
-                RefreshKind::nothing()
-                    .with_processes(ProcessRefreshKind::nothing().with_cpu())
-                    .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
-            ),
+            process_manager,
+            metrics,
+            model_locks: HashMap::new(),
         }
     }
 
@@ -87,16 +92,15 @@ impl LlamaActor {
                     config,
                     respond_to,
                 } => {
+                    let lock = self.get_model_lock(&model_id);
+                    let _guard = lock.lock().await;
                     let final_res = match result {
                         Ok((port, child)) => {
                             let pid = child.id().unwrap_or(0);
+                            self.process_manager.register(model_id.clone(), child);
                             self.states.insert(
                                 model_id.clone(),
-                                ModelState::Running {
-                                    port,
-                                    child,
-                                    config,
-                                },
+                                ModelState::Running { port, pid, config },
                             );
                             self.active_model = Some(model_id);
                             Ok(pid)
@@ -131,6 +135,8 @@ impl LlamaActor {
                 } => {
                     let id_to_check = model_id.or(self.active_model.clone());
                     let running = if let Some(id) = id_to_check {
+                        let lock = self.get_model_lock(&id);
+                        let _guard = lock.lock().await;
                         matches!(self.states.get(&id), Some(ModelState::Running { .. }))
                     } else {
                         false
@@ -138,14 +144,16 @@ impl LlamaActor {
                     let _ = respond_to.send(running);
                 }
                 ActorMessage::GetConfig { respond_to } => {
-                    let config = self
-                        .active_model
-                        .as_ref()
-                        .and_then(|id| self.states.get(id))
-                        .and_then(|state| match state {
+                    let config = if let Some(id) = self.active_model.clone() {
+                        let lock = self.get_model_lock(&id);
+                        let _guard = lock.lock().await;
+                        self.states.get(&id).and_then(|state| match state {
                             ModelState::Running { config, .. } => Some(config.clone()),
                             _ => None,
-                        });
+                        })
+                    } else {
+                        None
+                    };
                     let _ = respond_to.send(config);
                 }
                 ActorMessage::GetMetrics { respond_to } => {
@@ -162,10 +170,12 @@ impl LlamaActor {
         config: LlamaCppConfig,
         respond_to: oneshot::Sender<Result<u32, String>>,
     ) {
+        let lock = self.get_model_lock(&model_id);
+        let _guard = lock.lock().await;
         if let Some(state) = self.states.get(&model_id) {
             match state {
-                ModelState::Running { child, .. } => {
-                    let _ = respond_to.send(Ok(child.id().unwrap_or(0)));
+                ModelState::Running { pid, .. } => {
+                    let _ = respond_to.send(Ok(*pid));
                     return;
                 }
                 ModelState::Starting => {
@@ -178,6 +188,7 @@ impl LlamaActor {
 
         let model_entry = self.registry.get(&model_id).cloned();
         self.states.insert(model_id.clone(), ModelState::Starting);
+        drop(_guard);
 
         let self_sender = self.self_sender.clone();
         let client = self.client.clone();
@@ -197,12 +208,16 @@ impl LlamaActor {
     }
 
     async fn handle_stop(&mut self, model_id: &ModelId) -> Result<(), String> {
-        if let Some(state) = self.states.remove(model_id) {
-            if let ModelState::Running { mut child, .. } = state {
-                let _ = child.kill().await;
-                let _ = child.wait().await;
-            }
+        let lock = self.get_model_lock(model_id);
+        let _guard = lock.lock().await;
+        let child = self.process_manager.remove(model_id);
+        if let Some(_state) = self.states.remove(model_id) {
             self.states.insert(model_id.clone(), ModelState::Stopped);
+        }
+        drop(_guard);
+        if let Some(mut child) = child {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
         }
         Ok(())
     }
@@ -212,6 +227,8 @@ impl LlamaActor {
         model_id: &ModelId,
         request: ChatRequest,
     ) -> Result<mpsc::Receiver<String>, String> {
+        let lock = self.get_model_lock(model_id);
+        let _guard = lock.lock().await;
         let port = if let Some(ModelState::Running { port, .. }) = self.states.get(model_id) {
             *port
         } else {
@@ -222,29 +239,24 @@ impl LlamaActor {
     }
 
     async fn handle_get_metrics(&mut self) -> Option<ServerMetrics> {
-        let id = self.active_model.as_ref()?;
-        let (pid, child_id) = match self.states.get(id)? {
-            ModelState::Running { child, .. } => {
-                let pid = child.id()?;
-                (sysinfo::Pid::from(pid as usize), pid)
-            }
+        let id = self.active_model.clone()?;
+        let lock = self.get_model_lock(&id);
+        let _guard = lock.lock().await;
+        let pid = match self.states.get(&id)? {
+            ModelState::Running { pid, .. } => *pid,
             _ => return None,
         };
+        drop(_guard);
+        if pid == 0 {
+            return None;
+        }
+        self.metrics.snapshot_for_pid(pid)
+    }
 
-        self.sys.refresh_processes_specifics(
-            ProcessesToUpdate::Some(&[pid]),
-            true,
-            ProcessRefreshKind::nothing().with_cpu(),
-        );
-
-        let process = self.sys.process(pid)?;
-        let (gpu_usage, vram_usage) = NvidiaSmi::get_gpu_metrics_for_pid(child_id);
-
-        Some(ServerMetrics {
-            cpu_usage: process.cpu_usage(),
-            mem_usage: process.memory(),
-            gpu_usage,
-            vram_usage,
-        })
+    fn get_model_lock(&mut self, model_id: &ModelId) -> Arc<TokioMutex<()>> {
+        self.model_locks
+            .entry(model_id.clone())
+            .or_insert_with(|| Arc::new(TokioMutex::new(())))
+            .clone()
     }
 }

@@ -31,6 +31,7 @@ The backend is divided into three distinct layers:
 - **Clean Imports**: Use `use crate::models::{...};` to import types.
 - **Internal States**: Even internal runtime states (like `ModelState`) should be defined in the appropriate domain file in `models/`.
 - **Serialization**: Most models should implement `Serialize` and `Deserialize` to be compatible with Tauri's IPC. (Exception: Models containing non-serializable types like `tokio::process::Child`).
+    - Runtime state must remain serializable. If a type requires non-serializable handles, store those in infrastructure or services, not in `models/`.
 
 ---
 *Follow these rules to ensure the codebase remains scalable and predictable.*

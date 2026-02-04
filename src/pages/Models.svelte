@@ -8,6 +8,12 @@
   onMount(async () => {
     // Refresh models if we have a directory configured
     await modelsStore.refresh();
+    // Sync server status for Models page indicators
+    await serverStore.checkRunning();
+    if (serverStore.isRunning) {
+      await serverStore.checkHealth();
+      serverStore.startHealthMonitoring();
+    }
   });
 
   function handleModelSelected(event) {

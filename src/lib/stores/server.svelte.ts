@@ -13,6 +13,7 @@ class ServerStore {
     isHealthy = $state(false);
     error = $state<string | null>(null);
     isChecking = $state(false);
+    isStarting = $state(false);
     currentConfig = $state<LlamaCppConfig | null>(null);
     serverMetrics = $state<{ 
         cpu_usage: number; 
@@ -20,6 +21,7 @@ class ServerStore {
         gpu_usage?: number; 
         vram_usage?: number; 
     } | null>(null);
+    private healthInterval: ReturnType<typeof setInterval> | null = null;
 
     constructor() {
         this.init();
@@ -34,8 +36,20 @@ class ServerStore {
     }
 
     async startServer(binaryPath: string, modelPath: string, port: number = 8000, ctxSize: number = 4096, nGpuLayers: number = 33) {
+        if (this.isStarting) return;
+        if (
+            this.isRunning &&
+            this.currentConfig?.llama_cpp_path === binaryPath &&
+            this.currentConfig?.model_path === modelPath &&
+            this.currentConfig?.port === port &&
+            this.currentConfig?.ctx_size === ctxSize &&
+            this.currentConfig?.n_gpu_layers === nGpuLayers
+        ) {
+            return;
+        }
         try {
             this.error = null;
+            this.isStarting = true;
             const pid = await invokeCommand('start_llama_server', {
                 binaryPath: binaryPath,
                 modelPath: modelPath,
@@ -59,6 +73,8 @@ class ServerStore {
             this.error = err instanceof Error ? err.message : String(err);
             this.isRunning = false;
             console.error('Failed to start server:', err);
+        } finally {
+            this.isStarting = false;
         }
     }
 
@@ -68,8 +84,13 @@ class ServerStore {
             await invokeCommand('stop_llama_server');
             this.isRunning = false;
             this.isHealthy = false;
+            this.isStarting = false;
             this.currentConfig = null;
             this.serverMetrics = null;
+            if (this.healthInterval) {
+                clearInterval(this.healthInterval);
+                this.healthInterval = null;
+            }
             console.log('Server stopped');
         } catch (err) {
             this.error = err instanceof Error ? err.message : String(err);
@@ -79,6 +100,11 @@ class ServerStore {
 
     async checkHealth() {
         try {
+            if (!this.isRunning) {
+                this.isHealthy = false;
+                this.error = null;
+                return;
+            }
             const healthy = await invokeCommand('check_server_health');
             this.isHealthy = healthy as boolean;
             if (!healthy) {
@@ -125,10 +151,17 @@ class ServerStore {
     }
 
     startHealthMonitoring() {
+        if (this.healthInterval) {
+            clearInterval(this.healthInterval);
+            this.healthInterval = null;
+        }
         // Check health and metrics every 2 seconds
-        const interval = setInterval(async () => {
+        this.healthInterval = setInterval(async () => {
             if (!this.isRunning) {
-                clearInterval(interval);
+                if (this.healthInterval) {
+                    clearInterval(this.healthInterval);
+                    this.healthInterval = null;
+                }
                 this.serverMetrics = null;
                 return;
             }

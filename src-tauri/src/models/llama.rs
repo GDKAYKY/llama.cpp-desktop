@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use tokio::process::Child;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ModelId(pub String);
@@ -20,12 +19,14 @@ pub struct LlamaCppConfig {
     pub n_gpu_layers: i32,
 }
 
+pub type ActiveModel = Option<ModelId>;
+
 pub enum ModelState {
     Stopped,
     Starting,
     Running {
         port: u16,
-        child: Child,
+        pid: u32,
         config: LlamaCppConfig,
     },
 }

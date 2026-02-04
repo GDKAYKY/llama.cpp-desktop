@@ -1,8 +1,11 @@
 use super::actor::{ActorMessage, LlamaActor};
+use crate::infrastructure::llama::process::LlamaProcessManager;
+use crate::infrastructure::metrics::SystemMetricsProvider;
 use crate::models::{
     ChatMessage, ChatRequest, LlamaCppConfig, ModelId, ModelLibrary, ServerMetrics,
 };
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
@@ -33,7 +36,10 @@ impl LlamaCppService {
 
         let (tx, rx) = mpsc::channel(64);
         let tx_clone = tx.clone();
-        let mut actor = LlamaActor::new(rx, tx_clone, initial_registry);
+        let process_manager = Arc::new(LlamaProcessManager::new());
+        let metrics_provider = Arc::new(SystemMetricsProvider::new());
+        let mut actor =
+            LlamaActor::new(rx, tx_clone, initial_registry, process_manager, metrics_provider);
 
         tauri::async_runtime::spawn(async move {
             actor.run().await;
