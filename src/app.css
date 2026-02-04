@@ -152,6 +152,48 @@
   }
 }
 
+.mcp-link-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  margin: 0 0.1rem;
+}
+
+.mcp-link {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  word-break: break-all;
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+
+.mcp-link:hover {
+  color: #7dd3fc;
+  text-decoration-color: #7dd3fc;
+}
+
+.mcp-link-arrow {
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.mcp-link-source {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid oklch(1 0 0 / 10%);
+  background: oklch(1 0 0 / 6%);
+  padding: 0.15rem 0.55rem;
+  font-size: 0.65rem;
+  line-height: 1;
+  color: oklch(1 0 0 / 65%);
+  white-space: nowrap;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

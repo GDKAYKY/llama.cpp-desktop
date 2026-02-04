@@ -39,6 +39,33 @@
       toast.error("Failed to copy message");
     }
   }
+
+  function extractTokens(text) {
+    const urlRegex = /https?:\/\/[^\s)]+/g;
+    const tokens = [];
+    let lastIndex = 0;
+    let match;
+    while ((match = urlRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        tokens.push({ type: "text", value: text.slice(lastIndex, match.index) });
+      }
+      tokens.push({ type: "link", value: match[0] });
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < text.length) {
+      tokens.push({ type: "text", value: text.slice(lastIndex) });
+    }
+    return tokens;
+  }
+
+  function formatLinkLabel(url) {
+    try {
+      const parsed = new URL(url);
+      return parsed.hostname;
+    } catch {
+      return url;
+    }
+  }
 </script>
 
 <div class="group w-full py-4">
@@ -117,7 +144,20 @@
             <div
               class="whitespace-pre-wrap break-words text-base leading-relaxed"
             >
-              {message.content}
+              {#each extractTokens(message.content) as token}
+                {#if token.type === "link"}
+                  <a
+                    href={token.value}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/90 hover:bg-white/10"
+                  >
+                    {formatLinkLabel(token.value)}
+                  </a>
+                {:else}
+                  {token.value}
+                {/if}
+              {/each}
             </div>
           </div>
 
