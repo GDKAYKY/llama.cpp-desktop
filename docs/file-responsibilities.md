@@ -48,8 +48,11 @@ This document provides a detailed breakdown of the responsibilities for each maj
 
 - **`llama_cpp.rs`**: Maps model-related Tauri commands to `LlamaCppService`.
 - **`chat.rs`**: Maps chat-related Tauri commands to the `Orchestrator`.
+- **`chat_actions.rs`**: Maps message action commands (like, dislike, share, regenerate) to backend logic.
 - **`models.rs`**: Handles model library scanning and manifest parsing.
 - **`config.rs`**: Manages application-wide settings (stored in JSON).
+- **`mcp.rs`**: MCP server lifecycle commands (connect, list, tools/resources).
+- **`mcp_config.rs`**: MCP config file load/save/reset commands.
 
 ## 4. Models Layer (`src-tauri/src/models`)
 *The "Language". Data structures used across all layers.*
@@ -61,7 +64,7 @@ This document provides a detailed breakdown of the responsibilities for each maj
 ## 5. State Layer (`src-tauri/src/state`)
 *The "Container". Dependency injection and global state.*
 
-- **`mod.rs`**: Initializes and holds instances of all services (`LlamaCppService`, `Orchestrator`).
+- **`state.rs`**: Initializes and holds instances of all services (`LlamaCppService`, `Orchestrator`, `McpService`).
 
 ## 6. Binding Layer (`src-tauri/src`)
 *Connects the layers and handles the IPC registry.*

@@ -8,8 +8,8 @@
     ArrowUp,
     Mic,
     AtSign,
-    Plug,
   } from "lucide-svelte";
+  import { SiModelcontextprotocol } from "@icons-pack/svelte-simple-icons";
   import { mcpStore } from "$lib/stores/mcp.svelte";
 
   /** @type {{
@@ -170,7 +170,7 @@
                         isMcpDropdownOpen = false;
                       }}
                     >
-                      <Plug size={16} />
+                      <SiModelcontextprotocol size={16} />
                       <div class="flex flex-col gap-0.5">
                         <span class="text-sm">{server.name}</span>
                         <span class="text-[11px] text-muted-foreground font-mono">{server.id}</span>

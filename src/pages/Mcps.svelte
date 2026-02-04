@@ -4,8 +4,6 @@
   import type { McpServerConfig, ToolDefinition, ResourceDefinition } from "$lib/types/backend";
   import { openPath } from "@tauri-apps/plugin-opener";
   import {
-    Plug,
-    Server,
     Link,
     Unlink,
     Plus,
@@ -17,6 +15,7 @@
     Cable,
     FileCode,
   } from "lucide-svelte";
+  import { SiModelcontextprotocol } from "@icons-pack/svelte-simple-icons";
 
   let selectedId = $state<string | null>(null);
   let saving = $state(false);
@@ -256,7 +255,12 @@
 <div class="mx-auto h-full max-w-[1200px] overflow-y-auto px-6 py-10 text-foreground">
   <div class="mb-8 flex items-start justify-between border-b border-border/60 pb-6">
     <div>
-      <h1 class="text-3xl font-bold tracking-tight leading-none">MCP Servers</h1>
+      <div class="flex items-center gap-3">
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
+          <SiModelcontextprotocol size={20} />
+        </div>
+        <h1 class="text-3xl font-bold tracking-tight leading-none">MCP Servers</h1>
+      </div>
       <p class="mt-1 text-sm text-muted-foreground leading-normal">
         Manage local and remote Model Context Protocol servers.
       </p>
@@ -302,7 +306,7 @@
     <section class="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
       <div class="mb-4 flex items-center gap-3 border-b border-border/40 pb-3">
         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
-          <Server size={18} />
+          <SiModelcontextprotocol size={18} />
         </div>
         <div>
           <h2 class="text-base font-semibold leading-tight">Servers</h2>
@@ -350,7 +354,7 @@
       <div class="mb-6 flex items-center justify-between border-b border-border/40 pb-4">
         <div class="flex items-center gap-3">
           <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
-            <Plug size={18} />
+            <SiModelcontextprotocol size={18} />
           </div>
           <div>
             <h2 class="text-lg font-semibold leading-tight">

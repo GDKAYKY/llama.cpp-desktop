@@ -49,11 +49,16 @@ A specialized component that maps model names to their official brand logos:
 - **Message Bubbles**: Transparent backgrounds with side-borders to differentiate User vs Assistant.
 - **Markdown Support**: Full syntax highlighting and LaTeX support for technical conversations.
 - **Avatars**: Brand logos are used as avatars for the assistant to provide immediate visual context.
+- **Message Actions**: Action toolset appears on hover (copy, like, dislike, share, regenerate).
+
+### Code Blocks
+- **Palette**: Dark, low-contrast header with higher-contrast body.
+- **Controls**: Dedicated header with language label and copy button.
 
 ## 4. Typography
 - **Primary Font**: `Inter` or system-default Sans-serif.
 - **Hierarchy**: Clear distinction between headings and body text using weight (600 for headings, 400 for body).
-- **Monospace**: `JetBrains Mono` or `Fira Code` for code blocks.
+- **Monospace**: `SF Mono` (with system fallbacks) for code blocks.
 
 ---
-*Last updated: 2026-02-03*
+*Last updated: 2026-02-04*
