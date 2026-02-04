@@ -10,6 +10,16 @@ This document provides a detailed breakdown of the responsibilities for each maj
     - **Logic**: Executes `nvidia-smi`, parses CSV output.
     - **Responsibilities**: Converting external command results into usable Rust types (`f32` percentages).
 
+- **`metrics.rs`**:
+    - **Owner**: Metrics Snapshotting
+    - **Logic**: Uses `sysinfo` for CPU/RAM and `nvidia-smi` for GPU/VRAM.
+    - **Responsibilities**: Produces `ServerMetrics` snapshots for a given PID.
+
+- **`llama/process.rs`**:
+    - **Owner**: Process Registry
+    - **Logic**: Tracks running `Child` handles by `ModelId`.
+    - **Responsibilities**: Register/remove process handles and expose PID lookups.
+
 - **`llama/server.rs`**:
     - **Owner**: Process Lifecycle
     - **Logic**: Process spawning, log piping, HTTP streaming (reqwest).
@@ -21,7 +31,7 @@ This document provides a detailed breakdown of the responsibilities for each maj
 - **`llama/actor.rs`**:
     - **Owner**: Llama Service State
     - **Logic**: Actor Message Loop (Enum-based dispatch).
-    - **Responsibilities**: Maintaining the `ModelState` (Running/Stopped), aggregating metrics from `sysinfo` and `nvidia_smi`, and thread-safe communication.
+    - **Responsibilities**: Maintaining `ModelState`, coordinating lifecycle via `ProcessManager`, and querying `MetricsProvider`.
 
 - **`llama/service.rs`**:
     - **Owner**: Public API
@@ -44,7 +54,7 @@ This document provides a detailed breakdown of the responsibilities for each maj
 ## 4. Models Layer (`src-tauri/src/models`)
 *The "Language". Data structures used across all layers.*
 
-- **`llama.rs`**: Definitions for `LlamaCppConfig`, `ServerMetrics`, and `ModelId`.
+- **`llama.rs`**: Definitions for `LlamaCppConfig`, `ServerMetrics`, `ModelId`, and `ModelState`.
 - **`chat.rs`**: Definitions for `ChatMessage` and `ChatRequest`.
 - **`app_config.rs`**: Configuration schema for the entire app.
 

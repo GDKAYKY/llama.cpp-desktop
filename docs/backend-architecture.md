@@ -9,7 +9,7 @@ The backend follows a layered architecture to ensure separation of concerns betw
 ```mermaid
 graph TD
     UI[Frontend / Tauri Commands] --> Service[Llama Service Layer]
-    Service --> Actor[Llama Actor - State Management]
+    Service --> Actor[Llama Actor - Orchestration]
     Actor --> Infra[Infrastructure Layer]
     Infra --> LlamaProc[llama-server.exe]
     Infra --> GPU[NVIDIA SMI / Hardware]
@@ -19,11 +19,17 @@ graph TD
 
 ### 1. Infrastructure Layer (`/infrastructure`)
 Handles all "side effects" and interactions with the operating system and external binaries.
+- **`llama/process.rs`**:
+    - Process registry for running `llama-server` children.
+    - Start/stop lifecycle utilities for the actor.
 - **`llama/server.rs`**: 
     - Spawning and killing the `llama-server` process.
     - Path resolution for binary and model files.
     - Piping process output (stdout/stderr) to application logs.
     - Handling SSE (Server-Sent Events) streaming from the local server.
+- **`metrics.rs`**:
+    - Snapshot CPU/RAM usage via `sysinfo`.
+    - GPU/VRAM usage via `nvidia-smi`.
 - **`nvidia_smi.rs`**: 
     - Executing `nvidia-smi` commands.
     - Parsing CSV output to extract GPU load and VRAM usage.
@@ -35,11 +41,11 @@ Acts as the bridge between Tauri commands and internal state.
     - Communicates with the Actor via `mpsc` channels.
 - **`actor.rs`**: 
     - Implements the Actor Pattern for thread-safe state management (`ModelState`).
-    - Aggregates metrics from specialized infrastructure modules.
+    - Orchestrates process lifecycle and metrics via injected infrastructure traits.
 
 ### 3. Models Layer (`/models/llama.rs`)
 Data specifications used across all layers.
-- Defines `LlamaCppConfig`, `ServerMetrics`, and `ModelId`.
+- Defines `LlamaCppConfig`, `ServerMetrics`, `ModelId`, and runtime `ModelState`.
 - Ensures consistency in serialization between frontend and backend.
 
 ## Public Interfaces (`LlamaCppService`)

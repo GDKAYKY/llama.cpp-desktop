@@ -29,17 +29,19 @@ flowchart TB
         subgraph Services["Services Layer (Business Logic)"]
             ORCH[Orchestrator - History & Context]
             LLAMA_SVC[LlamaCppService - Async API]
-            LLAMA_ACTOR[LlamaActor - State Manager]
+            LLAMA_ACTOR[LlamaActor - Orchestrator]
             
             ORCH --> LLAMA_SVC
             LLAMA_SVC --> LLAMA_ACTOR
         end
 
         subgraph Infrastructure["Infrastructure Layer (IO)"]
-            PROC_MGMT[LlamaServer - Process Mgmt]
-            METRICS[NvidiaSmi - Hardware Hooks]
+            PROC_MGMT[LlamaProcessManager - Child Registry]
+            SERVER[LlamaServer - Spawn & Stream]
+            METRICS[SystemMetricsProvider - CPU/GPU]
             
             LLAMA_ACTOR --> PROC_MGMT
+            LLAMA_ACTOR --> SERVER
             LLAMA_ACTOR --> METRICS
         end
     end
@@ -72,7 +74,7 @@ flowchart TB
 - **Orchestrator**: Manages chat sessions, persists history, and injects context into requests.
 - **Llama Service (Actor Pattern)**:
     - **Service**: A clonable handle that sends messages to the Actor.
-    - **Actor**: A single-threaded state machine that owns the `llama-server` process and ensures thread-safe access to status and metrics.
+    - **Actor**: A single-threaded state machine that orchestrates process lifecycle and metrics, using infrastructure traits.
 
 ### Infrastructure
 - **LlamaServer**: Handles the "dirty work" of path resolution, process spawning, and piping raw logic to stderr/stdout.
@@ -92,7 +94,7 @@ flowchart TB
 1. **Frontend**: `ServerStore` triggers a poll every 2 seconds.
 2. **Commands**: Calls `get_server_metrics`.
 3. **Actor**: 
-    - Queries `sysinfo` for CPU/RAM usage of the `llama-server` PID.
+    - Queries `SystemMetricsProvider` for CPU/RAM usage of the `llama-server` PID.
     - Queries `NvidiaSmi` for system-wide GPU load.
 4. **Frontend**: Updates the `ModelUsageGraph` with new percentages.
 
