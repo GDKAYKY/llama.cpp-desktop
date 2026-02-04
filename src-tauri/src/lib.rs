@@ -24,13 +24,18 @@ pub fn run() {
                 println!("Failed to load config: {}", e);
                 crate::models::AppConfig::default()
             });
+            let mcp_config =
+                commands::mcp_config::load_mcp_config_file(app.handle()).unwrap_or_else(|e| {
+                    println!("Failed to load MCP config: {}", e);
+                    crate::models::McpConfig::default()
+                });
 
             let models_path = config
                 .models_directory
                 .map(std::path::PathBuf::from)
                 .unwrap_or_else(|| std::path::PathBuf::from("E:\\models"));
 
-            app.manage(AppState::new(models_path));
+            app.manage(AppState::new(models_path, mcp_config));
             Ok(())
         });
 

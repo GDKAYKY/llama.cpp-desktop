@@ -7,7 +7,6 @@
     User,
     ChevronDown,
     Ellipsis,
-    Sparkle,
     Settings,
     CircleQuestionMark,
     MessageSquare,
@@ -20,6 +19,7 @@
     Archive,
     Trash2,
   } from "lucide-svelte";
+  import { SiModelcontextprotocol } from "@icons-pack/svelte-simple-icons";
   import { DropdownMenu } from "bits-ui";
   import { page } from "$app/state";
   import { chatStore } from "$lib/stores/chat.svelte";
@@ -41,6 +41,7 @@
   const menuItems = [
     { id: "chat", label: "Chat", icon: MessageSquare, path: "/" },
     { id: "models", label: "Models", icon: Box, path: "/models" },
+    { id: "mcps", label: "MCPs", icon: SiModelcontextprotocol, path: "/mcps" },
     {
       id: "settings",
       label: "Settings",
@@ -56,7 +57,7 @@
   ];
 
   const profileMenuItems = [
-    { id: "mcps", label: "MCPS", icon: Sparkle, action: "upgrade" },
+    { id: "mcps", label: "MCPS", icon: SiModelcontextprotocol, action: "upgrade" },
     {
       id: "customization",
       label: "Customization",

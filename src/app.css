@@ -120,6 +120,12 @@
   --sidebar-ring: oklch(0.556 0 0);
   --code-background: oklch(0.225 0 0);
   --code-foreground: oklch(0.875 0 0);
+  --code-block-bg: #171717;
+  --code-block-header: #151922;
+  --code-block-border: #22262f;
+  --code-block-text: #e6edf3;
+  --code-block-muted: #9aa4b2;
+  --code-block-hover: #1f2530;
 }
 
 @layer base {
@@ -150,6 +156,94 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+.mcp-link-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  margin: 0 0.1rem;
+}
+
+.mcp-link {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  word-break: break-all;
+  transition:
+    color 120ms ease,
+    text-decoration-color 120ms ease;
+}
+
+.mcp-link:hover {
+  color: #7dd3fc;
+  text-decoration-color: #7dd3fc;
+}
+
+.mcp-link-arrow {
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.mcp-link-source {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid oklch(1 0 0 / 10%);
+  background: oklch(1 0 0 / 6%);
+  padding: 0.15rem 0.55rem;
+  font-size: 0.65rem;
+  line-height: 1;
+  color: oklch(1 0 0 / 65%);
+  white-space: nowrap;
+}
+
+.code-block-wrapper {
+  background: var(--code-block-bg);
+  border: 1px solid var(--code-block-border);
+}
+
+.code-block-header {
+  background: var(--code-block-header);
+  border-bottom: 1px solid var(--code-block-border);
+  color: var(--code-block-muted);
+}
+
+.code-block-language {
+  color: var(--code-block-muted);
+  letter-spacing: 0.08em;
+}
+
+.code-block-pre {
+  background: var(--code-block-bg);
+  color: var(--code-block-text);
+  padding: 1rem 1.25rem;
+  font-family:
+    "SF Mono",
+    "SFMono-Regular",
+    ui-monospace,
+    "Cascadia Mono",
+    "Roboto Mono",
+    "Source Code Pro",
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+}
+
+.copy-code-btn {
+  color: var(--code-block-muted);
+}
+
+.copy-code-btn:hover {
+  background: var(--code-block-hover);
+  color: var(--code-block-text);
 }
 
 ::-webkit-scrollbar {

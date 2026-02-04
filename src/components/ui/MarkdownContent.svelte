@@ -7,11 +7,13 @@
   import remarkRehype from "remark-rehype";
   import rehypeKatex from "rehype-katex";
   import rehypeHighlight from "rehype-highlight";
+  import rehypeSanitize from "rehype-sanitize";
   import rehypeStringify from "rehype-stringify";
   import { onDestroy, tick } from "svelte";
   import { rehypeRestoreTableHtml } from "$lib/markdown/table-html-restorer.js";
   import { rehypeEnhanceLinks } from "$lib/markdown/enhance-links.js";
   import { rehypeEnhanceCodeBlocks } from "$lib/markdown/enhance-code-blocks.js";
+  import { sanitizeSchema } from "$lib/markdown/sanitize-schema.js";
   import { remarkLiteralHtml } from "$lib/markdown/literal-html.js";
   import { preprocessLaTeX } from "$shared/latex-protection.js";
   import { copyCodeToClipboard } from "$shared/clipboard.js";
@@ -43,7 +45,8 @@
       .use(rehypeRestoreTableHtml)
       .use(rehypeEnhanceLinks)
       .use(rehypeEnhanceCodeBlocks)
-      .use(rehypeStringify, { allowDangerousHtml: true });
+      .use(rehypeSanitize, sanitizeSchema)
+      .use(rehypeStringify);
   };
 
   function cleanupEventListeners() {

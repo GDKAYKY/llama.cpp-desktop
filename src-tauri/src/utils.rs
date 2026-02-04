@@ -1,5 +1,7 @@
 use serde::{de::DeserializeOwned, Serialize};
 use std::fs;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::Path;
 
 /// Read and deserialize JSON from a file
@@ -27,4 +29,29 @@ pub fn save_json<T: Serialize>(path: &Path, data: &T) -> Result<(), String> {
     }
 
     fs::write(path, json).map_err(|e| format!("Failed to write to file {}: {}", path.display(), e))
+}
+
+/// Serialize and append JSON to a file, one object per line (JSONL)
+pub fn append_jsonl<T: Serialize>(path: &Path, data: &T) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "Failed to create parent directory {}: {}",
+                parent.display(),
+                e
+            )
+        })?;
+    }
+
+    let json = serde_json::to_string(data)
+        .map_err(|e| format!("Failed to serialize data: {}", e))?;
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .map_err(|e| format!("Failed to open file {}: {}", path.display(), e))?;
+
+    writeln!(file, "{}", json)
+        .map_err(|e| format!("Failed to append to file {}: {}", path.display(), e))
 }

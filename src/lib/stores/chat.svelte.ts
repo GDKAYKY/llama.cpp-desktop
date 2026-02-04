@@ -234,6 +234,88 @@ class ChatStore {
     }
   }
 
+  async likeMessage(messageIndex: number) {
+    await invokeCommand('chat_action_like', {
+      sessionId: this.sessionId,
+      messageIndex
+    });
+  }
+
+  async dislikeMessage(messageIndex: number) {
+    await invokeCommand('chat_action_dislike', {
+      sessionId: this.sessionId,
+      messageIndex
+    });
+  }
+
+  async copyMessage(messageIndex: number) {
+    await invokeCommand('chat_action_copy', {
+      sessionId: this.sessionId,
+      messageIndex
+    });
+  }
+
+  async shareMessage(messageIndex: number): Promise<string> {
+    const result = await invokeCommand('chat_action_share', {
+      sessionId: this.sessionId,
+      messageIndex
+    });
+    return String(result);
+  }
+
+  async regenerateMessage(messageIndex: number) {
+    if (this.isLoading) return;
+
+    const target = this.messages[messageIndex];
+    if (!target || target.role !== 'assistant') {
+      throw new Error('Target message is not an assistant response');
+    }
+
+    this.isLoading = true;
+    this.error = null;
+
+    const onEvent = new Channel<any>();
+    let buffer = '';
+
+    onEvent.onmessage = (payload) => {
+      if (payload.chunk) {
+        buffer += payload.chunk;
+        const msg = this.messages[messageIndex];
+        if (msg && msg.role === 'assistant') {
+          msg.content = buffer;
+        }
+      }
+
+      if (payload.status === 'done') {
+        const runningModelPath = serverStore.currentConfig?.model_path;
+        const modelInLibrary = modelsStore.models.find(
+          m => m.model_file_path === runningModelPath
+        );
+        const modelName = modelInLibrary?.name || "Unknown Model";
+
+        const msg = this.messages[messageIndex];
+        if (msg && msg.role === 'assistant') {
+          msg.model = modelName;
+        }
+      }
+    };
+
+    try {
+      await invokeCommand('chat_action_regenerate', {
+        sessionId: this.sessionId,
+        messageIndex,
+        temperature: settingsStore.settings.temperature,
+        maxTokens: settingsStore.settings.maxTokens,
+        onEvent
+      });
+    } catch (err) {
+      this.error = err instanceof Error ? err.message : String(err);
+      throw err;
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
   async editMessage(index: number, content: string) {
     // Basic implementation: Just truncate and resend.
     // DB implication: We effectively branch or just ignore the old tail.

@@ -20,6 +20,10 @@ Welcome to the Llama Desktop documentation. This directory contains detailed inf
 - **[Chat History & Context](./CHAT_HISTORY.md)**: Persistent storage (Dexie), hybrid search, and context retrieval.
 - **[UI & Design](./UI_AND_DESIGN.md)**: Design principles, aesthetics, and branding logic.
 - **[Model Parsing](./MODEL_PARSING_README.md)**: Technical details on how GGUF manifests are parsed.
+- **[MCP Servers](./MCP_SERVERS.md)**: Configuration and management of MCP servers.
+
+### 🧾 Releases
+- **[Changelog](./CHANGELOG.md)**: Release notes and notable changes.
 
 ---
 
@@ -28,4 +32,4 @@ Welcome to the Llama Desktop documentation. This directory contains detailed inf
 - [Configuration Template](./llama_config_template.json)
 
 ---
-*Last updated: 2026-02-03*
+*Last updated: 2026-02-04*

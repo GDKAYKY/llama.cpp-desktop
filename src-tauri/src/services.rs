@@ -4,4 +4,5 @@ pub mod llama {
     pub use actor::ActorMessage;
     pub use service::LlamaCppService;
 }
+pub mod mcp;
 pub mod orchestrator;

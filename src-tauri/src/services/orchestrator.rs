@@ -85,8 +85,85 @@ impl ChatOrchestrator {
         sessions.remove(session_id);
     }
 
+    pub async fn get_message(&self, session_id: &str, message_index: usize) -> Option<ChatMessage> {
+        let sessions = self.sessions.lock().await;
+        sessions
+            .get(session_id)
+            .and_then(|history| history.get(message_index).cloned())
+    }
+
     pub async fn set_session_history(&self, session_id: &str, history: Vec<ChatMessage>) {
         let mut sessions = self.sessions.lock().await;
         sessions.insert(session_id.to_string(), history);
+    }
+
+    pub fn prepare_regenerate_history(
+        history: &[ChatMessage],
+        message_index: usize,
+    ) -> Result<Vec<ChatMessage>, String> {
+        let target = history
+            .get(message_index)
+            .ok_or_else(|| "Message not found".to_string())?;
+
+        if target.role != "assistant" {
+            return Err("Target message is not an assistant response".to_string());
+        }
+
+        Ok(history[..message_index].to_vec())
+    }
+
+    pub async fn regenerate_at(
+        &self,
+        session_id: &str,
+        message_index: usize,
+        temperature: f32,
+        max_tokens: i32,
+        on_event: Channel<serde_json::Value>,
+    ) -> Result<(), String> {
+        let history_before = {
+            let sessions = self.sessions.lock().await;
+            let history = sessions
+                .get(session_id)
+                .ok_or_else(|| "Session not found".to_string())?;
+            Self::prepare_regenerate_history(history, message_index)?
+        };
+
+        let mut rx = self
+            .service
+            .send_chat_message(
+                Some(session_id.to_string()),
+                history_before,
+                temperature,
+                0.95,
+                40,
+                max_tokens,
+            )
+            .await?;
+
+        let mut full_response = String::new();
+
+        while let Some(chunk) = rx.recv().await {
+            full_response.push_str(&chunk);
+            let _ = on_event.send(serde_json::json!({
+                "chunk": chunk
+            }));
+        }
+
+        let _ = on_event.send(serde_json::json!({
+            "status": "done"
+        }));
+
+        let mut sessions = self.sessions.lock().await;
+        let history = sessions
+            .get_mut(session_id)
+            .ok_or_else(|| "Session not found".to_string())?;
+
+        if message_index >= history.len() {
+            return Err("Message no longer exists".to_string());
+        }
+
+        history[message_index].content = full_response;
+
+        Ok(())
     }
 }

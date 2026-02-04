@@ -72,3 +72,35 @@ export interface LlamaCppConfig {
     parallel: number;
     n_gpu_layers: number;
 }
+
+export type McpTransport = 'stdio' | 'http_sse';
+
+export interface McpServerConfig {
+    id: string;
+    name: string;
+    enabled: boolean;
+    transport: McpTransport;
+    command?: string | null;
+    args?: string[] | null;
+    cwd?: string | null;
+    env?: Record<string, string> | null;
+    url?: string | null;
+    headers?: Record<string, string> | null;
+    tool_allowlist?: string[] | null;
+    resource_allowlist?: string[] | null;
+}
+
+export interface McpConfig {
+    servers: McpServerConfig[];
+}
+
+export interface McpServerStatus {
+    id: string;
+    connected: boolean;
+    last_error?: string | null;
+    tools_cached: number;
+    resources_cached: number;
+}
+
+export type ToolDefinition = Record<string, any>;
+export type ResourceDefinition = Record<string, any>;
