@@ -4,6 +4,8 @@ use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 pub struct LlamaServer;
 
@@ -82,7 +84,13 @@ impl LlamaServer {
             llama_server_path, config.port
         );
         let binary_dir = llama_server_path.parent().unwrap_or(Path::new("."));
-        let mut child = Command::new(&llama_server_path)
+        let mut cmd = Command::new(&llama_server_path);
+        #[cfg(windows)]
+        {
+            // Prevents a console window from flashing when starting the server.
+            cmd.creation_flags(0x08000000);
+        }
+        let mut child = cmd
             .current_dir(binary_dir)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())

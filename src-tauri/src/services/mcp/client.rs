@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
@@ -22,6 +24,11 @@ impl McpClient {
         env: Option<HashMap<String, String>>,
     ) -> Result<Self, String> {
         let mut cmd = Command::new(command);
+        #[cfg(windows)]
+        {
+            // Avoid flashing a console window for stdio-based MCP servers.
+            cmd.creation_flags(0x08000000);
+        }
         cmd.args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
