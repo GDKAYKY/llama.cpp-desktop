@@ -19,6 +19,7 @@
     Pin,
     Archive,
     Trash2,
+    Plug,
   } from "lucide-svelte";
   import { DropdownMenu } from "bits-ui";
   import { page } from "$app/state";
@@ -41,6 +42,7 @@
   const menuItems = [
     { id: "chat", label: "Chat", icon: MessageSquare, path: "/" },
     { id: "models", label: "Models", icon: Box, path: "/models" },
+    { id: "mcps", label: "MCPs", icon: Plug, path: "/mcps" },
     {
       id: "settings",
       label: "Settings",

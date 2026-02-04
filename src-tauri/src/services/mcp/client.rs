@@ -184,7 +184,11 @@ impl HttpClient {
             params,
         };
 
-        let mut builder = self.client.post(&self.url).json(&req);
+        let mut builder = self
+            .client
+            .post(&self.url)
+            .header("Accept", "application/json, text/event-stream")
+            .json(&req);
         for (k, v) in &self.headers {
             builder = builder.header(k, v);
         }

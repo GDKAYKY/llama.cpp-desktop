@@ -7,7 +7,10 @@
     Globe,
     ArrowUp,
     Mic,
+    AtSign,
+    Plug,
   } from "lucide-svelte";
+  import { mcpStore } from "$lib/stores/mcp.svelte";
 
   /** @type {{
    *   userInput: string,
@@ -31,14 +34,36 @@
   } = $props();
 
   let isDropdownOpen = $state(false);
+  let isMcpDropdownOpen = $state(false);
 
   function toggleDropdown(e: MouseEvent) {
     if (e) e.stopPropagation();
     isDropdownOpen = !isDropdownOpen;
   }
 
+  function toggleMcpDropdown(e: MouseEvent) {
+    if (e) e.stopPropagation();
+    isMcpDropdownOpen = !isMcpDropdownOpen;
+  }
+
   function handleClickOutside() {
     isDropdownOpen = false;
+    isMcpDropdownOpen = false;
+  }
+
+  function insertMention(mention: string) {
+    if (!textarea) {
+      userInput = `${userInput}${mention} `;
+      return;
+    }
+    const start = textarea.selectionStart ?? userInput.length;
+    const end = textarea.selectionEnd ?? userInput.length;
+    userInput = `${userInput.slice(0, start)}${mention} ${userInput.slice(end)}`;
+    queueMicrotask(() => {
+      textarea.focus();
+      const nextPos = start + mention.length + 1;
+      textarea.setSelectionRange(nextPos, nextPos);
+    });
   }
 </script>
 
@@ -66,7 +91,7 @@
       </div>
 
       <div class="relative mt-1 flex items-center gap-3">
-        <div class="mr-auto flex items-center">
+        <div class="mr-auto flex items-center gap-1">
           <div class="relative">
             <button
               type="button"
@@ -106,6 +131,53 @@
                   <Globe size={18} />
                   <span>Search the web</span>
                 </button>
+              </div>
+            {/if}
+          </div>
+
+          <div class="relative">
+            <button
+              type="button"
+              class="flex cursor-pointer items-center justify-center rounded-full border-none bg-transparent p-2 text-muted-foreground transition-all hover:bg-white/5 hover:text-foreground"
+              onclick={toggleMcpDropdown}
+              title="Mention MCP"
+            >
+              <AtSign size={20} />
+            </button>
+
+            {#if isMcpDropdownOpen}
+              <div
+                class="absolute bottom-[calc(100%+12px)] left-0 z-100 w-[240px] overflow-hidden rounded-xl border border-border bg-secondary p-1.5 shadow-lg"
+                role="menu"
+                tabindex="-1"
+                onclick={(e: MouseEvent) => e.stopPropagation()}
+                onkeydown={() => {}}
+              >
+                <div class="px-3 py-2 text-xs font-semibold text-muted-foreground">
+                  MCP Servers
+                </div>
+                {#if mcpStore.servers.length === 0}
+                  <div class="px-3 py-2 text-xs text-muted-foreground">
+                    Nenhum MCP configurado
+                  </div>
+                {:else}
+                  {#each mcpStore.servers as server}
+                    <button
+                      type="button"
+                      class="flex w-full cursor-pointer items-center gap-3 rounded-lg border-none bg-transparent px-3.5 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-white/8"
+                      onclick={() => {
+                        insertMention(`@mcp:${server.id}`);
+                        isMcpDropdownOpen = false;
+                      }}
+                    >
+                      <Plug size={16} />
+                      <div class="flex flex-col gap-0.5">
+                        <span class="text-sm">{server.name}</span>
+                        <span class="text-[11px] text-muted-foreground font-mono">{server.id}</span>
+                      </div>
+                    </button>
+                  {/each}
+                {/if}
               </div>
             {/if}
           </div>

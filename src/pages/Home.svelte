@@ -9,6 +9,7 @@
   import { uiStore } from "$lib/stores/ui.svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
+  import { mcpStore } from "$lib/stores/mcp.svelte";
 
   let userInput = $state("");
   let messagesEnd: any = $state();
@@ -19,6 +20,10 @@
     if (chatStore.messages.length) {
       scrollToBottom();
     }
+  });
+
+  onMount(async () => {
+    await mcpStore.init();
   });
 
   async function scrollToBottom() {
