@@ -1,4 +1,6 @@
 use std::process::Command;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 pub struct NvidiaSmi;
 
@@ -8,8 +10,13 @@ impl NvidiaSmi {
         let mut vram_usage = None;
 
         // 1. Try to get system-wide GPU load and memory as a baseline
-        if let Ok(output) = Command::new("nvidia-smi")
-            .args(&[
+        let mut cmd = Command::new("nvidia-smi");
+        #[cfg(windows)]
+        {
+            // Avoid flashing a console window when invoking nvidia-smi.
+            cmd.creation_flags(0x08000000);
+        }
+        if let Ok(output) = cmd.args(&[
                 "--query-gpu=utilization.gpu,memory.used,memory.total",
                 "--format=csv,noheader,nounits",
             ])
@@ -35,8 +42,13 @@ impl NvidiaSmi {
         }
 
         // 2. Try to refine with per-process memory if possible
-        if let Ok(output) = Command::new("nvidia-smi")
-            .args(&[
+        let mut cmd = Command::new("nvidia-smi");
+        #[cfg(windows)]
+        {
+            // Avoid flashing a console window when invoking nvidia-smi.
+            cmd.creation_flags(0x08000000);
+        }
+        if let Ok(output) = cmd.args(&[
                 "--query-compute-apps=pid,used_memory",
                 "--format=csv,noheader,nounits",
             ])
