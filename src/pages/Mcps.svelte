@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { mcpStore } from "$lib/stores/mcp.svelte";
   import type { McpServerConfig, ToolDefinition, ResourceDefinition } from "$lib/types/backend";
-  import { open } from "@tauri-apps/plugin-opener";
+  import { openPath } from "@tauri-apps/plugin-opener";
   import {
     Plug,
     Server,
@@ -245,7 +245,7 @@
   async function handleOpenConfig() {
     if (!mcpStore.configPath) return;
     try {
-      await open(mcpStore.configPath);
+      await openPath(mcpStore.configPath);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showMessage("error", msg);

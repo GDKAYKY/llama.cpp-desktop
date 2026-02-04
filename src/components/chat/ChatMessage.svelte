@@ -2,7 +2,15 @@
   import MessageAvatar from "$components/ui/MessageAvatar.svelte";
   import MarkdownContent from "$components/ui/MarkdownContent.svelte";
   import { cn } from "$shared/cn.js";
-  import { Copy, Pencil } from "lucide-svelte";
+  import {
+    Copy,
+    Pencil,
+    ThumbsUp,
+    ThumbsDown,
+    RotateCcw,
+    Share2,
+    MoreHorizontal,
+  } from "lucide-svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
   import { toast } from "svelte-sonner";
@@ -34,6 +42,7 @@
   async function copyToClipboard() {
     try {
       await navigator.clipboard.writeText(message.content);
+      await chatStore.copyMessage(index);
       toast.success("Message copied to clipboard");
     } catch (err) {
       toast.error("Failed to copy message");
@@ -65,6 +74,45 @@
     } catch {
       return url;
     }
+  }
+
+  async function handleLike() {
+    try {
+      await chatStore.likeMessage(index);
+      toast.success("Curtido");
+    } catch (err) {
+      toast.error("Falha ao curtir");
+    }
+  }
+
+  async function handleDislike() {
+    try {
+      await chatStore.dislikeMessage(index);
+      toast.success("Feedback enviado");
+    } catch (err) {
+      toast.error("Falha ao enviar feedback");
+    }
+  }
+
+  async function handleShare() {
+    try {
+      const path = await chatStore.shareMessage(index);
+      toast.success(`Salvo em ${path}`);
+    } catch (err) {
+      toast.error("Falha ao compartilhar");
+    }
+  }
+
+  async function handleRegenerate() {
+    try {
+      await chatStore.regenerateMessage(index);
+    } catch (err) {
+      toast.error("Falha ao regenerar");
+    }
+  }
+
+  function handleMore() {
+    toast.message("Mais ações em breve");
   }
 </script>
 
@@ -190,6 +238,52 @@
             </div>
           {/if}
           <MarkdownContent content={message.content} />
+          <div
+            class="mt-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <button
+              class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+              onclick={copyToClipboard}
+              title="Copy message"
+            >
+              <Copy size={16} />
+            </button>
+            <button
+              class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+              onclick={handleLike}
+              title="Like"
+            >
+              <ThumbsUp size={16} />
+            </button>
+            <button
+              class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+              onclick={handleDislike}
+              title="Dislike"
+            >
+              <ThumbsDown size={16} />
+            </button>
+            <button
+              class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+              onclick={handleShare}
+              title="Share"
+            >
+              <Share2 size={16} />
+            </button>
+            <button
+              class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+              onclick={handleRegenerate}
+              title="Regenerate"
+            >
+              <RotateCcw size={16} />
+            </button>
+            <button
+              class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+              onclick={handleMore}
+              title="More"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+          </div>
         </div>
       {/if}
     </div>

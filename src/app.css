@@ -222,6 +222,19 @@
   background: var(--code-block-bg);
   color: var(--code-block-text);
   padding: 1rem 1.25rem;
+  font-family:
+    "SF Mono",
+    "SFMono-Regular",
+    ui-monospace,
+    "Cascadia Mono",
+    "Roboto Mono",
+    "Source Code Pro",
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
 }
 
 .copy-code-btn {

@@ -1,4 +1,5 @@
 pub mod chat;
+pub mod chat_actions;
 pub mod config;
 pub mod general;
 pub mod llama_cpp;
