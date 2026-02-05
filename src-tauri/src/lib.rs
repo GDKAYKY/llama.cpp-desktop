@@ -1,8 +1,57 @@
-pub mod commands;
-pub mod infrastructure;
+pub mod commands {
+    pub mod chat;
+    pub mod chat_actions;
+    pub mod config;
+    pub mod general;
+    pub mod llama_cpp;
+    pub mod mcp;
+    pub mod mcp_config;
+    pub mod models;
+}
+
+pub mod infrastructure {
+    pub mod llama {
+        pub mod process;
+        pub mod server;
+    }
+    pub mod metrics;
+    pub mod nvidia_smi;
+}
+
 pub mod ipc_handlers;
-pub mod models;
-pub mod services;
+
+pub mod models {
+    pub mod app_config;
+    pub mod chat;
+    pub mod llama;
+    pub mod mcp;
+    pub mod manifest;
+
+    pub use app_config::*;
+    pub use chat::*;
+    pub use llama::*;
+    pub use mcp::*;
+    pub use manifest::*;
+}
+
+pub mod services {
+    pub mod llama {
+        pub mod actor;
+        pub mod service;
+        
+        pub use actor::ActorMessage;
+        pub use service::LlamaCppService;
+    }
+    pub mod mcp {
+        pub mod client;
+        pub mod protocol;
+        pub mod service;
+        
+        pub use service::McpService;
+    }
+    pub mod orchestrator;
+}
+
 pub mod state;
 pub mod utils;
 
