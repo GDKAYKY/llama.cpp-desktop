@@ -169,7 +169,7 @@
         {#if saving}
           <div
             class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-          />
+          ></div>
         {:else}
           <Save size={16} />
         {/if}

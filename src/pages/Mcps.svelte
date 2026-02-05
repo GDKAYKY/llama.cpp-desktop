@@ -390,8 +390,9 @@
 
       <div class="grid gap-4 md:grid-cols-2">
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-muted-foreground">ID</label>
+          <label for="mcp-id" class="text-xs font-medium text-muted-foreground">ID</label>
           <input
+            id="mcp-id"
             class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
             bind:value={form.id}
             placeholder="unique-id"
@@ -400,8 +401,9 @@
         </div>
 
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-muted-foreground">Name</label>
+          <label for="mcp-name" class="text-xs font-medium text-muted-foreground">Name</label>
           <input
+            id="mcp-name"
             class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
             bind:value={form.name}
             placeholder="My MCP Server"
@@ -409,8 +411,9 @@
         </div>
 
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-muted-foreground">Transport</label>
+          <label for="mcp-transport" class="text-xs font-medium text-muted-foreground">Transport</label>
           <select
+            id="mcp-transport"
             class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
             bind:value={form.transport}
           >
@@ -430,32 +433,36 @@
       {#if form.transport === "stdio"}
         <div class="mt-6 grid gap-4 md:grid-cols-2">
           <div class="space-y-1.5 md:col-span-2">
-            <label class="text-xs font-medium text-muted-foreground">Command</label>
+            <label for="mcp-command" class="text-xs font-medium text-muted-foreground">Command</label>
             <input
+              id="mcp-command"
               class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
               bind:value={form.command}
               placeholder="path/to/server-binary"
             />
           </div>
           <div class="space-y-1.5">
-            <label class="text-xs font-medium text-muted-foreground">Args (one per line)</label>
+            <label for="mcp-args" class="text-xs font-medium text-muted-foreground">Args (one per line)</label>
             <textarea
+              id="mcp-args"
               class="h-24 w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
               bind:value={form.args}
               placeholder="--flag\n--port=8080"
-            />
+            ></textarea>
           </div>
           <div class="space-y-1.5">
-            <label class="text-xs font-medium text-muted-foreground">Environment (key=value)</label>
+            <label for="mcp-env" class="text-xs font-medium text-muted-foreground">Environment (key=value)</label>
             <textarea
+              id="mcp-env"
               class="h-24 w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
               bind:value={form.env}
               placeholder="API_KEY=secret"
-            />
+            ></textarea>
           </div>
           <div class="space-y-1.5 md:col-span-2">
-            <label class="text-xs font-medium text-muted-foreground">Working Directory</label>
+            <label for="mcp-cwd" class="text-xs font-medium text-muted-foreground">Working Directory</label>
             <input
+              id="mcp-cwd"
               class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
               bind:value={form.cwd}
               placeholder="/path/to/cwd"
@@ -465,46 +472,50 @@
       {:else}
         <div class="mt-6 grid gap-4 md:grid-cols-2">
           <div class="space-y-1.5 md:col-span-2">
-            <label class="text-xs font-medium text-muted-foreground">Server URL</label>
+            <label for="mcp-url" class="text-xs font-medium text-muted-foreground">Server URL</label>
             <input
+              id="mcp-url"
               class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
               bind:value={form.url}
               placeholder="https://mcp.example.com"
             />
           </div>
           <div class="space-y-1.5 md:col-span-2">
-            <label class="text-xs font-medium text-muted-foreground">Headers (key=value)</label>
+            <label for="mcp-headers" class="text-xs font-medium text-muted-foreground">Headers (key=value)</label>
             <textarea
+              id="mcp-headers"
               class="h-24 w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
               bind:value={form.headers}
               placeholder="Authorization=Bearer ..."
-            />
+            ></textarea>
           </div>
         </div>
       {/if}
 
       <div class="mt-6 grid gap-4 md:grid-cols-2">
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-muted-foreground flex items-center gap-2">
+          <label for="mcp-tool-allowlist" class="text-xs font-medium text-muted-foreground flex items-center gap-2">
             <KeyRound size={14} />
             Tool Allowlist (one per line)
           </label>
           <textarea
+            id="mcp-tool-allowlist"
             class="h-24 w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
             bind:value={form.tool_allowlist}
             placeholder="tool.one\ntool.two"
-          />
+          ></textarea>
         </div>
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-muted-foreground flex items-center gap-2">
+          <label for="mcp-resource-allowlist" class="text-xs font-medium text-muted-foreground flex items-center gap-2">
             <Cable size={14} />
             Resource Allowlist (one per line)
           </label>
           <textarea
+            id="mcp-resource-allowlist"
             class="h-24 w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
             bind:value={form.resource_allowlist}
             placeholder="file:///path\nmcp://resource"
-          />
+          ></textarea>
         </div>
       </div>
 
@@ -515,7 +526,7 @@
           disabled={saving}
         >
           {#if saving}
-            <div class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            <div class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
           {:else}
             <Save size={16} />
           {/if}

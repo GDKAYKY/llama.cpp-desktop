@@ -84,8 +84,14 @@
     e.stopPropagation();
     if (!model.model_file_path) return;
 
+    const llamaDirectory = settingsStore.settings.llamaDirectory;
+    if (!llamaDirectory) {
+      modelsStore.error = "Llama Server path not configured. Please go to Settings.";
+      return;
+    }
+
     await serverStore.startServer(
-      settingsStore.settings.llamaDirectory,
+      llamaDirectory,
       model.model_file_path,
     );
   }

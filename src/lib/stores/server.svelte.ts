@@ -35,7 +35,14 @@ class ServerStore {
         }
     }
 
-    async startServer(binaryPath: string, modelPath: string, port: number = 8000, ctxSize: number = 4096, nGpuLayers: number = 33) {
+    async startServer(
+        binaryPath: string,
+        modelPath: string,
+        port: number = 8000,
+        ctxSize: number = 4096,
+        nGpuLayers: number = 33,
+        parallel: number = 1,
+    ) {
         if (this.isStarting) return;
         if (
             this.isRunning &&
@@ -43,7 +50,8 @@ class ServerStore {
             this.currentConfig?.model_path === modelPath &&
             this.currentConfig?.port === port &&
             this.currentConfig?.ctx_size === ctxSize &&
-            this.currentConfig?.n_gpu_layers === nGpuLayers
+            this.currentConfig?.n_gpu_layers === nGpuLayers &&
+            this.currentConfig?.parallel === parallel
         ) {
             return;
         }
@@ -63,6 +71,7 @@ class ServerStore {
                 model_path: modelPath,
                 port,
                 ctx_size: ctxSize,
+                parallel,
                 n_gpu_layers: nGpuLayers
             };
             console.log('Server started with PID:', pid);

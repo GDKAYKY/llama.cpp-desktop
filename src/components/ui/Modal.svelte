@@ -22,6 +22,7 @@
     onkeydown={handleKeyDown}
     role="dialog"
     aria-modal="true"
+    tabindex="0"
   >
     <!-- backdrop -->
     <div
