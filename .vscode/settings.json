@@ -3,5 +3,8 @@
   "sonarlint.connectedMode.project": {
     "connectionId": "Antigravity",
     "projectKey": "GDKAYKY_llama.cpp-desktop"
-  }
+  },
+  "github-actions.workflows.pinned.workflows": [
+    ".github/workflows/sonarcloud.yml"
+  ]
 }

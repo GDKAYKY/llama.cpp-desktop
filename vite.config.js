@@ -34,5 +34,8 @@ export default defineConfig(async () => ({
     environment: "jsdom",
     globals: true,
     setupFiles: ["tests/setup.ts"],
+    coverage: {
+      reporter: ["text", "lcov"],
+    },
   },
 }));
