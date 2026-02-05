@@ -59,7 +59,8 @@ describe("markdown sanitization", () => {
 
   test("renders code blocks with copy icon", async () => {
     const html = await renderMarkdown("```rust\nfn main() {}\n```");
-    expect(html).toContain('class="my-6');
+    expect(html).toContain("code-block-wrapper");
+    expect(html).toContain("my-6");
     expect(html).toContain("lucide-copy-icon");
     expect(html).toContain("<svg");
   });
