@@ -104,10 +104,17 @@
     class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
   >
     <div>
-      <h2 class="text-2xl font-semibold">Model Library</h2>
-      <p class="text-sm text-muted-foreground mt-1">
-        Manage and select models for inference
-      </p>
+      <div class="flex items-center gap-3">
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500">
+          <Box size={20} />
+        </div>
+        <div>
+          <h2 class="text-2xl font-semibold">Model Library</h2>
+          <p class="text-sm text-muted-foreground mt-1">
+            Manage and select models for inference
+          </p>
+        </div>
+      </div>
     </div>
 
     <div class="flex flex-wrap gap-2">

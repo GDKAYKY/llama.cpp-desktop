@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db, createConversation, saveMessage, getConversationHistory, type ChatMessage } from '../src/lib/services/history';
+import { db, createConversation, saveMessage, getConversationHistory, updateConversationTitle, deleteConversation, getRecentConversations, extractKeywords, estimateTokens, findRelevantContext, type ChatMessage } from '../src/lib/services/history';
 
 describe('Chat History Service (IndexedDB)', () => {
   // Clear the database before each test to ensure a clean state
@@ -48,9 +48,6 @@ describe('Chat History Service (IndexedDB)', () => {
     const conversationId = await createConversation('Ordered Chat');
 
     await saveMessage(conversationId, 'user', 'First');
-    // Small delay to ensure timestamp difference if necessary, 
-    // though Date.now() usually changes or IndexedDB auto-increment helps stability?
-    // The implementation uses sorting by timestamp.
     await new Promise(r => setTimeout(r, 10)); 
     await saveMessage(conversationId, 'assistant', 'Second');
 
@@ -58,5 +55,82 @@ describe('Chat History Service (IndexedDB)', () => {
     
     expect(history[0].content).toBe('First');
     expect(history[1].content).toBe('Second');
+  });
+
+  it('should update conversation title', async () => {
+    const conversationId = await createConversation('Old Title');
+    await updateConversationTitle(conversationId, 'New Title');
+    
+    const conversation = await db.conversations.get(conversationId);
+    expect(conversation?.title).toBe('New Title');
+  });
+
+  it('should delete conversation and its messages', async () => {
+    const conversationId = await createConversation('To Delete');
+    await saveMessage(conversationId, 'user', 'Test message');
+    
+    await deleteConversation(conversationId);
+    
+    const conversation = await db.conversations.get(conversationId);
+    const messages = await db.messages.where('conversationId').equals(conversationId).toArray();
+    
+    expect(conversation).toBeUndefined();
+    expect(messages).toHaveLength(0);
+  });
+
+  it('should get recent conversations ordered by updatedAt', async () => {
+    const id1 = await createConversation('First');
+    await new Promise(r => setTimeout(r, 10));
+    const id2 = await createConversation('Second');
+    await new Promise(r => setTimeout(r, 10));
+    const id3 = await createConversation('Third');
+    
+    const recent = await getRecentConversations(2);
+    
+    expect(recent).toHaveLength(2);
+    expect(recent[0].id).toBe(id3);
+    expect(recent[1].id).toBe(id2);
+  });
+
+  it('should extract keywords correctly', () => {
+    const text = 'How can I train a machine learning model?';
+    const keywords = extractKeywords(text);
+    
+    expect(keywords).toContain('train');
+    expect(keywords).toContain('machine');
+    expect(keywords).toContain('learning');
+    expect(keywords).toContain('model');
+    expect(keywords).not.toContain('can');
+    expect(keywords).not.toContain('the');
+  });
+
+  it('should estimate tokens correctly', () => {
+    const text = 'Hello world';
+    const tokens = estimateTokens(text);
+    expect(tokens).toBe(Math.ceil(text.length / 4));
+  });
+
+  it('should find relevant context from other conversations', async () => {
+    const conv1 = await createConversation('Conv 1');
+    await saveMessage(conv1, 'user', 'How do I train machine learning models?');
+    await saveMessage(conv1, 'assistant', 'You can use Python libraries like TensorFlow.');
+    
+    const conv2 = await createConversation('Conv 2');
+    await saveMessage(conv2, 'user', 'What is deep learning?');
+    
+    const context = await findRelevantContext('machine learning training', conv2, 2000);
+    
+    expect(context).toContain('train');
+    expect(context).toContain('machine');
+  });
+
+  it('should return empty context when no relevant messages found', async () => {
+    const conv1 = await createConversation('Conv 1');
+    await saveMessage(conv1, 'user', 'Hello');
+    
+    const conv2 = await createConversation('Conv 2');
+    const context = await findRelevantContext('completely unrelated query xyz', conv2, 2000);
+    
+    expect(context).toBe('');
   });
 });

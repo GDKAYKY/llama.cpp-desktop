@@ -252,7 +252,7 @@
   }
 </script>
 
-<div class="mx-auto h-full max-w-[1200px] overflow-y-auto px-6 py-10 text-foreground">
+<div class="mx-auto max-w-[1200px] px-6 py-10 text-foreground">
   <div class="mb-8 flex items-start justify-between border-b border-border/60 pb-6">
     <div>
       <div class="flex items-center gap-3">

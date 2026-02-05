@@ -8,6 +8,7 @@
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
   import { cn } from "$shared/cn.js";
+  import { openPath } from "@tauri-apps/plugin-opener";
   import {
     X,
     Save,
@@ -24,6 +25,7 @@
     Thermometer,
     Hash,
     Cpu,
+    FileCode,
   } from "lucide-svelte";
 
   let configPath = $state("");
@@ -132,20 +134,35 @@
   function handleChange() {
     unsavedChanges = true;
   }
+
+  async function handleOpenConfigFile() {
+    if (!configPath) return;
+    try {
+      await openPath(configPath);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      showMessage("error", `Failed to open config file: ${errorMessage}`);
+    }
+  }
 </script>
 
-<div
-  class="mx-auto h-full max-w-[900px] overflow-y-auto px-5 py-10 text-foreground"
->
+<div class="mx-auto max-w-[900px] px-5 py-10 text-foreground">
   <div
     class="mb-8 flex items-center justify-between border-b border-border/60 pb-6"
   >
     <div>
-      <h1
-        class="text-3xl font-bold tracking-tight leading-none text-foreground"
-      >
-        Settings
-      </h1>
+      <div class="flex items-center gap-3">
+        <div
+          class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500"
+        >
+          <Sliders size={20} />
+        </div>
+        <h1
+          class="text-3xl font-bold tracking-tight leading-none text-foreground"
+        >
+          Settings
+        </h1>
+      </div>
       <p class="mt-1 text-sm text-muted-foreground leading-normal">
         Manage your preferences and application configuration
       </p>
@@ -259,7 +276,7 @@
                 class="flex items-center gap-2 text-sm font-medium leading-none"
               >
                 <Cpu size={14} class="text-muted-foreground" />
-                Llama Server Binary
+                Llama.cpp Binary Directory
               </span>
             </label>
             <div class="flex gap-2">
@@ -563,11 +580,20 @@
           </div>
           {#if configPath}
             <div>
-              <p
-                class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground"
-              >
-                Configuration File
-              </p>
+              <div class="flex items-center justify-between mb-2">
+                <p
+                  class="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                >
+                  Configuration File
+                </p>
+                <button
+                  class="inline-flex items-center gap-2 rounded-md border border-border bg-transparent px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+                  onclick={handleOpenConfigFile}
+                >
+                  <FileCode size={12} />
+                  Open File
+                </button>
+              </div>
               <code
                 class="block break-all rounded-md bg-muted px-3 py-2 text-xs font-mono text-foreground"
                 >{configPath}</code
