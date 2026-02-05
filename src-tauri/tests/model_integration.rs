@@ -1,5 +1,5 @@
 use llama_desktop_lib::models::{ChatMessage, LlamaCppConfig};
-use llama_desktop_lib::services::llama_cpp::LlamaCppService;
+use llama_desktop_lib::services::llama::LlamaCppService;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time::timeout;
@@ -15,16 +15,28 @@ fn get_available_port() -> u16 {
 
 #[tokio::test]
 async fn test_actual_model_call() {
+    // Explicit opt-in for this slow integration test.
+    if std::env::var("RUN_LLM_INTEGRATION").ok().as_deref() != Some("1") {
+        println!("SKIPPING TEST: RUN_LLM_INTEGRATION not set to 1.");
+        return;
+    }
     let testname = "test_actual_model_call";
-    // 1. Configuration via Environment Variables (CI-friendly)
-    // Fallbacks are kept for local convenience but skipping if paths don't exist.
-    let llama_cpp_path =
-        std::env::var("LLAMA_CPP_PATH").unwrap_or_else(|_| "E:\\src\\llama_cpp".to_string());
-    let model_path = std::env::var("LLAMA_MODEL_PATH")
-        .unwrap_or_else(|_| "E:\\models\\blobs\\sha256-eb1568f011249d9214d4de1552e4115cc6635852de73121317707f015a4952f7".to_string());
-    let models_root = PathBuf::from(
-        std::env::var("LLAMA_MODELS_ROOT").unwrap_or_else(|_| "E:\\models".to_string()),
-    );
+    // Configuration via environment variables (CI-friendly).
+    let llama_cpp_path = match std::env::var("LLAMA_CPP_PATH") {
+        Ok(path) => path,
+        Err(_) => {
+            println!("SKIPPING TEST: LLAMA_CPP_PATH not set.");
+            return;
+        }
+    };
+    let model_path = match std::env::var("LLAMA_MODEL_PATH") {
+        Ok(path) => path,
+        Err(_) => {
+            println!("SKIPPING TEST: LLAMA_MODEL_PATH not set.");
+            return;
+        }
+    };
+    let models_root = PathBuf::from(std::env::var("LLAMA_MODELS_ROOT").unwrap_or_else(|_| ".".to_string()));
 
     if !PathBuf::from(&llama_cpp_path).exists() || !PathBuf::from(&model_path).exists() {
         println!(
@@ -62,7 +74,7 @@ async fn test_actual_model_call() {
 
     // CHAT TIMEOUT: Wrap the entire communication logic
     let chat_task = async {
-        let mut rx = service
+        let mut rx: tokio::sync::mpsc::Receiver<String> = service
             .send_chat_message(
                 Some("integration-test-session".to_string()),
                 vec![ChatMessage {
@@ -92,7 +104,9 @@ async fn test_actual_model_call() {
     println!("\n--- [3/3] Shutting Down ---");
 
     // CLEANUP: Ensure stop is called before assertions that might panic
-    let stop_res = service.stop().await;
+    let stop_res = timeout(Duration::from_secs(10), service.stop())
+        .await
+        .expect("Stop timed out after 10s");
 
     // SEMANTIC ASSERTION
     assert!(
