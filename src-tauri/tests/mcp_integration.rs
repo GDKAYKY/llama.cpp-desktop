@@ -59,10 +59,27 @@ async fn run_mock_mcp_server(port: u16) -> tokio::task::JoinHandle<()> {
     tokio::spawn(warp::serve(route).run(([127, 0, 0, 1], port)))
 }
 
+async fn wait_for_port(port: u16, timeout_ms: u64) {
+    let start = std::time::Instant::now();
+    loop {
+        if tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .is_ok()
+        {
+            return;
+        }
+        if start.elapsed() > Duration::from_millis(timeout_ms) {
+            panic!("mock MCP server did not start listening on port {}", port);
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+}
+
 #[tokio::test]
 async fn test_mcp_http_integration_and_allowlists() {
     let port = get_available_port();
     let server_handle = run_mock_mcp_server(port).await;
+    wait_for_port(port, 1000).await;
 
     let cfg = McpConfig {
         servers: vec![McpServerConfig {
