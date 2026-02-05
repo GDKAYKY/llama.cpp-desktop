@@ -161,10 +161,10 @@
         bind:value={input}
         placeholder="Type your message..."
         disabled={loading}
-        on:keydown={handleKeydown}
+        onkeydown={handleKeydown}
         class="max-h-32 grow resize-none rounded-lg border border-border bg-input p-3 text-sm outline-none transition-all focus:border-primary disabled:opacity-50"
         rows="1"
-      />
+      ></textarea>
       <button
         class="flex cursor-pointer items-center gap-2 self-end rounded-lg bg-primary px-5 py-2.5 font-semibold text-primary-foreground transition-all hover:scale-105 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 shadow-md shadow-primary/20"
         onclick={sendMessage}

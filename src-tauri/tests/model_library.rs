@@ -5,6 +5,49 @@ use llama_desktop_lib::models::{ManifestConfig, ManifestLayer, ModelInfo, ModelM
 use std::fs;
 use tempfile::tempdir;
 
+fn write_manifest(path: &std::path::Path, model_digest: &str) {
+    let manifest_json = format!(
+        r#"{{
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+        "config": {{
+            "mediaType": "application/vnd.docker.container.image.v1+json",
+            "digest": "sha256:dcee128a1ea55610667e4529241517409254b1f6920f666b6c0e86b24508e6f0",
+            "size": 3942
+        }},
+        "layers": [
+            {{
+                "mediaType": "application/vnd.ollama.image.model",
+                "digest": "{}",
+                "size": 4661196144
+            }}
+        ]
+    }}"#,
+        model_digest
+    );
+    fs::write(path, manifest_json).expect("Failed to write manifest file");
+}
+
+fn write_manifest_without_model_layer(path: &std::path::Path) {
+    let manifest_json = r#"{
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+        "config": {
+            "mediaType": "application/vnd.docker.container.image.v1+json",
+            "digest": "sha256:dcee128a1ea55610667e4529241517409254b1f6920f666b6c0e86b24508e6f0",
+            "size": 3942
+        },
+        "layers": [
+            {
+                "mediaType": "application/vnd.ollama.image.param",
+                "digest": "sha256:deadbeef",
+                "size": 10
+            }
+        ]
+    }"#;
+    fs::write(path, manifest_json).expect("Failed to write manifest file");
+}
+
 #[tokio::test]
 async fn test_model_manifest_parsing() {
     let testname = "test_model_manifest_parsing";
@@ -30,27 +73,7 @@ async fn test_model_manifest_parsing() {
     // Create a dummy blob file
     fs::write(&blob_path, "dummy model data").expect("Failed to write blob file");
 
-    let manifest_json = format!(
-        r#"{{
-        "schemaVersion": 2,
-        "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-        "config": {{
-            "mediaType": "application/vnd.docker.container.image.v1+json",
-            "digest": "sha256:dcee128a1ea55610667e4529241517409254b1f6920f666b6c0e86b24508e6f0",
-            "size": 3942
-        }},
-        "layers": [
-            {{
-                "mediaType": "application/vnd.ollama.image.model",
-                "digest": "{}",
-                "size": 4661196144
-            }}
-        ]
-    }}"#,
-        model_digest
-    );
-
-    fs::write(&manifest_path, manifest_json).expect("Failed to write manifest file");
+    write_manifest(&manifest_path, model_digest);
 
     // 5. Test parse_model_manifest
     let model_info = parse_model_manifest(
@@ -77,6 +100,48 @@ async fn test_model_manifest_parsing() {
         .contains(blob_filename));
 
     println!("\x1b[30;42m SUCCESS \x1b[0m {}", testname);
+}
+
+#[tokio::test]
+async fn test_model_manifest_parsing_invalid_path() {
+    let dir = tempdir().expect("Failed to create temp dir");
+    let root_path = dir.path();
+    let manifest_path = root_path.join("not-manifests").join("latest");
+    fs::create_dir_all(manifest_path.parent().unwrap()).expect("create dir");
+    write_manifest(&manifest_path, "sha256:deadbeef");
+
+    let err = parse_model_manifest(
+        manifest_path.to_str().unwrap().to_string(),
+        root_path.to_str().unwrap().to_string(),
+    )
+    .await
+    .expect_err("should fail");
+
+    assert!(err.contains("manifests"), "unexpected error: {}", err);
+}
+
+#[tokio::test]
+async fn test_model_manifest_missing_model_layer() {
+    let dir = tempdir().expect("Failed to create temp dir");
+    let root_path = dir.path();
+
+    let manifest_dir = root_path.join("manifests/registry.ollama.ai/library/llama3");
+    fs::create_dir_all(&manifest_dir).expect("Failed to create manifest dir");
+    let manifest_path = manifest_dir.join("latest");
+    write_manifest_without_model_layer(&manifest_path);
+
+    let err = parse_model_manifest(
+        manifest_path.to_str().unwrap().to_string(),
+        root_path.to_str().unwrap().to_string(),
+    )
+    .await
+    .expect_err("should fail");
+
+    assert!(
+        err.contains("No model layer"),
+        "unexpected error: {}",
+        err
+    );
 }
 
 #[tokio::test]
@@ -152,26 +217,7 @@ async fn test_scan_models_directory() {
 
     // 3. Write manifest
     let model_digest = "sha256:60e05f212f026038317a94420e7f41530777085750d5e1f7bd8cc5961d1d86d5";
-    let manifest_json = format!(
-        r#"{{
-        "schemaVersion": 2,
-        "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-        "config": {{
-            "mediaType": "application/vnd.docker.container.image.v1+json",
-            "digest": "sha256:dcee128a1ea55610667e4529241517409254b1f6920f666b6c0e86b24508e6f0",
-            "size": 3942
-        }},
-        "layers": [
-            {{
-                "mediaType": "application/vnd.ollama.image.model",
-                "digest": "{}",
-                "size": 4661196144
-            }}
-        ]
-    }}"#,
-        model_digest
-    );
-    fs::write(&manifest_path, manifest_json).expect("Failed to write manifest file");
+    write_manifest(&manifest_path, model_digest);
 
     // 4. Run scan
     let models = scan_models_directory(root_path.to_str().unwrap().to_string())
@@ -189,4 +235,32 @@ async fn test_scan_models_directory() {
     assert!(model.model_file_path.is_none());
 
     println!("\x1b[30;42m SUCCESS \x1b[0m {}", testname);
+}
+
+#[tokio::test]
+async fn test_scan_models_directory_multiple_entries() {
+    let dir = tempdir().expect("Failed to create temp dir");
+    let root_path = dir.path();
+
+    // Model A
+    let manifest_dir_a = root_path.join("manifests/registry.ollama.ai/library/llama3");
+    fs::create_dir_all(&manifest_dir_a).expect("create manifest dir a");
+    let manifest_path_a = manifest_dir_a.join("latest");
+    write_manifest(&manifest_path_a, "sha256:aaaabbbb");
+
+    // Model B
+    let manifest_dir_b = root_path.join("manifests/registry.ollama.ai/library/llama2");
+    fs::create_dir_all(&manifest_dir_b).expect("create manifest dir b");
+    let manifest_path_b = manifest_dir_b.join("v2");
+    write_manifest(&manifest_path_b, "sha256:ccccdddd");
+
+    let models = scan_models_directory(root_path.to_str().unwrap().to_string())
+        .await
+        .expect("Failed to scan models directory");
+
+    assert_eq!(models.len(), 2);
+    let ids: std::collections::HashSet<String> =
+        models.into_iter().map(|m| m.full_identifier).collect();
+    assert!(ids.contains("registry.ollama.ai:llama3:latest"));
+    assert!(ids.contains("registry.ollama.ai:llama2:v2"));
 }

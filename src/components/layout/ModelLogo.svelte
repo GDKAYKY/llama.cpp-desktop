@@ -54,7 +54,6 @@
     azure: MicrosoftLogo,
     ollama: OllamaLogo,
     ai: Sparkles,
-    llama: MetaLogo,
   };
 
   /**

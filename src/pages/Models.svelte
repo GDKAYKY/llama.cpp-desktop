@@ -16,7 +16,7 @@
     }
   });
 
-  function handleModelSelected(event) {
+  function handleModelSelected(_event: CustomEvent) {
     // The ModelSelector already updates the store, but we can log it here if needed
     console.log(
       "Model selection processed in store:",

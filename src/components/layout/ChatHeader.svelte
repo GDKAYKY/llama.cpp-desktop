@@ -17,6 +17,8 @@
    *   modelLoaded: boolean
    * }} */
   let {
+    isSidebarOpen,
+    toggleSidebar,
     isLoading,
     toggleDropdown,
     selectedModel,
@@ -24,6 +26,7 @@
     models,
     selectModel,
     handleClickOutside,
+    modelLoaded,
   } = $props();
 
   function getModelMetadata(version: string) {
