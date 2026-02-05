@@ -91,6 +91,7 @@ jobs:
           args: >
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.host.url=https://sonarcloud.io
           # When you need the analysis to take place in a directory other than the one from which it was launched, default is .
           projectBaseDir: .
         # Optional SonarScanner args (uncomment and move into args above as needed):
