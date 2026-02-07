@@ -57,7 +57,7 @@ fn test_config_error_display() {
 fn test_app_config_clone() {
     let config = AppConfig::default();
     let cloned = config.clone();
-    
+
     assert_eq!(config.theme, cloned.theme);
     assert_eq!(config.max_tokens, cloned.max_tokens);
 }

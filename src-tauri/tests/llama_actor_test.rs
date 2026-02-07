@@ -72,12 +72,10 @@ fn write_dummy_llama_server(dir: &std::path::Path) -> PathBuf {
 async fn start_health_server() -> (std::net::SocketAddr, oneshot::Sender<()>) {
     let route = warp::path("health").map(|| "ok");
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
-    let (addr, server) = warp::serve(route).bind_with_graceful_shutdown(
-        ([127, 0, 0, 1], 0),
-        async move {
+    let (addr, server) =
+        warp::serve(route).bind_with_graceful_shutdown(([127, 0, 0, 1], 0), async move {
             let _ = shutdown_rx.await;
-        },
-    );
+        });
     tokio::spawn(server);
     (addr, shutdown_tx)
 }
@@ -406,7 +404,7 @@ async fn handle_start_request_spawns_server_and_updates_state() {
         )
         .await;
 
-    let mut actor_task = tokio::spawn(async move { actor.run().await });
+    let actor_task = tokio::spawn(async move { actor.run().await });
 
     let pid = resp_rx.await.expect("resp").expect("ok");
     assert!(pid > 0);
