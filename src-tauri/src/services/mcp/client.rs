@@ -95,10 +95,7 @@ impl McpClient {
     pub async fn shutdown(&self) {
         if let McpClient::Stdio(client) = self {
             let mut client = client.lock().await;
-            if let Some(child) = client.child.as_mut() {
-                let _ = child.kill().await;
-                let _ = child.wait().await;
-            }
+            client.shutdown().await;
         }
     }
 }
@@ -175,6 +172,15 @@ impl StdioClient {
                 }
                 return parsed.result.ok_or_else(|| "Missing result".to_string());
             }
+        }
+    }
+
+    async fn shutdown(&mut self) {
+        // Close stdin for in-memory transports so the server task can exit.
+        let _ = self.stdin.shutdown().await;
+        if let Some(child) = self.child.as_mut() {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
         }
     }
 }
