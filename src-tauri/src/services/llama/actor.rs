@@ -260,3 +260,38 @@ impl LlamaActor {
             .clone()
     }
 }
+
+impl LlamaActor {
+    pub async fn test_handle_chat(
+        &mut self,
+        model_id: &ModelId,
+        request: ChatRequest,
+    ) -> Result<mpsc::Receiver<String>, String> {
+        self.handle_chat(model_id, request).await
+    }
+
+    pub async fn test_handle_get_metrics(&mut self) -> Option<ServerMetrics> {
+        self.handle_get_metrics().await
+    }
+
+    pub fn test_get_model_lock(&mut self, model_id: &ModelId) -> Arc<TokioMutex<()>> {
+        self.get_model_lock(model_id)
+    }
+
+    pub async fn test_handle_start_request(
+        &mut self,
+        model_id: ModelId,
+        config: LlamaCppConfig,
+        respond_to: oneshot::Sender<Result<u32, String>>,
+    ) {
+        self.handle_start_request(model_id, config, respond_to).await;
+    }
+
+    pub fn test_set_state(&mut self, model_id: ModelId, state: ModelState) {
+        self.states.insert(model_id, state);
+    }
+
+    pub fn test_set_active_model(&mut self, model_id: Option<ModelId>) {
+        self.active_model = model_id;
+    }
+}

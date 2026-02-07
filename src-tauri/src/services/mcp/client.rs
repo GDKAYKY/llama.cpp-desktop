@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 
@@ -51,14 +48,26 @@ impl McpClient {
             .take()
             .ok_or_else(|| "Failed to open stdout".to_string())?;
 
-        let client = StdioClient {
-            child,
-            stdin,
-            stdout: BufReader::new(stdout),
-            next_id: 1,
-        };
+        let client = StdioClient::new(Some(child), stdin, stdout);
 
         Ok(McpClient::Stdio(Arc::new(Mutex::new(client))))
+    }
+
+    pub async fn connect_stdio_owned(
+        command: String,
+        args: Vec<String>,
+        cwd: Option<String>,
+        env: Option<HashMap<String, String>>,
+    ) -> Result<Self, String> {
+        Self::connect_stdio(&command, &args, cwd, env).await
+    }
+
+    pub fn connect_stdio_with_io(
+        stdin: impl AsyncWrite + Unpin + Send + 'static,
+        stdout: impl AsyncRead + Unpin + Send + 'static,
+    ) -> Self {
+        let client = StdioClient::new(None, stdin, stdout);
+        McpClient::Stdio(Arc::new(Mutex::new(client)))
     }
 
     pub async fn connect_http_sse(
@@ -86,20 +95,35 @@ impl McpClient {
     pub async fn shutdown(&self) {
         if let McpClient::Stdio(client) = self {
             let mut client = client.lock().await;
-            let _ = client.child.kill().await;
-            let _ = client.child.wait().await;
+            if let Some(child) = client.child.as_mut() {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+            }
         }
     }
 }
 
 pub struct StdioClient {
-    child: Child,
-    stdin: tokio::process::ChildStdin,
-    stdout: BufReader<tokio::process::ChildStdout>,
+    child: Option<Child>,
+    stdin: Box<dyn AsyncWrite + Unpin + Send>,
+    stdout: BufReader<Box<dyn AsyncRead + Unpin + Send>>,
     next_id: u64,
 }
 
 impl StdioClient {
+    fn new(
+        child: Option<Child>,
+        stdin: impl AsyncWrite + Unpin + Send + 'static,
+        stdout: impl AsyncRead + Unpin + Send + 'static,
+    ) -> Self {
+        Self {
+            child,
+            stdin: Box::new(stdin),
+            stdout: BufReader::new(Box::new(stdout)),
+            next_id: 1,
+        }
+    }
+
     async fn request(
         &mut self,
         method: &str,
@@ -149,9 +173,7 @@ impl StdioClient {
                 if let Some(err) = parsed.error {
                     return Err(format!("MCP error {}: {}", err.code, err.message));
                 }
-                return parsed
-                    .result
-                    .ok_or_else(|| "Missing result".to_string());
+                return parsed.result.ok_or_else(|| "Missing result".to_string());
             }
         }
     }

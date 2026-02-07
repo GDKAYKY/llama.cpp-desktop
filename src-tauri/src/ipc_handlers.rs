@@ -1,3 +1,5 @@
+#![cfg(not(test))]
+
 use crate::commands;
 use tauri::{Builder, Wry};
 
