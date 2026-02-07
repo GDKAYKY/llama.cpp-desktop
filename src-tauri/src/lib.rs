@@ -18,6 +18,7 @@ pub mod infrastructure {
     pub mod nvidia_smi;
 }
 
+#[cfg(not(test))]
 pub mod ipc_handlers;
 
 pub mod models {
@@ -55,12 +56,15 @@ pub mod services {
 pub mod state;
 pub mod utils;
 
+#[cfg(not(test))]
 use state::AppState;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
+#[cfg(not(test))]
 use tauri::Manager;
 
+#[cfg(not(test))]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()

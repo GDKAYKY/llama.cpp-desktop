@@ -181,3 +181,17 @@ pub async fn chat_action_regenerate(
     log_action_to_dir(&base_dir, &session_id, message_index, "regenerate", Value::Null)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_share_file_name_includes_session_and_index() {
+        let name = build_share_file_name("session", 3);
+        assert!(name.starts_with("share_session_3_"));
+        assert!(name.ends_with(".md"));
+    }
+
+    // Public helper tests moved to integration tests.
+}

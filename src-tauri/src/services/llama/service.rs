@@ -48,6 +48,10 @@ impl LlamaCppService {
         Self { sender: tx }
     }
 
+    pub fn from_sender(sender: mpsc::Sender<ActorMessage>) -> Self {
+        Self { sender }
+    }
+
     pub async fn start(&self, config: LlamaCppConfig) -> Result<u32, String> {
         let id = ModelId(config.model_path.clone());
         let (tx, rx) = oneshot::channel();

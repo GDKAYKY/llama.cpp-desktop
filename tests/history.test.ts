@@ -133,4 +133,11 @@ describe('Chat History Service (IndexedDB)', () => {
     
     expect(context).toBe('');
   });
+
+  it('should return empty context when query has no keywords', async () => {
+    const conv = await createConversation('Conv');
+    await saveMessage(conv, 'user', 'Hello');
+    const context = await findRelevantContext('the and if', conv, 2000);
+    expect(context).toBe('');
+  });
 });

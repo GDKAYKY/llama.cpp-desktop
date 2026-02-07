@@ -40,3 +40,12 @@ impl ProcessManager for LlamaProcessManager {
         children.remove(model_id)
     }
 }
+
+impl LlamaProcessManager {
+    pub fn test_poison_mutex(&self) {
+        let _ = std::panic::catch_unwind(|| {
+            let _guard = self.children.lock().unwrap();
+            panic!("poison");
+        });
+    }
+}

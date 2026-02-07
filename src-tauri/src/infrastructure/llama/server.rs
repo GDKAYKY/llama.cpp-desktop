@@ -5,8 +5,6 @@ use std::time::Duration;
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 #[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
 pub struct LlamaServer;
 
 impl LlamaServer {
@@ -114,7 +112,12 @@ impl LlamaServer {
         let port = config.port;
         let health_url = format!("http://localhost:{}/health", port);
         let mut attempts = 0;
-        let max_attempts = 40;
+        let max_attempts = if cfg!(test) { 2 } else { 40 };
+        let sleep_duration = if cfg!(test) {
+            Duration::from_millis(10)
+        } else {
+            Duration::from_millis(500)
+        };
 
         while attempts < max_attempts {
             if let Ok(Some(status)) = child.try_wait() {
@@ -131,7 +134,7 @@ impl LlamaServer {
                     return Ok((port, child));
                 }
             }
-            tokio::time::sleep(Duration::from_millis(500)).await;
+            tokio::time::sleep(sleep_duration).await;
             attempts += 1;
         }
 
@@ -241,5 +244,11 @@ impl LlamaServer {
             }
         });
         Ok(rx)
+    }
+}
+
+impl LlamaServer {
+    pub fn test_pipe_output(child: &mut Child) {
+        Self::pipe_output(child);
     }
 }

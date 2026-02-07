@@ -6,6 +6,7 @@ use crate::models::{ModelInfo, ModelLibrary, ModelManifest};
 
 /// Parse model path and extract provider, library, name, and version
 /// Expected format: {modelsRoot}/manifests/{provider}/{library}/{name}/{version}
+/// The format is based on Ollama Models!
 fn parse_model_path(model_path: &str) -> Result<(String, String, String, String), String> {
     let path = Path::new(model_path);
 
@@ -91,6 +92,79 @@ pub async fn parse_model_manifest(
     })
 }
 
+fn process_version_entry(
+    version_entry: fs::DirEntry,
+    models_root: &str,
+    models: &mut Vec<ModelInfo>,
+) {
+    let manifest_path = version_entry.path();
+    if manifest_path.is_file() {
+        if let Some(path_str) = manifest_path.to_str() {
+            match parse_model_manifest_sync(path_str.to_string(), models_root.to_string()) {
+                Ok(model_info) => models.push(model_info),
+                Err(e) => eprintln!("Error parsing {}: {}", path_str, e),
+            }
+        }
+    }
+}
+
+fn process_model_entry(model_entry: fs::DirEntry, models_root: &str, models: &mut Vec<ModelInfo>) {
+    if let Ok(versions) = fs::read_dir(model_entry.path()) {
+        for version_entry in versions.flatten() {
+            process_version_entry(version_entry, models_root, models);
+        }
+    }
+}
+
+fn process_library_entry(
+    library_entry: fs::DirEntry,
+    models_root: &str,
+    models: &mut Vec<ModelInfo>,
+) {
+    if let Ok(model_names) = fs::read_dir(library_entry.path()) {
+        for model_entry in model_names.flatten() {
+            process_model_entry(model_entry, models_root, models);
+        }
+    }
+}
+
+fn process_provider_entry(
+    provider_entry: fs::DirEntry,
+    models_root: &str,
+    models: &mut Vec<ModelInfo>,
+) {
+    if let Ok(libraries) = fs::read_dir(provider_entry.path()) {
+        for library_entry in libraries.flatten() {
+            process_library_entry(library_entry, models_root, models);
+        }
+    }
+}
+
+fn parse_model_manifest_sync(model_path: String, models_root: String) -> Result<ModelInfo, String> {
+    let (provider, library, name, version) = parse_model_path(&model_path)?;
+    let manifest: ModelManifest = crate::utils::read_json(Path::new(&model_path))?;
+
+    let model_layer = manifest
+        .layers
+        .iter()
+        .find(|layer| layer.media_type.contains("ollama.image.model"))
+        .ok_or_else(|| "No model layer found in manifest".to_string())?;
+
+    let models_root_path = Path::new(&models_root);
+    let model_file_path = find_model_blob_path(models_root_path, &model_layer.digest);
+    let full_identifier = format!("{}:{}:{}", provider, name, version);
+
+    Ok(ModelInfo {
+        provider: provider.clone(),
+        library,
+        name: name.clone(),
+        version: version.clone(),
+        manifest,
+        model_file_path,
+        full_identifier,
+    })
+}
+
 #[command]
 pub async fn scan_models_directory(models_root: String) -> Result<Vec<ModelInfo>, String> {
     let manifests_path = Path::new(&models_root).join("manifests");
@@ -101,37 +175,9 @@ pub async fn scan_models_directory(models_root: String) -> Result<Vec<ModelInfo>
 
     let mut models = Vec::new();
 
-    // Walk through the manifests directory structure
     if let Ok(providers) = fs::read_dir(&manifests_path) {
         for provider_entry in providers.flatten() {
-            if let Ok(libraries) = fs::read_dir(provider_entry.path()) {
-                for library_entry in libraries.flatten() {
-                    if let Ok(model_names) = fs::read_dir(library_entry.path()) {
-                        for model_entry in model_names.flatten() {
-                            if let Ok(versions) = fs::read_dir(model_entry.path()) {
-                                for version_entry in versions.flatten() {
-                                    let manifest_path = version_entry.path();
-                                    if manifest_path.is_file() {
-                                        if let Some(path_str) = manifest_path.to_str() {
-                                            match parse_model_manifest(
-                                                path_str.to_string(),
-                                                models_root.clone(),
-                                            )
-                                            .await
-                                            {
-                                                Ok(model_info) => models.push(model_info),
-                                                Err(e) => {
-                                                    eprintln!("Error parsing {}: {}", path_str, e)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            process_provider_entry(provider_entry, &models_root, &mut models);
         }
     }
 
@@ -159,4 +205,30 @@ pub async fn load_model_library(library_path: String) -> Result<Vec<ModelInfo>, 
     let library: ModelLibrary = crate::utils::read_json(Path::new(&library_path))?;
 
     Ok(library.models)
+}
+
+#[cfg(any(test, debug_assertions))]
+pub mod test_utils {
+    use super::*;
+
+    pub fn parse_model_path_for_test(
+        model_path: &str,
+    ) -> Result<(String, String, String, String), String> {
+        parse_model_path(model_path)
+    }
+
+    pub fn digest_to_blob_filename_for_test(digest: &str) -> String {
+        digest_to_blob_filename(digest)
+    }
+
+    pub fn find_model_blob_path_for_test(models_root: &Path, digest: &str) -> Option<String> {
+        find_model_blob_path(models_root, digest)
+    }
+
+    pub fn parse_model_manifest_sync_for_test(
+        model_path: String,
+        models_root: String,
+    ) -> Result<ModelInfo, String> {
+        parse_model_manifest_sync(model_path, models_root)
+    }
 }

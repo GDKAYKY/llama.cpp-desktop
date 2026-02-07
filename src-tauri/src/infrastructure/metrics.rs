@@ -47,3 +47,12 @@ impl MetricsProvider for SystemMetricsProvider {
         })
     }
 }
+
+impl SystemMetricsProvider {
+    pub fn test_poison_mutex(&self) {
+        let _ = std::panic::catch_unwind(|| {
+            let _guard = self.sys.lock().unwrap();
+            panic!("poison");
+        });
+    }
+}

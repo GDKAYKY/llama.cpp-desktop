@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
@@ -12,13 +14,38 @@ use crate::services::mcp::client::McpClient;
 pub struct McpService {
     config: Arc<Mutex<McpConfig>>,
     connections: Arc<Mutex<HashMap<String, McpConnection>>>,
+    stdio_connector: StdioConnector,
 }
+
+type StdioConnectFuture = Pin<Box<dyn Future<Output = Result<McpClient, String>> + Send>>;
+type StdioConnector = Arc<
+    dyn Fn(String, Vec<String>, Option<String>, Option<HashMap<String, String>>) -> StdioConnectFuture
+        + Send
+        + Sync,
+>;
 
 impl McpService {
     pub fn new(config: McpConfig) -> Self {
+        Self::new_with_stdio_connector(config, |command, args, cwd, env| {
+            Box::pin(McpClient::connect_stdio_owned(command, args, cwd, env))
+        })
+    }
+
+    pub fn new_with_stdio_connector<F, Fut>(config: McpConfig, connector: F) -> Self
+    where
+        F: Fn(String, Vec<String>, Option<String>, Option<HashMap<String, String>>) -> Fut
+            + Send
+            + Sync
+            + 'static,
+        Fut: Future<Output = Result<McpClient, String>> + Send + 'static,
+    {
+        let stdio_connector: StdioConnector = Arc::new(move |command, args, cwd, env| {
+            Box::pin(connector(command, args, cwd, env))
+        });
         Self {
             config: Arc::new(Mutex::new(config)),
             connections: Arc::new(Mutex::new(HashMap::new())),
+            stdio_connector,
         }
     }
 
@@ -84,9 +111,9 @@ impl McpService {
                     .as_ref()
                     .ok_or_else(|| "Missing command".to_string())?;
                 let args = server.args.clone().unwrap_or_default();
-                McpClient::connect_stdio(
-                    command,
-                    &args,
+                (self.stdio_connector)(
+                    command.clone(),
+                    args,
                     server.cwd.clone(),
                     server.env.clone(),
                 )
@@ -286,4 +313,38 @@ fn apply_allowlist_by_field(
                 .unwrap_or(false)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn extract_list_handles_array_and_object() {
+        let from_obj = extract_list(&json!({ "tools": [1, 2] }), "tools");
+        assert_eq!(from_obj.len(), 2);
+        let from_arr = extract_list(&json!([1, 2, 3]), "tools");
+        assert_eq!(from_arr.len(), 3);
+        let empty = extract_list(&json!({ "nope": [] }), "tools");
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn apply_allowlist_by_field_filters_items() {
+        let items = vec![
+            json!({ "name": "alpha" }),
+            json!({ "name": "beta" }),
+        ];
+        let allowed = apply_allowlist_by_field(items, &["beta".to_string()], "name");
+        assert_eq!(allowed.len(), 1);
+        assert_eq!(allowed[0]["name"], "beta");
+    }
+
+    #[test]
+    fn apply_allowlist_by_field_allows_all_when_empty() {
+        let items = vec![json!({ "name": "alpha" })];
+        let allowed = apply_allowlist_by_field(items.clone(), &[], "name");
+        assert_eq!(allowed, items);
+    }
 }

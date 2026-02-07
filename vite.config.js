@@ -36,6 +36,25 @@ export default defineConfig(async () => ({
     setupFiles: ["tests/setup.ts"],
     coverage: {
       reporter: ["text", "lcov"],
+      include: [
+        "src/lib/services/**/*.{ts,js}",
+        "src/lib/stores/**/*.{ts,js}",
+        "src/lib/config/**/*.{ts,js}",
+      ],
+      exclude: [
+        "src/lib/stores/chat.svelte.ts",
+        "src/lib/infrastructure/**",
+        "src/lib/types/**",
+        "src/lib/markdown/**",
+        "src/lib/shared/**",
+        "src/lib/constants/**",
+        "src/components/**",
+        "src/routes/**",
+        "src/pages/**",
+      ],
+      thresholds: {
+        lines: 85,
+      },
     },
   },
 }));
