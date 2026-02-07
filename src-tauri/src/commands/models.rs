@@ -98,8 +98,21 @@ fn process_version_entry(
     models: &mut Vec<ModelInfo>,
 ) {
     let manifest_path = version_entry.path();
-    if manifest_path.is_file() {
-        if let Some(path_str) = manifest_path.to_str() {
+    let candidate = if manifest_path.is_file() {
+        Some(manifest_path)
+    } else if manifest_path.is_dir() {
+        let manifest_file = manifest_path.join("manifest.json");
+        if manifest_file.is_file() {
+            Some(manifest_file)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    if let Some(path) = candidate {
+        if let Some(path_str) = path.to_str() {
             match parse_model_manifest_sync(path_str.to_string(), models_root.to_string()) {
                 Ok(model_info) => models.push(model_info),
                 Err(e) => eprintln!("Error parsing {}: {}", path_str, e),

@@ -35,7 +35,11 @@ impl LlamaServer {
             .unwrap_or(false);
 
         if !is_exec || llama_server_path.is_dir() {
-            let candidates = vec!["llama-server.exe", "llama-server"];
+            let candidates = if cfg!(windows) {
+                vec!["llama-server.exe", "llama-server.cmd", "llama-server"]
+            } else {
+                vec!["llama-server"]
+            };
             let mut found = false;
             for candidate in &candidates {
                 let p = llama_server_path.join(candidate);
@@ -47,8 +51,16 @@ impl LlamaServer {
             }
 
             if !found && llama_server_path.is_dir() {
-                let build_candidates =
-                    ["build/bin/Release/llama-server.exe", "bin/llama-server.exe"];
+                let build_candidates = if cfg!(windows) {
+                    vec![
+                        "build/bin/Release/llama-server.exe",
+                        "build/bin/Release/llama-server.cmd",
+                        "bin/llama-server.exe",
+                        "bin/llama-server.cmd",
+                    ]
+                } else {
+                    vec!["build/bin/Release/llama-server", "bin/llama-server"]
+                };
                 for candidate in &build_candidates {
                     let p = llama_server_path.join(candidate);
                     if p.exists() {

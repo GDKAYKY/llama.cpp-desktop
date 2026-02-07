@@ -217,9 +217,9 @@ async fn spawn_finds_server_in_build_candidates() {
     let build_dir = dir.path().join("bin");
     std::fs::create_dir_all(&build_dir).expect("create bin");
     #[cfg(windows)]
-    let candidate = build_dir.join("llama-server.exe");
+    let candidate = build_dir.join("llama-server.cmd");
     #[cfg(not(windows))]
-    let candidate = build_dir.join("llama-server.exe");
+    let candidate = build_dir.join("llama-server");
     #[cfg(windows)]
     let content = "@echo off\r\nping 127.0.0.1 -n 60 >nul\r\n".to_string();
     #[cfg(not(windows))]
