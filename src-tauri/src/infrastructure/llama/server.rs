@@ -4,7 +4,6 @@ use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
-#[cfg(windows)]
 pub struct LlamaServer;
 
 impl LlamaServer {

@@ -99,7 +99,6 @@ export function useConversation() {
                 message,
                 params
             );
-            messages = await OrchestratorService.getSlotMessages(slotId);
             return response;
         },
 
