@@ -31,6 +31,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/setup.ico"
+      }
+    },
     "licenseFile": "../LICENSE"
   }
 }
