@@ -1,24 +1,64 @@
-# Llama.cpp Desktop
+# Llama Desktop
+<img width="10240" height="1024" alt="image" src="https://github.com/user-attachments/assets/980cb5f8-3460-4035-b4c8-b517f5e14249" />
 
-A Tauri-based desktop application for managing and running Llama.cpp models locally with a premium UI.
+A lightweight **Tauri and Rust** desktop app for running and managing local Large Language Models via llama.cpp.
 
-## 📚 Documentation
+## Features
 
-- **[Project Structure](./docs/PROJECT_STRUCTURE.md)**: Detailed overview of the project layout.
-- **[Backend Architecture Standards](./docs/BACKEND_ARCHITECTURE.md)**: Mandatory coding standards for the Rust backend, including the **Centralized Models Standard**.
-- **[Model Setup Guide](./docs/MODELS_SETUP_GUIDE.md)**: How to configure and run models.
+<table>
+<tr>
+<td width="50%">
+<img width="100%" height="100%" alt="image" src="https://github.com/user-attachments/assets/367878e8-d767-421f-bfc2-5e30463bb285" />
 
-## 🚀 Quick Start
+</td>
+<td width="50%">
 
-1.  **Prerequisites**: Install [Rust](https://rustup.rs/) and [Node.js](https://nodejs.org/).
-2.  **Dependencies**: `npm install`.
-3.  **Run**: `npm run dev`.
+- Run LLMs locally using llama.cpp
+- Model management (download / load / unload)
+- Chat interface
+- MCPs Management
+- Tauri backend for native performance
+
+</td>
+</tr>
+</table>
+
+## 📦 Install process (Windows)
+1. Go to the [Releases page](https://github.com/GDKAYKY/llama.cpp-desktop/releases/latest)
+2. Download the installer for your operating system:
+   - **Windows**: [Llama Desktop v.1.1.1](https://github.com/GDKAYKY/llama.cpp-desktop/releases/download/v.1.1.1/Llama.Desktop_1.1.1_x64-setup.exe)
+
+1. Run the `.exe`
+2. Follow the setup wizard
+3. Launch **Llama Desktop**
+
+### Alternatively you can run from Source
+```bash
+# Clone the repository
+git clone https://github.com/GDKAYKY/llama.cpp-desktop.git
+
+# Install dependencies
+npm install
+
+# Run the application
+npm run tauri dev
+```
 
 ## 🛠️ Development
 
-- **Frontend**: Svelte 5 + Vite.
-- **Backend**: Rust + Tauri v2.
-- **Standards**: All shared Rust models MUST be placed in `src-tauri/src/models/`.
+### Core
 
----
-*Built with ❤️ by the Llama Desktop Team.*
+- **Tauri** — Desktop framework (Rust + Web)
+- **Rust** — Backend / native bindings
+- **Svelte and Tailwind CSS** — Frontend UI
+- **Vite.js** — Dev tooling / bundler
+- **IndexedDB** - Chat History
+
+### CI
+- SonarCloud
+
+### LLM Runtime
+
+- **llama.cpp** — Local LLM inference
+
+### Special Thanks to https://github.com/ggml-org/llama.cpp for making everything possible
