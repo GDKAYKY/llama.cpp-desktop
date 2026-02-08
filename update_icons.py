@@ -23,18 +23,51 @@ def main():
     # Create destination directory if it doesn't exist
     DST_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 2. Process ICO
-    if SRC_ICO.exists():
+    # 2. Process ICO (Generate from high-res PNG for better quality)
+    # The user provided a source ICO, but to "maintain quality" (ensure it's not blurry), 
+    # it is safer to regenerate it from the high-res PNG if available.
+    if SRC_PNG.exists():
         dst_ico = DST_DIR / "icon.ico"
         try:
-            shutil.copy(SRC_ICO, dst_ico)
-            print(f"Updated: {dst_ico}")
-        except Exception as e:
-            print(f"Error copying ICO: {e}")
-    else:
-        print(f"Warning: {SRC_ICO} not found.")
+            with Image.open(SRC_PNG) as img:
+                print(f"Generating high-quality icon.ico from {SRC_PNG} using LANCZOS resampling...")
+                
+                # Ensure RGBA for high quality resize (avoids palette issues)
+                if img.mode != 'RGBA':
+                    img = img.convert('RGBA')
 
-    # 3. Process SVG (Copy as icon.svg, though Tauri defaults don't always use it, it's good to have)
+                # Windows ICO usually needs these sizes
+                icon_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+                
+                # Generate high-quality resized images for each required size
+                resampled_images = []
+                for size in icon_sizes:
+                    resampled = img.resize(size, resample=Image.Resampling.LANCZOS)
+                    resampled_images.append(resampled)
+
+                # Save the ICO. We use the largest one as the primary image and append the others.
+                # Actually, according to spec, order doesn't strictly matter but usually largest first or last is fine.
+                # Pillow handles it.
+                # We sort by size descending generally for safety, but here we just pass them all.
+                # The first image acts as the base, others are appended.
+                # Let's use the largest (256x256) as the base.
+                primary_icon = resampled_images.pop() # 256x256
+                primary_icon.save(dst_ico, format='ICO', append_images=resampled_images)
+                
+                print(f"Updated: {dst_ico} with sizes {[s.size for s in [primary_icon] + resampled_images]}")
+        except Exception as e:
+            print(f"Error generating ICO from PNG: {e}")
+            # Fallback to copying if generation fails
+            if SRC_ICO.exists():
+                print("Falling back to copying source ICO...")
+                shutil.copy(SRC_ICO, dst_ico)
+    elif SRC_ICO.exists():
+        # Fallback if no PNG
+        dst_ico = DST_DIR / "icon.ico"
+        shutil.copy(SRC_ICO, dst_ico)
+        print(f"Copied source ICO (PNG not found): {dst_ico}")
+
+    # 3. Process SVG
     if SRC_SVG.exists():
         dst_svg = DST_DIR / "icon.svg" # Standardize name if needed, or keep favicon.svg? "icon.svg" is safer.
         try:

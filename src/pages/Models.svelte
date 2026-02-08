@@ -16,7 +16,7 @@
     }
   });
 
-  function handleModelSelected(_detail: { model: Model }) {
+  function handleModelSelected(event: CustomEvent<{ model: Model }>) {
     // The ModelSelector already updates the store, but we can log it here if needed
     console.log(
       "Model selection processed in store:",
@@ -27,6 +27,6 @@
 
 <div class="flex h-full w-full flex-col bg-background text-foreground">
   <div class="grow overflow-y-auto">
-    <ModelSelector onModelSelected={handleModelSelected} />
+    <ModelSelector on:modelSelected={handleModelSelected} />
   </div>
 </div>
