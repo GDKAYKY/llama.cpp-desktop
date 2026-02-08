@@ -21,6 +21,9 @@ const EXTRA_TAGS = [
   "svg",
   "path",
   "rect",
+  "line",
+  "img",
+  "use",
   "h1",
   "h2",
   "h3",
@@ -48,10 +51,17 @@ const EXTRA_TAGS = [
   "mlabeledtr",
 ];
 
-const GLOBAL_ATTRS = ["className", "style", "aria-hidden", "aria-label", "role"];
+const GLOBAL_ATTRS = [
+  "className",
+  "style",
+  "aria-hidden",
+  "aria-label",
+  "role",
+  "data-tooltip",
+];
 
 const EXTRA_ATTRS = {
-  a: ["href", "title", "target", "rel"],
+  a: ["href", "title", "target", "rel", "class", "className"],
   code: ["className", "data-code-id"],
   div: ["data-block-id"],
   button: ["type", "title", "data-code-id"],
@@ -68,6 +78,20 @@ const EXTRA_ATTRS = {
   ],
   rect: ["width", "height", "x", "y", "rx", "ry"],
   path: ["d"],
+  use: ["href", "xlink:href", "fill"],
+  line: ["x1", "y1", "x2", "y2"],
+  img: [
+    "src",
+    "data-fallback",
+    "alt",
+    "width",
+    "height",
+    "loading",
+    "decoding",
+    "referrerpolicy",
+    "class",
+    "className",
+  ],
   math: ["xmlns"],
   annotation: ["encoding"],
   mi: ["mathvariant"],

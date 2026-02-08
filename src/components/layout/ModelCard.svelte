@@ -3,7 +3,7 @@
   import { cn } from "$shared/cn.js";
   import {
     Check,
-    AlertTriangle,
+    TriangleAlert,
     MoreVertical,
     Copy,
     FileText,
@@ -130,7 +130,7 @@
     if (!model.model_file_path) {
       return {
         label: "Model file not found",
-        icon: AlertTriangle,
+        icon: TriangleAlert,
         color: "text-orange-400",
         badgeColor: "bg-orange-500",
       };
@@ -140,7 +140,7 @@
       if (!serverStore.isHealthy && serverStore.error) {
         return {
           label: serverStore.error,
-          icon: AlertTriangle,
+          icon: TriangleAlert,
           color: "text-orange-400",
           badgeColor: "bg-orange-500",
         };
@@ -157,7 +157,7 @@
   });
 
   const borderColors = $derived.by(() => {
-    if (currentStatus?.icon === AlertTriangle) {
+    if (currentStatus?.icon === TriangleAlert) {
       if (isSelected) return "border-orange-300 group-hover:border-orange-100";
       return "border-orange-500 group-hover:border-orange-400";
     }
@@ -397,14 +397,14 @@
     >
       <Check size={16} strokeWidth={3} />
     </div>
-  {:else if currentStatus?.icon === AlertTriangle}
+  {:else if currentStatus?.icon === TriangleAlert}
     <div
       class={cn(
         "absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full text-white shadow-lg",
         currentStatus.badgeColor,
       )}
     >
-      <AlertTriangle size={16} strokeWidth={3} />
+      <TriangleAlert size={16} strokeWidth={3} />
     </div>
   {/if}
 </div>

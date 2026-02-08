@@ -56,7 +56,10 @@
     let match;
     while ((match = urlRegex.exec(text)) !== null) {
       if (match.index > lastIndex) {
-        tokens.push({ type: "text", value: text.slice(lastIndex, match.index) });
+        tokens.push({
+          type: "text",
+          value: text.slice(lastIndex, match.index),
+        });
       }
       tokens.push({ type: "link", value: match[0] });
       lastIndex = match.index + match[0].length;
@@ -186,9 +189,7 @@
             </div>
           </div>
         {:else}
-          <div
-            class="w-fit rounded-[20px] bg-[#2f2f2f] px-4 py-2.5 text-white shadow-sm"
-          >
+          <div class="w-fit rounded-[20px] bg-[#2f2f2f] px-4 py-2.5 text-white">
             <div
               class="whitespace-pre-wrap break-words text-base leading-relaxed"
             >
@@ -210,7 +211,7 @@
           </div>
 
           <div
-            class="mt-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            class="mt-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <button
               class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
@@ -232,7 +233,7 @@
         <div class="w-full min-w-0 text-foreground">
           {#if message.role === "assistant" && message.model}
             <div
-              class="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60"
+              class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60"
             >
               {message.model}
             </div>

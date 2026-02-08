@@ -18,7 +18,7 @@
 
 {#if isOpen}
   <div
-    class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+    class="fixed inset-0 z-[1000] flex items-center justify-center p-4"
     onkeydown={handleKeyDown}
     role="dialog"
     aria-modal="true"
@@ -33,7 +33,7 @@
 
     <!-- modal -->
     <div
-      class="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-secondary shadow-2xl animate-in zoom-in-95 duration-200"
+      class="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-secondary shadow-2xl animate-in zoom-in-95 duration-200"
     >
       <div class="flex items-center justify-between border-b border-border p-4">
         <h3 class="text-lg font-semibold">{title}</h3>
