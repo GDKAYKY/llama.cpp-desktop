@@ -384,7 +384,7 @@
 
 <svelte:window on:click={handleClickOutside} />
 
-<div class="mx-auto w-full max-w-3xl px-4 md:px-6">
+<div class="mx-auto w-full max-w-[40rem] px-4 md:px-6 lg:max-w-[48rem]">
   <div class="relative">
     {#if isSlashMenuOpen}
       <div
@@ -497,7 +497,7 @@
             onkeydown={handleKeydownEvent}
             placeholder="Message llama-desktop..."
             rows="1"
-            class="min-h-[24px] max-h-[200px] w-full resize-none border-none bg-transparent py-1 text-base leading-relaxed text-foreground outline-none placeholder:text-muted-foreground placeholder:opacity-60"
+            class="min-h-[24px] max-h-[200px] w-full resize-none border-none bg-transparent py-1 text-[15px] leading-6 text-foreground outline-none placeholder:text-muted-foreground placeholder:opacity-60 md:text-base md:leading-relaxed"
           ></textarea>
         </div>
 
