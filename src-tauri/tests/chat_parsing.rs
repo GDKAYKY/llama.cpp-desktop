@@ -12,7 +12,10 @@ fn get_available_port() -> u16 {
         .port()
 }
 
-async fn run_mock_sse_server(port: u16, content_to_send: Vec<String>) -> tokio::task::JoinHandle<()> {
+async fn run_mock_sse_server(
+    port: u16,
+    content_to_send: Vec<String>,
+) -> tokio::task::JoinHandle<()> {
     let route = warp::path!("v1" / "chat" / "completions")
         .and(warp::post())
         // Validate request shape minimally if needed in the future.

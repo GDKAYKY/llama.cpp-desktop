@@ -6,14 +6,10 @@
     FolderOpen,
     Scan,
     Check,
-    AlertTriangle,
+    TriangleAlert,
     Box,
     Bot,
-    Activity,
     Square,
-    MoreVertical,
-    Copy,
-    FileText,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
@@ -86,14 +82,12 @@
 
     const llamaDirectory = settingsStore.settings.llamaDirectory;
     if (!llamaDirectory) {
-      modelsStore.error = "Llama Server path not configured. Please go to Settings.";
+      modelsStore.error =
+        "Llama Server path not configured. Please go to Settings.";
       return;
     }
 
-    await serverStore.startServer(
-      llamaDirectory,
-      model.model_file_path,
-    );
+    await serverStore.startServer(llamaDirectory, model.model_file_path);
   }
 </script>
 
@@ -105,7 +99,9 @@
   >
     <div>
       <div class="flex items-center gap-3">
-        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500">
+        <div
+          class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500"
+        >
           <Box size={20} />
         </div>
         <div>
@@ -142,7 +138,7 @@
 
   {#if modelsStore.modelsRoot}
     <div
-      class="mb-6 rounded-lg border border-border bg-white/[0.02] p-3 font-mono text-sm text-muted-foreground"
+      class="mb-6 rounded-lg border border-border bg-white/0.02 p-3 font-mono text-sm text-muted-foreground"
     >
       <span class="mr-2 font-bold text-foreground">Path:</span
       >{modelsStore.modelsRoot}
@@ -179,7 +175,7 @@
     <div
       class="mb-6 flex animate-in fade-in slide-in-from-top-2 duration-300 items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
     >
-      <AlertTriangle size={18} />
+      <TriangleAlert size={18} />
       <div class="flex-1">
         <p class="font-semibold text-red-100">Error</p>
         <p class="text-xs opacity-80">{modelsStore.error}</p>
@@ -222,7 +218,7 @@
 
   {#if showCopySuccess}
     <div
-      class="fixed bottom-8 left-1/2 z-[100] -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none"
+      class="fixed bottom-8 left-1/2 z-100 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none"
     >
       <div
         class="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg"

@@ -42,7 +42,7 @@ pub fn shares_dir_path_from_dir(base_dir: &Path) -> PathBuf {
     base_dir.join("shares")
 }
 
-fn build_share_file_name(session_id: &str, message_index: usize) -> String {
+pub fn build_share_file_name(session_id: &str, message_index: usize) -> String {
     let ts = now_ms();
     format!("share_{}_{}_{}.md", session_id, message_index, ts)
 }
@@ -182,16 +182,3 @@ pub async fn chat_action_regenerate(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn build_share_file_name_includes_session_and_index() {
-        let name = build_share_file_name("session", 3);
-        assert!(name.starts_with("share_session_3_"));
-        assert!(name.ends_with(".md"));
-    }
-
-    // Public helper tests moved to integration tests.
-}

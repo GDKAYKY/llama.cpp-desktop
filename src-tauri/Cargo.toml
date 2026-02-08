@@ -1,6 +1,6 @@
 [package]
 name = "llama-desktop"
-version = "0.1.0"
+version = "1.1.1"
 description = "Llama.cpp Desktop Client"
 authors = ["Llama Desktop Team"]
 edition = "2021"

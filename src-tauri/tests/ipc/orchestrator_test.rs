@@ -18,8 +18,7 @@ fn sample_config() -> llama_desktop_lib::models::LlamaCppConfig {
 
 fn test_channel() -> (Channel<serde_json::Value>, mpsc::Receiver<serde_json::Value>) {
     let (tx, rx) = mpsc::channel::<serde_json::Value>(8);
-    let channel = Channel::new(move |payload| -> tauri::Result<()> {
-        let value = serde_json::to_value(payload)?;
+    let channel = Channel::new(move |value: serde_json::Value| -> tauri::Result<()> {
         let _ = tx.try_send(value);
         Ok(())
     });

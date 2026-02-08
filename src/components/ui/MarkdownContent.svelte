@@ -55,6 +55,10 @@
     for (const button of copyButtons) {
       button.removeEventListener("click", handleCopyClick);
     }
+    const favicons = containerRef.querySelectorAll(".mcp-link-favicon");
+    for (const icon of favicons) {
+      icon.removeEventListener("error", handleFaviconError);
+    }
   }
 
   async function handleCopyClick(event) {
@@ -71,6 +75,14 @@
 
     const rawCode = codeElement.textContent ?? "";
     await copyCodeToClipboard(rawCode);
+  }
+
+  function handleFaviconError(event) {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLImageElement)) return;
+    const fallback = target.dataset.fallback;
+    if (!fallback || target.src === fallback) return;
+    target.src = fallback;
   }
 
   function getHastNodeId(node, indexFallback) {
@@ -140,6 +152,16 @@
     }
   }
 
+  function setupFaviconFallbacks() {
+    if (!containerRef) return;
+    const favicons = containerRef.querySelectorAll(".mcp-link-favicon");
+    for (const icon of favicons) {
+      if (icon.dataset.listenerBound === "true") continue;
+      icon.dataset.listenerBound = "true";
+      icon.addEventListener("error", handleFaviconError);
+    }
+  }
+
   async function updateRenderedBlocks(markdown) {
     pendingMarkdown = markdown;
     if (isProcessing) return;
@@ -167,6 +189,7 @@
   $effect(() => {
     if ((renderedBlocks.length > 0 || unstableBlockHtml) && containerRef) {
       setupCodeBlockActions();
+      setupFaviconFallbacks();
     }
   });
 
@@ -178,7 +201,7 @@
 <div
   bind:this={containerRef}
   class={cn(
-    "text-base leading-relaxed break-words",
+    "text-[15px] leading-6 md:text-base md:leading-relaxed break-words",
     "[&_p]:mb-4 [&_p:last-child]:mb-0",
     "[&_ul]:mb-4 [&_ul]:list-disc [&_ul]:pl-6",
     "[&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:pl-6",

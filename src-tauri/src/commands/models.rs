@@ -7,7 +7,7 @@ use crate::models::{ModelInfo, ModelLibrary, ModelManifest};
 /// Parse model path and extract provider, library, name, and version
 /// Expected format: {modelsRoot}/manifests/{provider}/{library}/{name}/{version}
 /// The format is based on Ollama Models!
-fn parse_model_path(model_path: &str) -> Result<(String, String, String, String), String> {
+pub fn parse_model_path(model_path: &str) -> Result<(String, String, String, String), String> {
     let path = Path::new(model_path);
 
     // Get the path components
@@ -40,12 +40,12 @@ fn parse_model_path(model_path: &str) -> Result<(String, String, String, String)
 
 /// Convert digest to blob file name format
 /// sha256:60e05f2... -> sha256-60e05f2...
-fn digest_to_blob_filename(digest: &str) -> String {
+pub fn digest_to_blob_filename(digest: &str) -> String {
     digest.replace(':', "-")
 }
 
 /// Find the model file blob path
-fn find_model_blob_path(models_root: &Path, digest: &str) -> Option<String> {
+pub fn find_model_blob_path(models_root: &Path, digest: &str) -> Option<String> {
     let blob_filename = digest_to_blob_filename(digest);
     let blob_path = models_root.join("blobs").join(&blob_filename);
 
@@ -153,7 +153,10 @@ fn process_provider_entry(
     }
 }
 
-fn parse_model_manifest_sync(model_path: String, models_root: String) -> Result<ModelInfo, String> {
+pub fn parse_model_manifest_sync(
+    model_path: String,
+    models_root: String,
+) -> Result<ModelInfo, String> {
     let (provider, library, name, version) = parse_model_path(&model_path)?;
     let manifest: ModelManifest = crate::utils::read_json(Path::new(&model_path))?;
 
@@ -219,6 +222,7 @@ pub async fn load_model_library(library_path: String) -> Result<Vec<ModelInfo>, 
 
     Ok(library.models)
 }
+
 
 #[cfg(any(test, debug_assertions))]
 pub mod test_utils {

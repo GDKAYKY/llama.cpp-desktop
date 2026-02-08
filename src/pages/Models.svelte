@@ -1,7 +1,7 @@
 <script lang="ts">
   import ModelSelector from "$components/layout/ModelSelector.svelte";
   import { X, Square } from "lucide-svelte";
-  import { modelsStore } from "$lib/stores/models.svelte";
+  import { modelsStore, type Model } from "$lib/stores/models.svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import { onMount } from "svelte";
 
@@ -16,7 +16,7 @@
     }
   });
 
-  function handleModelSelected(_event: CustomEvent) {
+  function handleModelSelected(event: CustomEvent<{ model: Model }>) {
     // The ModelSelector already updates the store, but we can log it here if needed
     console.log(
       "Model selection processed in store:",
