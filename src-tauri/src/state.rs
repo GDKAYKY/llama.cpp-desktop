@@ -11,8 +11,8 @@ pub struct AppState {
 impl AppState {
     pub fn new(models_path: std::path::PathBuf, mcp_config: crate::models::McpConfig) -> Self {
         let llama_service = LlamaCppService::new(models_path);
-        let orchestrator = ChatOrchestrator::new(llama_service.clone());
         let mcp_service = McpService::new(mcp_config);
+        let orchestrator = ChatOrchestrator::new(llama_service.clone(), mcp_service.clone());
         Self {
             llama_service,
             mcp_service,

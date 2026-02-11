@@ -114,6 +114,8 @@ impl LlamaCppService {
             top_p,
             top_k,
             max_tokens,
+            tools: None,
+            tool_choice: None,
             stream: true,
         };
         let (tx, rx) = oneshot::channel();
@@ -144,5 +146,42 @@ impl LlamaCppService {
             .send(ActorMessage::GetMetrics { respond_to: tx })
             .await;
         rx.await.unwrap_or(None)
+    }
+
+    pub async fn complete_chat(
+        &self,
+        session_id: Option<String>,
+        messages: Vec<ChatMessage>,
+        temperature: f32,
+        top_p: f32,
+        top_k: i32,
+        max_tokens: i32,
+        tools: Option<Vec<serde_json::Value>>,
+        tool_choice: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value, String> {
+        let config = self.get_config().await.ok_or("No model running")?;
+        let id = ModelId(config.model_path);
+        let request = ChatRequest {
+            model: "unknown".to_string(),
+            session_id,
+            messages,
+            temperature,
+            top_p,
+            top_k,
+            max_tokens,
+            tools,
+            tool_choice,
+            stream: false,
+        };
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(ActorMessage::CompleteChat {
+                model_id: id,
+                request,
+                respond_to: tx,
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+        rx.await.map_err(|_| "Actor dropped".to_string())?
     }
 }

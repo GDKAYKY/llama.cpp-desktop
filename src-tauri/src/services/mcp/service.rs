@@ -11,6 +11,7 @@ use crate::models::{
 };
 use crate::services::mcp::client::McpClient;
 
+#[derive(Clone)]
 pub struct McpService {
     config: Arc<Mutex<McpConfig>>,
     connections: Arc<Mutex<HashMap<String, McpConnection>>>,
@@ -205,7 +206,7 @@ impl McpService {
             .get_server_allowlist(id, true)
             .await?
             .unwrap_or_default();
-        if !allowlist.is_empty() && !allowlist.contains(&tool_name.to_string()) {
+        if !allowlist_allows(&allowlist) && !allowlist.contains(&tool_name.to_string()) {
             return Err("Tool not allowed".to_string());
         }
 
@@ -247,7 +248,7 @@ impl McpService {
             .get_server_allowlist(id, false)
             .await?
             .unwrap_or_default();
-        if !allowlist.is_empty() && !allowlist.contains(&uri.to_string()) {
+        if !allowlist_allows(&allowlist) && !allowlist.contains(&uri.to_string()) {
             return Err("Resource not allowed".to_string());
         }
 
@@ -301,7 +302,7 @@ pub fn apply_allowlist_by_field(
     allowlist: &[String],
     field: &str,
 ) -> Vec<serde_json::Value> {
-    if allowlist.is_empty() {
+    if allowlist_allows(allowlist) {
         return items;
     }
     items
@@ -313,5 +314,9 @@ pub fn apply_allowlist_by_field(
                 .unwrap_or(false)
         })
         .collect()
+}
+
+fn allowlist_allows(allowlist: &[String]) -> bool {
+    allowlist.is_empty() || allowlist.iter().any(|item| item == "*")
 }
 

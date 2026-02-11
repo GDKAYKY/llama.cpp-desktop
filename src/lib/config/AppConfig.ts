@@ -4,8 +4,11 @@ export interface AppConfig {
   theme: string;
   language: string;
   maxTokens: number;
+  contextSize: number;
   temperature: number;
   autoSaveChat: boolean;
   chatHistoryLimit: number;
   serverPort: number;
+  webSearchProvider: "tavily" | "custom";
+  webSearchMcpId: string | null;
 }

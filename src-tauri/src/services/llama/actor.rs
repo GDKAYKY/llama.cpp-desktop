@@ -24,6 +24,11 @@ pub enum ActorMessage {
         request: ChatRequest,
         respond_to: oneshot::Sender<Result<mpsc::Receiver<String>, String>>,
     },
+    CompleteChat {
+        model_id: ModelId,
+        request: ChatRequest,
+        respond_to: oneshot::Sender<Result<serde_json::Value, String>>,
+    },
     IsRunning {
         model_id: Option<ModelId>,
         respond_to: oneshot::Sender<bool>,
@@ -128,6 +133,13 @@ impl LlamaActor {
                     respond_to,
                 } => {
                     let _ = respond_to.send(self.handle_chat(&model_id, request).await);
+                }
+                ActorMessage::CompleteChat {
+                    model_id,
+                    request,
+                    respond_to,
+                } => {
+                    let _ = respond_to.send(self.handle_complete_chat(&model_id, request).await);
                 }
                 ActorMessage::IsRunning {
                     model_id,
@@ -236,6 +248,22 @@ impl LlamaActor {
         };
 
         LlamaServer::stream_chat(self.client.clone(), port, request).await
+    }
+
+    async fn handle_complete_chat(
+        &mut self,
+        model_id: &ModelId,
+        request: ChatRequest,
+    ) -> Result<serde_json::Value, String> {
+        let lock = self.get_model_lock(model_id);
+        let _guard = lock.lock().await;
+        let port = if let Some(ModelState::Running { port, .. }) = self.states.get(model_id) {
+            *port
+        } else {
+            return Err(format!("Model {} is not running", model_id));
+        };
+
+        LlamaServer::chat_completion(self.client.clone(), port, request).await
     }
 
     async fn handle_get_metrics(&mut self) -> Option<ServerMetrics> {

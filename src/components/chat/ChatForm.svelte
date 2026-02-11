@@ -20,6 +20,7 @@
   } from "lucide-svelte";
   import { SiModelcontextprotocol } from "@icons-pack/svelte-simple-icons";
   import { mcpStore } from "$lib/stores/mcp.svelte";
+  import { settingsStore } from "$lib/stores/settings.svelte";
 
   /** @type {{
    *   userInput: string,
@@ -48,9 +49,11 @@
   let slashQuery = $state("");
   let slashSelectedIndex = $state(0);
   let slashMode = $state("commands");
-  let selectedMcp: { id: string; name: string } | null = $state(null);
+  let selectedMcps = $state<Array<{ id: string; name: string }>>([]);
+  let pendingWebSearchMcpId = $state<string | null>(null);
   let mcpSelectedIndex = $state(0);
   let mcpQuery = $state("");
+  const DEFAULT_WEB_SEARCH_MCP_ID = "tavily";
 
   const slashItems = [
     {
@@ -201,6 +204,22 @@
     });
   }
 
+  function resolveWebSearchMcpId() {
+    const provider = settingsStore.settings.webSearchProvider ?? "tavily";
+    if (provider === "custom") {
+      const custom = settingsStore.settings.webSearchMcpId?.trim();
+      return custom || DEFAULT_WEB_SEARCH_MCP_ID;
+    }
+    return DEFAULT_WEB_SEARCH_MCP_ID;
+  }
+
+  function handleWebSearch() {
+    const targetId = resolveWebSearchMcpId();
+    if (!targetId) return;
+    pendingWebSearchMcpId = targetId;
+    isDropdownOpen = false;
+  }
+
   function getSlashMatch() {
     const cursor = textarea?.selectionStart ?? userInput.length;
     const before = userInput.slice(0, cursor);
@@ -282,7 +301,9 @@
         const server = mcpStore.servers[mcpSelectedIndex];
         if (server) {
           e.preventDefault();
-          selectedMcp = { id: server.id, name: server.name };
+          if (!selectedMcps.some((item) => item.id === server.id)) {
+            selectedMcps = [...selectedMcps, { id: server.id, name: server.name }];
+          }
           removeSlashToken();
           isSlashMenuOpen = false;
           slashMode = "commands";
@@ -326,25 +347,30 @@
     }
   }
 
-  function removeMcpToken() {
-    if (!selectedMcp) return;
+  function removeMcpToken(id: string) {
     const pattern = new RegExp(
-      `(?:^|\\s)/mcp:${selectedMcp.name.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}(?=\\s|$)`,
+      `(?:^|\\s)/mcp:${id.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}(?=\\s|$)`,
       "i",
     );
     userInput = userInput
       .replace(pattern, "")
       .replace(/\s{2,}/g, " ")
       .trimStart();
-    selectedMcp = null;
+    selectedMcps = selectedMcps.filter((item) => item.id !== id);
   }
 
   function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
-    if (selectedMcp) {
-      const composed = `${userInput} /mcp:${selectedMcp.name}`.trim();
+    if (selectedMcps.length > 0) {
+      const mentions = selectedMcps.map((item) => `/mcp:${item.id}`).join(" ");
+      const composed = `${userInput} ${mentions}`.trim();
       userInput = composed;
-      selectedMcp = null;
+      selectedMcps = [];
+    }
+    if (pendingWebSearchMcpId) {
+      const composed = `${userInput} @mcp:${pendingWebSearchMcpId}`.trim();
+      userInput = composed;
+      pendingWebSearchMcpId = null;
     }
     onSend();
   }
@@ -415,7 +441,12 @@
                     index === mcpSelectedIndex && "bg-white/8",
                   )}
                   onclick={() => {
-                    selectedMcp = { id: server.id, name: server.name };
+                    if (!selectedMcps.some((item) => item.id === server.id)) {
+                      selectedMcps = [
+                        ...selectedMcps,
+                        { id: server.id, name: server.name },
+                      ];
+                    }
                     removeSlashToken();
                     isSlashMenuOpen = false;
                     slashMode = "commands";
@@ -538,6 +569,7 @@
                   <button
                     type="button"
                     class="flex w-full cursor-pointer items-center gap-3 rounded-lg border-none bg-transparent px-3.5 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-white/8"
+                    onclick={handleWebSearch}
                   >
                     <Globe size={18} />
                     <span>Search the web</span>
@@ -610,12 +642,13 @@
               {/if}
             </div>
 
-            {#if selectedMcp}
+            {#if selectedMcps.length > 0}
+              {#each selectedMcps as selectedMcp}
               <button
                 type="button"
                 class="group inline-flex items-center gap-2 rounded-full bg-white/5 px-2.5 py-1 text-xs text-foreground/90 transition-colors hover:bg-white/10"
                 title="Remove MCP"
-                onclick={removeMcpToken}
+                onclick={() => removeMcpToken(selectedMcp.id)}
               >
                 <span
                   class="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-foreground/70"
@@ -626,6 +659,27 @@
                   <X size={12} class="hidden group-hover:block" />
                 </span>
                 <span>{selectedMcp?.name}</span>
+              </button>
+              {/each}
+            {/if}
+            {#if pendingWebSearchMcpId}
+              <button
+                type="button"
+                class="group inline-flex items-center gap-2 rounded-full bg-white/5 px-2.5 py-1 text-xs text-foreground/90 transition-colors hover:bg-white/10"
+                title="Remove Web Search"
+                onclick={() => {
+                  pendingWebSearchMcpId = null;
+                }}
+              >
+                <span
+                  class="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-foreground/70"
+                >
+                  <span class="contents group-hover:hidden">
+                    <Globe size={12} />
+                  </span>
+                  <X size={12} class="hidden group-hover:block" />
+                </span>
+                <span>Web search</span>
               </button>
             {/if}
           </div>

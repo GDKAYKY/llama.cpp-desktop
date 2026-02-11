@@ -87,7 +87,12 @@
       return;
     }
 
-    await serverStore.startServer(llamaDirectory, model.model_file_path);
+    await serverStore.startServer(
+      llamaDirectory,
+      model.model_file_path,
+      settingsStore.settings.serverPort,
+      settingsStore.settings.contextSize,
+    );
   }
 </script>
 

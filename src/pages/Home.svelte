@@ -85,6 +85,7 @@
     const binaryPath = settingsStore.settings.llamaDirectory;
     const modelPath = model.model_file_path;
     const port = settingsStore.settings.serverPort;
+    const ctxSize = settingsStore.settings.contextSize;
 
     if (!binaryPath) {
       toast.error("Llama Server path not configured. Please go to Settings.");
@@ -109,7 +110,7 @@
       if (serverStore.isRunning) {
         await serverStore.stopServer();
       }
-      await serverStore.startServer(binaryPath, modelPath, port);
+      await serverStore.startServer(binaryPath, modelPath, port, ctxSize);
 
       // Short delay to allow startup
       setTimeout(() => {

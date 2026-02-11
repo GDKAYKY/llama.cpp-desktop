@@ -25,6 +25,7 @@
     Thermometer,
     Hash,
     Cpu,
+    Search,
     FileCode,
   } from "lucide-svelte";
 
@@ -59,10 +60,13 @@
         theme: settingsStore.settings.theme,
         language: settingsStore.settings.language,
         maxTokens: settingsStore.settings.maxTokens,
+        contextSize: settingsStore.settings.contextSize,
         temperature: settingsStore.settings.temperature,
         autoSaveChat: settingsStore.settings.autoSaveChat,
         chatHistoryLimit: settingsStore.settings.chatHistoryLimit,
         serverPort: settingsStore.settings.serverPort,
+        webSearchProvider: settingsStore.settings.webSearchProvider,
+        webSearchMcpId: settingsStore.settings.webSearchMcpId,
       };
       await settingsStore.update(configObj);
       await modelsStore.refresh();
@@ -489,6 +493,37 @@
                   : "Balanced"})
             </p>
           </div>
+
+          <div class="space-y-4 sm:col-span-2">
+            <div class="flex items-center justify-between">
+              <label for="context-size" class="block cursor-pointer">
+                <span
+                  class="flex items-center gap-2 text-sm font-medium leading-none"
+                >
+                  <Hash size={14} class="text-muted-foreground" />
+                  Context Size
+                </span>
+              </label>
+              <span
+                class="rounded bg-muted px-2 py-0.5 text-xs font-mono text-foreground"
+              >
+                {settingsStore.settings.contextSize}
+              </span>
+            </div>
+            <input
+              id="context-size"
+              type="range"
+              min="1024"
+              max="32768"
+              step="1024"
+              bind:value={settingsStore.settings.contextSize}
+              oninput={handleChange}
+              class="h-2 w-full cursor-pointer appearance-none rounded-full bg-secondary accent-primary outline-none"
+            />
+            <p class="text-xs text-muted-foreground leading-relaxed">
+              Total context window size for the model (1024-32768)
+            </p>
+          </div>
         </div>
       </section>
 
@@ -557,6 +592,95 @@
             />
             <p class="text-xs text-muted-foreground leading-relaxed">
               Limit the number of recent chats stored (10-100)
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Web Search Section -->
+      <section class="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
+        <div
+          class="mb-6 flex items-center gap-3 border-b border-border/40 pb-4"
+        >
+          <div
+            class="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-500"
+          >
+            <Search size={18} />
+          </div>
+          <div>
+            <h2 class="text-lg font-semibold leading-tight">Web Search</h2>
+            <p class="text-xs text-muted-foreground leading-relaxed">
+              Choose the MCP server used for web search
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-6 sm:grid-cols-2">
+          <div class="space-y-2">
+            <label for="web-search-provider" class="block cursor-pointer">
+              <span
+                class="flex items-center gap-2 text-sm font-medium leading-none"
+              >
+                <Globe size={14} class="text-muted-foreground" />
+                Default Provider
+              </span>
+            </label>
+            <div class="relative">
+              <select
+                id="web-search-provider"
+                bind:value={settingsStore.settings.webSearchProvider}
+                onchange={handleChange}
+                class="w-full cursor-pointer appearance-none rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20"
+              >
+                <option value="tavily">Tavily (default)</option>
+                <option value="custom">Custom MCP</option>
+              </select>
+              <div
+                class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground"
+              >
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  ><path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  /></svg
+                >
+              </div>
+            </div>
+            <p class="text-xs text-muted-foreground leading-relaxed pl-1">
+              Tavily uses MCP server id <span class="font-mono">tavily</span>.
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <label for="web-search-mcp" class="block cursor-pointer">
+              <span
+                class="flex items-center gap-2 text-sm font-medium leading-none"
+              >
+                <Globe size={14} class="text-muted-foreground" />
+                Custom MCP ID
+              </span>
+            </label>
+            <input
+              id="web-search-mcp"
+              type="text"
+              value={settingsStore.settings.webSearchMcpId ?? ""}
+              oninput={(e) => {
+                settingsStore.settings.webSearchMcpId =
+                  e.currentTarget.value || null;
+                handleChange();
+              }}
+              placeholder="my-web-search-mcp"
+              disabled={settingsStore.settings.webSearchProvider !== "custom"}
+              class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20 disabled:opacity-60"
+            />
+            <p class="text-xs text-muted-foreground leading-relaxed pl-1">
+              When custom is selected, this MCP server id will be used.
             </p>
           </div>
         </div>

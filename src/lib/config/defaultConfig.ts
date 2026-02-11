@@ -9,8 +9,11 @@ export const DEFAULT_CONFIG: AppConfig = {
   theme: "dark",
   language: "en",
   maxTokens: 2048,
+  contextSize: 4096,
   temperature: 0.7,
   autoSaveChat: true,
   chatHistoryLimit: 50,
   serverPort: 8080,
+  webSearchProvider: "tavily",
+  webSearchMcpId: null,
 };

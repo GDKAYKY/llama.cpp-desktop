@@ -1,17 +1,20 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct AppConfig {
     pub models_directory: Option<String>,
     pub llama_directory: Option<String>,
     pub theme: String,
     pub language: String,
     pub max_tokens: u32,
+    pub context_size: u32,
     pub temperature: f32,
     pub auto_save_chat: bool,
     pub chat_history_limit: u32,
     pub server_port: u16,
+    pub web_search_provider: String,
+    pub web_search_mcp_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -39,10 +42,13 @@ impl Default for AppConfig {
             theme: "dark".to_string(),
             language: "en".to_string(),
             max_tokens: 2048,
+            context_size: 4096,
             temperature: 0.7,
             auto_save_chat: true,
             chat_history_limit: 50,
             server_port: 8080,
+            web_search_provider: "tavily".to_string(),
+            web_search_mcp_id: None,
         }
     }
 }

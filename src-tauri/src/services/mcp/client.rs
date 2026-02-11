@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
+use futures::StreamExt;
 
 use crate::services::mcp::protocol::{JsonRpcRequest, JsonRpcResponse};
 
@@ -232,6 +233,21 @@ impl HttpClient {
             .send()
             .await
             .map_err(|e| format!("HTTP request failed: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("HTTP request failed: {}", response.status()));
+        }
+
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_lowercase();
+
+        if content_type.contains("text/event-stream") {
+            return self.read_sse_response(response, id).await;
+        }
+
         let parsed: JsonRpcResponse = response
             .json()
             .await
@@ -241,5 +257,153 @@ impl HttpClient {
             return Err(format!("MCP error {}: {}", err.code, err.message));
         }
         parsed.result.ok_or_else(|| "Missing result".to_string())
+    }
+
+    async fn read_sse_response(
+        &self,
+        response: reqwest::Response,
+        id: u64,
+    ) -> Result<serde_json::Value, String> {
+        let mut stream = response.bytes_stream();
+        let mut buffer = String::new();
+        let mut current_event = String::new();
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| format!("Failed to read SSE chunk: {}", e))?;
+            buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+            while let Some((line, rest)) = split_next_line(&buffer) {
+                buffer = rest;
+                let trimmed = line.trim_end_matches('\r');
+
+                if trimmed.is_empty() {
+                    if let Some(data) = extract_sse_data(&current_event) {
+                        if let Some(result) = parse_jsonrpc_response_data(&data, id)? {
+                            return Ok(result);
+                        }
+                    } else if let Some(result) = try_parse_jsonrpc_inline(&current_event, id)? {
+                        return Ok(result);
+                    }
+                    current_event.clear();
+                    continue;
+                }
+
+                current_event.push_str(trimmed);
+                current_event.push('\n');
+            }
+        }
+
+        if let Some(data) = extract_sse_data(&current_event) {
+            if let Some(result) = parse_jsonrpc_response_data(&data, id)? {
+                return Ok(result);
+            }
+        } else if let Some(result) = try_parse_jsonrpc_inline(&current_event, id)? {
+            return Ok(result);
+        }
+
+        Err("SSE stream ended without response".to_string())
+    }
+}
+
+fn extract_sse_data(raw_event: &str) -> Option<String> {
+    let mut data_lines = Vec::new();
+    for line in raw_event.lines() {
+        if let Some(rest) = line.strip_prefix("data:") {
+            data_lines.push(rest.trim_start());
+        }
+    }
+    if data_lines.is_empty() {
+        None
+    } else {
+        Some(data_lines.join("\n"))
+    }
+}
+
+fn parse_jsonrpc_response_data(
+    data: &str,
+    id: u64,
+) -> Result<Option<serde_json::Value>, String> {
+    if data.trim().is_empty() {
+        return Ok(None);
+    }
+
+    let value: serde_json::Value =
+        serde_json::from_str(data).map_err(|e| format!("Failed to parse SSE data: {}", e))?;
+
+    let mut responses = Vec::new();
+    match value {
+        serde_json::Value::Array(items) => responses.extend(items),
+        other => responses.push(other),
+    }
+
+    for item in responses {
+        let parsed: JsonRpcResponse = match serde_json::from_value(item) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if id_matches(&parsed.id, id) {
+            if let Some(err) = parsed.error {
+                return Err(format!("MCP error {}: {}", err.code, err.message));
+            }
+            return Ok(parsed.result);
+        }
+    }
+
+    Ok(None)
+}
+
+fn split_next_line(input: &str) -> Option<(String, String)> {
+    let mut chars = input.char_indices();
+    for (idx, ch) in &mut chars {
+        if ch == '\n' {
+            let line = input[..idx].to_string();
+            let rest = input[idx + 1..].to_string();
+            return Some((line, rest));
+        }
+    }
+    None
+}
+
+fn try_parse_jsonrpc_inline(
+    raw_event: &str,
+    id: u64,
+) -> Result<Option<serde_json::Value>, String> {
+    let trimmed = raw_event.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    let value: serde_json::Value = match serde_json::from_str(trimmed) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+
+    let mut responses = Vec::new();
+    match value {
+        serde_json::Value::Array(items) => responses.extend(items),
+        other => responses.push(other),
+    }
+
+    for item in responses {
+        let parsed: JsonRpcResponse = match serde_json::from_value(item) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if id_matches(&parsed.id, id) {
+            if let Some(err) = parsed.error {
+                return Err(format!("MCP error {}: {}", err.code, err.message));
+            }
+            return Ok(parsed.result);
+        }
+    }
+
+    Ok(None)
+}
+
+fn id_matches(value: &serde_json::Value, id: u64) -> bool {
+    match value {
+        serde_json::Value::Number(num) => num.as_u64() == Some(id),
+        serde_json::Value::String(s) => s == &id.to_string(),
+        _ => false,
     }
 }

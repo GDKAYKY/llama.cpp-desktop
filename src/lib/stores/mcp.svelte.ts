@@ -3,6 +3,8 @@ import type { McpConfig, McpServerConfig, McpServerStatus, ResourceDefinition, T
 
 class McpStore {
     servers = $state<McpServerConfig[]>([]);
+    userServers = $state<McpServerConfig[]>([]);
+    defaultServers = $state<McpServerConfig[]>([]);
     statusMap = $state<Record<string, McpServerStatus>>({});
     toolsMap = $state<Record<string, ToolDefinition[]>>({});
     resourcesMap = $state<Record<string, ResourceDefinition[]>>({});
@@ -12,6 +14,7 @@ class McpStore {
 
     async init() {
         await this.loadConfig();
+        await this.loadDefaultConfig();
         await this.refreshStatus();
         await this.loadConfigPath();
     }
@@ -21,12 +24,34 @@ class McpStore {
             this.loading = true;
             this.error = null;
             const config = await invokeCommand('load_mcp_config') as McpConfig;
-            this.servers = config.servers ?? [];
+            this.userServers = config.servers ?? [];
+            this.rebuildServers();
         } catch (err) {
             this.error = err instanceof Error ? err.message : String(err);
         } finally {
             this.loading = false;
         }
+    }
+
+    async loadDefaultConfig() {
+        try {
+            const config = await invokeCommand('load_default_mcp_config') as McpConfig;
+            this.defaultServers = config.servers ?? [];
+            this.rebuildServers();
+        } catch (err) {
+            this.error = err instanceof Error ? err.message : String(err);
+        }
+    }
+
+    rebuildServers() {
+        const map = new Map<string, McpServerConfig>();
+        for (const server of this.defaultServers) {
+            map.set(server.id, server);
+        }
+        for (const server of this.userServers) {
+            map.set(server.id, server);
+        }
+        this.servers = Array.from(map.values());
     }
 
     async loadConfigPath() {
@@ -71,6 +96,15 @@ class McpStore {
 
     async connect(id: string) {
         await invokeCommand('mcp_connect', { id });
+        const [toolsResult, resourcesResult] = await Promise.allSettled([
+            this.listTools(id),
+            this.listResources(id),
+        ]);
+        if (toolsResult.status === 'rejected') {
+            this.error = toolsResult.reason instanceof Error ? toolsResult.reason.message : String(toolsResult.reason);
+        } else if (resourcesResult.status === 'rejected') {
+            this.error = resourcesResult.reason instanceof Error ? resourcesResult.reason.message : String(resourcesResult.reason);
+        }
         await this.refreshStatus(id);
     }
 

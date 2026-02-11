@@ -1,25 +1,45 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { mcpStore } from "$lib/stores/mcp.svelte";
-  import type { McpServerConfig, ToolDefinition, ResourceDefinition } from "$lib/types/backend";
+  import type {
+    McpServerConfig,
+    ToolDefinition,
+    ResourceDefinition,
+  } from "$lib/types/backend";
   import { openPath } from "@tauri-apps/plugin-opener";
+  import { invokeCommand } from "$infrastructure/ipc";
   import {
     Link,
     Unlink,
     Plus,
     Save,
     Trash2,
+    SquarePen,
     RefreshCw,
     List,
     KeyRound,
     Cable,
+    Server,
     FileCode,
+    ClipboardPaste,
   } from "lucide-svelte";
   import { SiModelcontextprotocol } from "@icons-pack/svelte-simple-icons";
 
   let selectedId = $state<string | null>(null);
   let saving = $state(false);
   let message = $state<{ type: string; text: string }>({ type: "", text: "" });
+
+  const defaultServerIds = $derived.by(
+    () => new Set(mcpStore.defaultServers.map((server) => server.id)),
+  );
+  const userServerIds = $derived.by(
+    () => new Set(mcpStore.userServers.map((server) => server.id)),
+  );
+
+  const selectedIsDefaultOnly = $derived.by(() => {
+    if (!selectedId) return false;
+    return defaultServerIds.has(selectedId) && !userServerIds.has(selectedId);
+  });
 
   let form = $state({
     id: "",
@@ -112,7 +132,8 @@
   function buildServer(): McpServerConfig {
     const args = form.transport === "stdio" ? textToList(form.args) : [];
     const env = form.transport === "stdio" ? textToMap(form.env) : {};
-    const headers = form.transport === "http_sse" ? textToMap(form.headers) : {};
+    const headers =
+      form.transport === "http_sse" ? textToMap(form.headers) : {};
     const toolAllow = textToList(form.tool_allowlist);
     const resourceAllow = textToList(form.resource_allowlist);
     return {
@@ -161,6 +182,7 @@
     }, 5000);
   }
 
+
   async function handleSave() {
     const error = validateForm();
     if (error) {
@@ -170,7 +192,7 @@
     saving = true;
     try {
       const server = buildServer();
-      if (selectedId) {
+      if (selectedId && !selectedIsDefaultOnly) {
         await mcpStore.updateServer(server);
         showMessage("success", "Server updated.");
       } else {
@@ -189,6 +211,10 @@
 
   async function handleDelete() {
     if (!selectedId) return;
+    if (selectedIsDefaultOnly) {
+      showMessage("error", "Server default não pode ser removido.");
+      return;
+    }
     if (!confirm("Remove this MCP server?")) return;
     try {
       await mcpStore.removeServer(selectedId);
@@ -202,6 +228,10 @@
 
   async function handleConnect() {
     if (!selectedId) return;
+    if (selectedIsDefaultOnly) {
+      showMessage("error", "Importe o server antes de conectar.");
+      return;
+    }
     const status = mcpStore.statusMap[selectedId];
     try {
       if (status?.connected) {
@@ -241,6 +271,51 @@
     return JSON.stringify(value, null, 2);
   }
 
+  function applyServerConfig(server: Partial<McpServerConfig>) {
+    const transport = (server.transport ?? "stdio") as "stdio" | "http_sse";
+    form = {
+      id: server.id ?? "",
+      name: server.name ?? "",
+      enabled: server.enabled ?? true,
+      transport,
+      command: transport === "stdio" ? (server.command ?? "") : "",
+      args: transport === "stdio" ? (server.args ?? []).join("\n") : "",
+      cwd: transport === "stdio" ? (server.cwd ?? "") : "",
+      env: transport === "stdio" ? mapToText(server.env ?? {}) : "",
+      url: transport === "http_sse" ? (server.url ?? "") : "",
+      headers: transport === "http_sse" ? mapToText(server.headers ?? {}) : "",
+      tool_allowlist: (server.tool_allowlist ?? []).join("\n"),
+      resource_allowlist: (server.resource_allowlist ?? []).join("\n"),
+    };
+  }
+
+  async function handlePasteConfig() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        showMessage("error", "Clipboard vazio.");
+        return;
+      }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        showMessage("error", "O clipboard não contém JSON válido.");
+        return;
+      }
+      const server = (await invokeCommand("mcp_import_config", {
+        payload: parsed,
+      })) as McpServerConfig;
+      await mcpStore.loadConfig();
+      await mcpStore.refreshStatus(server.id);
+      selectServer(server);
+      showMessage("success", "Config importada com sucesso.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showMessage("error", msg);
+    }
+  }
+
   async function handleOpenConfig() {
     if (!mcpStore.configPath) return;
     try {
@@ -252,361 +327,473 @@
   }
 </script>
 
-<div class="mx-auto max-w-[1200px] px-6 py-10 text-foreground">
-  <div class="mb-8 flex items-start justify-between border-b border-border/60 pb-6">
-    <div>
-      <div class="flex items-center gap-3">
-        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
-          <SiModelcontextprotocol size={20} />
-        </div>
-        <h1 class="text-3xl font-bold tracking-tight leading-none">MCP Servers</h1>
-      </div>
-      <p class="mt-1 text-sm text-muted-foreground leading-normal">
-        Manage local and remote Model Context Protocol servers.
-      </p>
-    </div>
-    <div class="flex items-center gap-2">
-      <button
-        class="inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
-        onclick={handleOpenConfig}
-        disabled={!mcpStore.configPath}
-      >
-        <FileCode size={16} />
-        Editar mcp.json
-      </button>
-      <button
-        class="inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-        onclick={resetForm}
-      >
-        <Plus size={16} />
-        New Server
-      </button>
-    </div>
-  </div>
-
-  {#if message.text}
-    <div
-      class={`mb-5 rounded-lg border px-4 py-3 text-sm ${
-        message.type === "success"
-          ? "border-green-500/30 bg-green-500/10 text-green-400"
-          : "border-red-500/30 bg-red-500/10 text-red-400"
-      }`}
-    >
-      {message.text}
-    </div>
-  {/if}
-
-  {#if mcpStore.configPath}
-    <div class="mb-6 text-xs text-muted-foreground">
-      Config path: <span class="font-mono">{mcpStore.configPath}</span>
-    </div>
-  {/if}
-
-  <div class="grid gap-6 lg:grid-cols-[320px_1fr]">
-    <section class="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
-      <div class="mb-4 flex items-center gap-3 border-b border-border/40 pb-3">
-        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
-          <SiModelcontextprotocol size={18} />
-        </div>
-        <div>
-          <h2 class="text-base font-semibold leading-tight">Servers</h2>
-          <p class="text-xs text-muted-foreground">Select a server to edit</p>
-        </div>
-      </div>
-
-      {#if mcpStore.loading}
-        <div class="py-4 text-sm text-muted-foreground">Loading...</div>
-      {:else if mcpStore.servers.length === 0}
-        <div class="py-4 text-sm text-muted-foreground">No MCP servers configured.</div>
-      {:else}
-        <div class="flex flex-col gap-2">
-          {#each mcpStore.servers as server}
-            {@const status = mcpStore.statusMap[server.id]}
-            <button
-              class={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                selectedId === server.id
-                  ? "border-primary/60 bg-primary/10 text-foreground"
-                  : "border-border/60 hover:bg-muted"
-              }`}
-              onclick={() => selectServer(server)}
-            >
-              <div class="flex flex-col gap-1">
-                <div class="flex items-center gap-2">
-                  <span
-                    class={`h-2 w-2 rounded-full ${
-                      status?.connected ? "bg-emerald-500" : "bg-muted-foreground/40"
-                    }`}
-                  ></span>
-                  <span class="font-medium">{server.name}</span>
-                </div>
-                <span class="text-xs text-muted-foreground font-mono">{server.id}</span>
-              </div>
-              <div class="text-xs text-muted-foreground">
-                {server.transport === "stdio" ? "Local" : "Remote"}
-              </div>
-            </button>
-          {/each}
-        </div>
-      {/if}
-    </section>
-
-    <section class="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
-      <div class="mb-6 flex items-center justify-between border-b border-border/40 pb-4">
+<div class="w-full bg-background text-foreground">
+  <div class="mx-auto max-w-[1200px] px-6 pt-8">
+    <div class="flex items-start justify-between">
+      <div>
         <div class="flex items-center gap-3">
-          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
-            <SiModelcontextprotocol size={18} />
-          </div>
-          <div>
-            <h2 class="text-lg font-semibold leading-tight">
-              {selectedId ? "Edit MCP Server" : "Add MCP Server"}
-            </h2>
-            <p class="text-xs text-muted-foreground">Configure transport and access</p>
-          </div>
-        </div>
-        {#if selectedId}
-          <div class="flex items-center gap-2">
-            <button
-              class="inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-3 py-2 text-xs font-medium transition-colors hover:bg-muted"
-              onclick={handleConnect}
-            >
-              {#if mcpStore.statusMap[selectedId]?.connected}
-                <Unlink size={14} />
-                Disconnect
-              {:else}
-                <Link size={14} />
-                Connect
-              {/if}
-            </button>
-            <button
-              class="inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-3 py-2 text-xs font-medium transition-colors hover:bg-muted"
-              onclick={handleDelete}
-            >
-              <Trash2 size={14} />
-              Delete
-            </button>
-          </div>
-        {/if}
-      </div>
-
-      <div class="grid gap-4 md:grid-cols-2">
-        <div class="space-y-1.5">
-          <label for="mcp-id" class="text-xs font-medium text-muted-foreground">ID</label>
-          <input
-            id="mcp-id"
-            class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-            bind:value={form.id}
-            placeholder="unique-id"
-            disabled={selectedId !== null}
-          />
-        </div>
-
-        <div class="space-y-1.5">
-          <label for="mcp-name" class="text-xs font-medium text-muted-foreground">Name</label>
-          <input
-            id="mcp-name"
-            class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-            bind:value={form.name}
-            placeholder="My MCP Server"
-          />
-        </div>
-
-        <div class="space-y-1.5">
-          <label for="mcp-transport" class="text-xs font-medium text-muted-foreground">Transport</label>
-          <select
-            id="mcp-transport"
-            class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-            bind:value={form.transport}
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500"
           >
-            <option value="stdio">Local (stdio)</option>
-            <option value="http_sse">Remote (HTTP/SSE)</option>
-          </select>
+            <SiModelcontextprotocol size={20} />
+          </div>
+          <h1 class="text-3xl font-bold tracking-tight leading-none">
+            MCP Servers
+          </h1>
         </div>
-
-        <div class="flex items-center gap-2">
-          <input type="checkbox" bind:checked={form.enabled} id="enabled" />
-          <label for="enabled" class="text-xs font-medium text-muted-foreground">
-            Enabled
-          </label>
-        </div>
+        <p class="mt-1 text-sm text-muted-foreground leading-normal">
+          Manage local and remote Model Context Protocol servers.
+        </p>
       </div>
-
-      {#if form.transport === "stdio"}
-        <div class="mt-6 grid gap-4 md:grid-cols-2">
-          <div class="space-y-1.5 md:col-span-2">
-            <label for="mcp-command" class="text-xs font-medium text-muted-foreground">Command</label>
-            <input
-              id="mcp-command"
-              class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-              bind:value={form.command}
-              placeholder="path/to/server-binary"
-            />
-          </div>
-          <div class="space-y-1.5">
-            <label for="mcp-args" class="text-xs font-medium text-muted-foreground">Args (one per line)</label>
-            <textarea
-              id="mcp-args"
-              class="h-24 w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-              bind:value={form.args}
-              placeholder="--flag\n--port=8080"
-            ></textarea>
-          </div>
-          <div class="space-y-1.5">
-            <label for="mcp-env" class="text-xs font-medium text-muted-foreground">Environment (key=value)</label>
-            <textarea
-              id="mcp-env"
-              class="h-24 w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-              bind:value={form.env}
-              placeholder="API_KEY=secret"
-            ></textarea>
-          </div>
-          <div class="space-y-1.5 md:col-span-2">
-            <label for="mcp-cwd" class="text-xs font-medium text-muted-foreground">Working Directory</label>
-            <input
-              id="mcp-cwd"
-              class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-              bind:value={form.cwd}
-              placeholder="/path/to/cwd"
-            />
-          </div>
-        </div>
-      {:else}
-        <div class="mt-6 grid gap-4 md:grid-cols-2">
-          <div class="space-y-1.5 md:col-span-2">
-            <label for="mcp-url" class="text-xs font-medium text-muted-foreground">Server URL</label>
-            <input
-              id="mcp-url"
-              class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-              bind:value={form.url}
-              placeholder="https://mcp.example.com"
-            />
-          </div>
-          <div class="space-y-1.5 md:col-span-2">
-            <label for="mcp-headers" class="text-xs font-medium text-muted-foreground">Headers (key=value)</label>
-            <textarea
-              id="mcp-headers"
-              class="h-24 w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-              bind:value={form.headers}
-              placeholder="Authorization=Bearer ..."
-            ></textarea>
-          </div>
-        </div>
-      {/if}
-
-      <div class="mt-6 grid gap-4 md:grid-cols-2">
-        <div class="space-y-1.5">
-          <label for="mcp-tool-allowlist" class="text-xs font-medium text-muted-foreground flex items-center gap-2">
-            <KeyRound size={14} />
-            Tool Allowlist (one per line)
-          </label>
-          <textarea
-            id="mcp-tool-allowlist"
-            class="h-24 w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-            bind:value={form.tool_allowlist}
-            placeholder="tool.one\ntool.two"
-          ></textarea>
-        </div>
-        <div class="space-y-1.5">
-          <label for="mcp-resource-allowlist" class="text-xs font-medium text-muted-foreground flex items-center gap-2">
-            <Cable size={14} />
-            Resource Allowlist (one per line)
-          </label>
-          <textarea
-            id="mcp-resource-allowlist"
-            class="h-24 w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-xs font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-            bind:value={form.resource_allowlist}
-            placeholder="file:///path\nmcp://resource"
-          ></textarea>
-        </div>
-      </div>
-
-      <div class="mt-6 flex items-center gap-2">
+      <div class="flex items-center gap-2">
         <button
-          class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-          onclick={handleSave}
-          disabled={saving}
+          class="inline-flex items-center gap-2 rounded-lg bg-muted/30 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted/50 disabled:opacity-50"
+          onclick={handleOpenConfig}
+          disabled={!mcpStore.configPath}
         >
-          {#if saving}
-            <div class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
-          {:else}
-            <Save size={16} />
-          {/if}
-          Save
+          <FileCode size={16} />
+          Editar mcp.json
+        </button>
+        <button
+          class="inline-flex items-center gap-2 rounded-lg bg-muted/30 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+          onclick={resetForm}
+        >
+          <Plus size={16} />
+          New Server
         </button>
       </div>
+    </div>
+    {#if mcpStore.configPath}
+      <div class="mt-4 text-xs text-muted-foreground">
+        Config path: <span class="font-mono">{mcpStore.configPath}</span>
+      </div>
+    {/if}
+  </div>
+</div>
 
-      {#if selectedId}
-        <div class="mt-8 grid gap-6 lg:grid-cols-2">
-          <div class="rounded-lg border border-border/60 bg-background p-4">
-            <div class="mb-3 flex items-center justify-between">
-              <div class="flex items-center gap-2 text-sm font-semibold">
-                <List size={14} />
-                Tools
-              </div>
-              <button
-                class="inline-flex items-center gap-2 rounded-md border border-border bg-transparent px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
-                onclick={refreshTools}
-              >
-                <RefreshCw size={12} />
-                Refresh
-              </button>
-            </div>
-            {#if mcpStore.toolsMap[selectedId]?.length}
-              <div class="flex flex-col gap-3">
-                {#each mcpStore.toolsMap[selectedId] as tool}
-                  <div class="rounded-md border border-border/60 bg-muted/40 p-3">
-                    <div class="text-sm font-semibold">
-                      {tool.name ?? "Unnamed tool"}
-                    </div>
-                    {#if tool.description}
-                      <div class="text-xs text-muted-foreground mt-1">
-                        {tool.description}
-                      </div>
-                    {/if}
-                    <pre class="mt-3 rounded bg-background/60 p-2 text-[11px] text-muted-foreground overflow-x-auto">{prettyJson(tool)}</pre>
-                  </div>
-                {/each}
-              </div>
-            {:else}
-              <div class="text-xs text-muted-foreground">No tools loaded.</div>
-            {/if}
+<div class="mt-6 flex w-full justify-center">
+  <div
+    class="flex w-[min(1200px,100%)] min-h-[calc(100vh-160px)] flex-col gap-6 px-6 pb-10 text-foreground"
+  >
+    {#if message.text}
+      <div
+        class={`rounded-lg px-4 py-3 text-sm ${
+          message.type === "success"
+            ? "bg-green-500/10 text-green-400"
+            : "bg-red-500/10 text-red-400"
+        }`}
+      >
+        {message.text}
+      </div>
+    {/if}
+
+    <div class="grid gap-6 lg:grid-cols-[320px_1fr] items-start">
+      <section class="rounded-xl bg-card p-5 shadow-sm h-full">
+        <div class="mb-4 flex items-center gap-3 pb-3">
+          <div
+            class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500"
+          >
+            <Server size={18} />
           </div>
+          <div>
+            <h2 class="text-base font-semibold leading-tight">Servers</h2>
+            <p class="text-xs text-muted-foreground">Select a server to edit</p>
+          </div>
+        </div>
 
-          <div class="rounded-lg border border-border/60 bg-background p-4">
-            <div class="mb-3 flex items-center justify-between">
-              <div class="flex items-center gap-2 text-sm font-semibold">
-                <List size={14} />
-                Resources
-              </div>
+        {#if mcpStore.loading}
+          <div class="py-4 text-sm text-muted-foreground">Loading...</div>
+        {:else if mcpStore.servers.length === 0}
+          <div class="py-4 text-sm text-muted-foreground">
+            No MCP servers configured.
+          </div>
+        {:else}
+          <div class="flex flex-col gap-2">
+            {#each mcpStore.servers as server}
+              {@const status = mcpStore.statusMap[server.id]}
               <button
-                class="inline-flex items-center gap-2 rounded-md border border-border bg-transparent px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
-                onclick={refreshResources}
+                class={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                  selectedId === server.id
+                    ? "bg-primary/10 text-foreground hover:bg-primary/15"
+                    : "bg-muted/20 hover:bg-muted/40"
+                }`}
+                onclick={() => selectServer(server)}
               >
-                <RefreshCw size={12} />
-                Refresh
-              </button>
-            </div>
-            {#if mcpStore.resourcesMap[selectedId]?.length}
-              <div class="flex flex-col gap-3">
-                {#each mcpStore.resourcesMap[selectedId] as resource}
-                  <div class="rounded-md border border-border/60 bg-muted/40 p-3">
-                    <div class="text-sm font-semibold">
-                      {resource.name ?? resource.uri ?? "Unnamed resource"}
-                    </div>
-                    {#if resource.description}
-                      <div class="text-xs text-muted-foreground mt-1">
-                        {resource.description}
-                      </div>
-                    {/if}
-                    <pre class="mt-3 rounded bg-background/60 p-2 text-[11px] text-muted-foreground overflow-x-auto">{prettyJson(resource)}</pre>
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center gap-2">
+                    <span
+                      class={`h-2 w-2 rounded-full ${
+                        status?.connected
+                          ? "bg-emerald-500"
+                          : "bg-muted-foreground/40"
+                      }`}
+                    ></span>
+                    <span class="font-medium">{server.name}</span>
                   </div>
-                {/each}
-              </div>
-            {:else}
-              <div class="text-xs text-muted-foreground">No resources loaded.</div>
+                  <span class="text-xs text-muted-foreground font-mono"
+                    >{server.id}</span
+                  >
+                </div>
+                <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>
+                    {server.transport === "stdio" ? "Local" : "Remote"}
+                  </span>
+                  {#if defaultServerIds.has(server.id) &&
+                  !userServerIds.has(server.id)}
+                    <span
+                      class="rounded-full bg-muted/50 px-2 py-0.5 text-[10px] uppercase tracking-wide"
+                    >
+                      Default
+                    </span>
+                  {/if}
+                </div>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </section>
+
+      <section class="rounded-xl bg-card p-6 shadow-sm h-full">
+        <div class="mb-6 flex items-center justify-between pb-4">
+          <div class="flex items-center gap-3">
+            <div
+              class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500"
+            >
+              <SquarePen size={18} />
+            </div>
+            <div>
+              <h2 class="text-lg font-semibold leading-tight">
+                {selectedId ? "Edit MCP Server" : "Add MCP Server"}
+              </h2>
+              <p class="text-xs text-muted-foreground">
+                Configure transport and access
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              class="inline-flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted/50"
+              onclick={handlePasteConfig}
+            >
+              <ClipboardPaste size={14} />
+              Paste Config
+            </button>
+            {#if selectedId}
+              <button
+                class="inline-flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted/50"
+                onclick={handleConnect}
+                disabled={selectedIsDefaultOnly}
+              >
+                {#if mcpStore.statusMap[selectedId]?.connected}
+                  <Unlink size={14} />
+                  Disconnect
+                {:else}
+                  <Link size={14} />
+                  Connect
+                {/if}
+              </button>
+              <button
+                class="inline-flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted/50"
+                onclick={handleDelete}
+                disabled={selectedIsDefaultOnly}
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
             {/if}
           </div>
         </div>
-      {/if}
-    </section>
+
+        {#if selectedIsDefaultOnly}
+          <div class="mb-4 rounded-lg bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
+            Este server é um preset default. Clique em <span class="font-semibold">Save</span> para
+            importar para sua configuração.
+          </div>
+        {/if}
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <div class="space-y-1.5">
+            <label
+              for="mcp-id"
+              class="text-xs font-medium text-muted-foreground">ID</label
+            >
+            <input
+              id="mcp-id"
+              class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+              bind:value={form.id}
+              placeholder="unique-id"
+              disabled={selectedId !== null}
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label
+              for="mcp-name"
+              class="text-xs font-medium text-muted-foreground">Name</label
+            >
+            <input
+              id="mcp-name"
+              class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+              bind:value={form.name}
+              placeholder="My MCP Server"
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label
+              for="mcp-transport"
+              class="text-xs font-medium text-muted-foreground">Transport</label
+            >
+            <select
+              id="mcp-transport"
+              class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+              bind:value={form.transport}
+            >
+              <option value="stdio">Local (stdio)</option>
+              <option value="http_sse">Remote (HTTP/SSE)</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <input type="checkbox" bind:checked={form.enabled} id="enabled" />
+            <label
+              for="enabled"
+              class="text-xs font-medium text-muted-foreground"
+            >
+              Enabled
+            </label>
+          </div>
+        </div>
+
+        {#if form.transport === "stdio"}
+          <div class="mt-6 grid gap-4 md:grid-cols-2">
+            <div class="space-y-1.5 md:col-span-2">
+              <label
+                for="mcp-command"
+                class="text-xs font-medium text-muted-foreground">Command</label
+              >
+              <input
+                id="mcp-command"
+                class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+                bind:value={form.command}
+                placeholder="path/to/server-binary"
+              />
+            </div>
+            <div class="space-y-1.5">
+              <label
+                for="mcp-args"
+                class="text-xs font-medium text-muted-foreground"
+                >Args (one per line)</label
+              >
+              <textarea
+                id="mcp-args"
+                class="h-24 w-full rounded-md bg-muted/50 px-3 py-2 text-xs font-mono outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+                bind:value={form.args}
+                placeholder="--flag\n--port=8080"
+              ></textarea>
+            </div>
+            <div class="space-y-1.5">
+              <label
+                for="mcp-env"
+                class="text-xs font-medium text-muted-foreground"
+                >Environment (key=value)</label
+              >
+              <textarea
+                id="mcp-env"
+                class="h-24 w-full rounded-md bg-muted/50 px-3 py-2 text-xs font-mono outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+                bind:value={form.env}
+                placeholder="API_KEY=secret"
+              ></textarea>
+            </div>
+            <div class="space-y-1.5 md:col-span-2">
+              <label
+                for="mcp-cwd"
+                class="text-xs font-medium text-muted-foreground"
+                >Working Directory</label
+              >
+              <input
+                id="mcp-cwd"
+                class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+                bind:value={form.cwd}
+                placeholder="/path/to/cwd"
+              />
+            </div>
+          </div>
+        {:else}
+          <div class="mt-6 grid gap-4 md:grid-cols-2">
+            <div class="space-y-1.5 md:col-span-2">
+              <label
+                for="mcp-url"
+                class="text-xs font-medium text-muted-foreground"
+                >Server URL</label
+              >
+              <input
+                id="mcp-url"
+                class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+                bind:value={form.url}
+                placeholder="https://mcp.example.com"
+              />
+            </div>
+            <div class="space-y-1.5 md:col-span-2">
+              <label
+                for="mcp-headers"
+                class="text-xs font-medium text-muted-foreground"
+                >Headers (key=value)</label
+              >
+              <textarea
+                id="mcp-headers"
+                class="h-24 w-full rounded-md bg-muted/50 px-3 py-2 text-xs font-mono outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+                bind:value={form.headers}
+                placeholder="Authorization=Bearer ..."
+              ></textarea>
+            </div>
+          </div>
+        {/if}
+
+        <div class="mt-6 grid gap-4 md:grid-cols-2">
+          <div class="space-y-1.5">
+            <label
+              for="mcp-tool-allowlist"
+              class="text-xs font-medium text-muted-foreground flex items-center gap-2"
+            >
+              <KeyRound size={14} />
+              Tool Allowlist (one per line)
+            </label>
+            <textarea
+              id="mcp-tool-allowlist"
+              class="h-24 w-full rounded-md bg-muted/50 px-3 py-2 text-xs font-mono outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+              bind:value={form.tool_allowlist}
+              placeholder="tool.one\ntool.two"
+            ></textarea>
+          </div>
+          <div class="space-y-1.5">
+            <label
+              for="mcp-resource-allowlist"
+              class="text-xs font-medium text-muted-foreground flex items-center gap-2"
+            >
+              <Cable size={14} />
+              Resource Allowlist (one per line)
+            </label>
+            <textarea
+              id="mcp-resource-allowlist"
+              class="h-24 w-full rounded-md bg-muted/50 px-3 py-2 text-xs font-mono outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+              bind:value={form.resource_allowlist}
+              placeholder="file:///path\nmcp://resource"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="mt-6 flex items-center gap-2">
+          <button
+            class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            onclick={handleSave}
+            disabled={saving}
+          >
+            {#if saving}
+              <div
+                class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+              ></div>
+            {:else}
+              <Save size={16} />
+            {/if}
+            Save
+          </button>
+        </div>
+
+        {#if selectedId}
+          <div class="mt-8 grid gap-6 lg:grid-cols-2 items-stretch">
+            <div
+              class="rounded-lg bg-background p-4 h-full min-h-[240px] shadow-sm"
+            >
+              <div class="mb-3 flex items-center justify-between">
+                <div class="flex items-center gap-2 text-sm font-semibold">
+                  <List size={14} />
+                  Tools
+                </div>
+                <button
+                  class="inline-flex items-center gap-2 rounded-md bg-muted/30 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted/50"
+                  onclick={refreshTools}
+                >
+                  <RefreshCw size={12} />
+                  Refresh
+                </button>
+              </div>
+              {#if mcpStore.toolsMap[selectedId]?.length}
+                <div class="flex flex-col gap-3">
+                  {#each mcpStore.toolsMap[selectedId] as tool}
+                    <div class="rounded-md bg-muted/40 p-3">
+                      <div class="text-sm font-semibold">
+                        {tool.name ?? "Unnamed tool"}
+                      </div>
+                      {#if tool.description}
+                        <div class="text-xs text-muted-foreground mt-1">
+                          {tool.description}
+                        </div>
+                      {/if}
+                      <pre
+                        class="mt-3 rounded bg-background/60 p-2 text-[11px] text-muted-foreground overflow-x-auto">{prettyJson(
+                          tool,
+                        )}</pre>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <div class="text-xs text-muted-foreground">
+                  No tools loaded.
+                </div>
+              {/if}
+            </div>
+
+            <div
+              class="rounded-lg bg-background p-4 h-full min-h-[240px] shadow-sm"
+            >
+              <div class="mb-3 flex items-center justify-between">
+                <div class="flex items-center gap-2 text-sm font-semibold">
+                  <List size={14} />
+                  Resources
+                </div>
+                <button
+                  class="inline-flex items-center gap-2 rounded-md bg-muted/30 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted/50"
+                  onclick={refreshResources}
+                >
+                  <RefreshCw size={12} />
+                  Refresh
+                </button>
+              </div>
+              {#if mcpStore.resourcesMap[selectedId]?.length}
+                <div class="flex flex-col gap-3">
+                  {#each mcpStore.resourcesMap[selectedId] as resource}
+                    <div class="rounded-md bg-muted/40 p-3">
+                      <div class="text-sm font-semibold">
+                        {resource.name ?? resource.uri ?? "Unnamed resource"}
+                      </div>
+                      {#if resource.description}
+                        <div class="text-xs text-muted-foreground mt-1">
+                          {resource.description}
+                        </div>
+                      {/if}
+                      <pre
+                        class="mt-3 rounded bg-background/60 p-2 text-[11px] text-muted-foreground overflow-x-auto">{prettyJson(
+                          resource,
+                        )}</pre>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <div class="text-xs text-muted-foreground">
+                  No resources loaded.
+                </div>
+              {/if}
+            </div>
+          </div>
+        {:else}
+          <div
+            class="mt-8 rounded-lg bg-muted/30 p-6 text-center text-sm text-muted-foreground"
+          >
+            Selecione um servidor na lista para ver ferramentas e recursos.
+          </div>
+        {/if}
+      </section>
+    </div>
   </div>
 </div>

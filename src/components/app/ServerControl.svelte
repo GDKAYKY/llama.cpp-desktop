@@ -25,7 +25,12 @@
 
     isLoading = true;
     try {
-      await serverStore.startServer(configBinaryPath, configModelPath, port);
+      await serverStore.startServer(
+        configBinaryPath,
+        configModelPath,
+        port,
+        settingsStore.settings.contextSize,
+      );
     } finally {
       isLoading = false;
     }
