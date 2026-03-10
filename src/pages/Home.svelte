@@ -165,7 +165,7 @@
     )}
   >
     <div
-      class="flex grow items-center justify-center p-5 bg-background h-full rounded-tl-xl"
+      class="flex grow items-center justify-center p-5 bg-background h-full rounded-tl-lg"
     >
       <div class="w-full max-w-3xl text-center">
         <h1 class="mb-2 text-3xl font-semibold tracking-tight">llama.cpp</h1>
