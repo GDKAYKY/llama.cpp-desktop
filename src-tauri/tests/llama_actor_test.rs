@@ -200,6 +200,8 @@ async fn handle_chat_returns_error_when_not_running() {
         top_p: 1.0,
         top_k: 1,
         max_tokens: 1,
+        tools: None,
+        tool_choice: None,
         stream: true,
     };
     let err = actor
@@ -593,6 +595,8 @@ async fn send_chat_streams_chunks() {
         top_p: 1.0,
         top_k: 1,
         max_tokens: 1,
+        tools: None,
+        tool_choice: None,
         stream: true,
     };
     let (resp_tx, resp_rx) = oneshot::channel();

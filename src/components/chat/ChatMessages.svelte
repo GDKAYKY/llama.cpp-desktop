@@ -4,8 +4,9 @@
   import MessageAvatar from "$components/ui/MessageAvatar.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
 
-  /** @type {{ messages: Array<{role: string, content: string}>, isLoading: boolean, messagesEnd: HTMLElement }} */
-  let { messages, isLoading, messagesEnd = $bindable() } = $props();
+  /** @type {{ messages: Array<{role: string, content: string}>, isLoading: boolean, messagesEnd: HTMLElement, thinkingProcess?: string[] }} */
+  let { messages, isLoading, thinkingProcess = [], messagesEnd = $bindable() } =
+    $props();
 </script>
 
 <div class="flex w-full grow flex-col">
@@ -21,6 +22,15 @@
             modelName={modelsStore.selectedModel?.name}
           />
           <div class="grow text-base text-foreground min-w-0">
+            {#if thinkingProcess.length > 0}
+              <div
+                class="mb-3 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-muted-foreground font-mono"
+              >
+                {#each thinkingProcess as step}
+                  <div>{step}</div>
+                {/each}
+              </div>
+            {/if}
             <TypingIndicator />
           </div>
         </div>

@@ -62,7 +62,7 @@
       id: "customization",
       label: "Customization",
       icon: Settings,
-      action: "customize",
+      path: "/customization",
     },
     {
       id: "settings",

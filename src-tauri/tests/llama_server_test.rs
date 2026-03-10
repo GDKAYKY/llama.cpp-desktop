@@ -285,6 +285,8 @@ async fn stream_chat_parses_data_and_json_lines() {
         top_p: 1.0,
         top_k: 1,
         max_tokens: 1,
+        tools: None,
+        tool_choice: None,
         stream: true,
     };
 
@@ -316,6 +318,8 @@ async fn stream_chat_emits_error_on_non_success() {
         top_p: 1.0,
         top_k: 1,
         max_tokens: 1,
+        tools: None,
+        tool_choice: None,
         stream: true,
     };
 

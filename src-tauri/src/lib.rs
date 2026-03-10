@@ -25,21 +25,21 @@ pub mod models {
     pub mod app_config;
     pub mod chat;
     pub mod llama;
-    pub mod mcp;
     pub mod manifest;
+    pub mod mcp;
 
     pub use app_config::*;
     pub use chat::*;
     pub use llama::*;
-    pub use mcp::*;
     pub use manifest::*;
+    pub use mcp::*;
 }
 
 pub mod services {
     pub mod llama {
         pub mod actor;
         pub mod service;
-        
+
         pub use actor::ActorMessage;
         pub use service::LlamaCppService;
     }
@@ -47,10 +47,12 @@ pub mod services {
         pub mod client;
         pub mod protocol;
         pub mod service;
-        
+
         pub use service::McpService;
     }
+    pub mod capability_registry;
     pub mod orchestrator;
+    pub mod subagent;
 }
 
 pub mod state;
@@ -77,8 +79,8 @@ pub fn run() {
                 println!("Failed to load config: {}", e);
                 crate::models::AppConfig::default()
             });
-            let mcp_config =
-                commands::mcp_config::load_mcp_config_file(app.handle()).unwrap_or_else(|e| {
+            let mcp_config = commands::mcp_config::load_mcp_config_file(app.handle())
+                .unwrap_or_else(|e| {
                     println!("Failed to load MCP config: {}", e);
                     crate::models::McpConfig::default()
                 });
@@ -89,6 +91,16 @@ pub fn run() {
                 .unwrap_or_else(|| std::path::PathBuf::from("E:\\models"));
 
             app.manage(AppState::new(models_path, mcp_config));
+
+            // Hydrate capability registry on startup
+            let state = app.state::<AppState>();
+            let orchestrator = state.orchestrator.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = orchestrator.refresh_capabilities().await {
+                    eprintln!("[Startup] Failed to refresh capabilities: {}", e);
+                }
+            });
+
             Ok(())
         });
 

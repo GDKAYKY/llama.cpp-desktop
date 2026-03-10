@@ -9,7 +9,6 @@ import {
   saveMessage, 
   createConversation, 
   getConversationHistory, 
-  findRelevantContext,
   getRecentConversations,
   updateConversationTitle,
   deleteConversation,
@@ -25,6 +24,7 @@ export interface Message {
 
 class ChatStore {
   messages = $state<Message[]>([]);
+  thinkingProcess = $state<string[]>([]);
   isLoading = $state(false);
   error = $state<string | null>(null);
   modelLoaded = $state(true);
@@ -39,6 +39,7 @@ class ChatStore {
   
   // To accumulate assistant response before saving
   currentAssistantResponse = '';
+
 
   async initialize() {
     this.error = null;
@@ -151,24 +152,6 @@ class ChatStore {
     // 2. Save User Message to DB
     await saveMessage(this.activeConversationId, 'user', content);
     
-    // 3. Find Context (Memory)
-    let contextPrompt = "";
-    try {
-        const context = await findRelevantContext(content, this.activeConversationId);
-        if (context) {
-            console.log("Injecting Context:", context);
-            contextPrompt = `\n\n[System Note: The following is relevant context from the user's past conversations. Use it to answer if applicable.]\n${context}\n\n`;
-        }
-    } catch (e) {
-        console.warn("Context retrieval failed:", e);
-    }
-
-    // 4. Prepare backend payload (Inject context)
-    // We append the context to the message essentially hiding it from the UI but sending it to the LLM.
-    // Ideally, we'd use a System message, but send_message might treat everything as user text.
-    // Let's prepend it clearly.
-    const finalPayload = contextPrompt ? `${contextPrompt}User: ${content}` : content;
-
     // Add placeholder for assistant
     this.messages.push({
         role: 'assistant',
@@ -178,10 +161,14 @@ class ChatStore {
 
     this.isLoading = true;
     this.error = null;
+    this.thinkingProcess = [];
     this.currentAssistantResponse = '';
 
     const onEvent = new Channel<any>();
     onEvent.onmessage = async (payload) => {
+      if (payload.thinking) {
+        this.thinkingProcess = [...this.thinkingProcess, String(payload.thinking)];
+      }
       if (payload.chunk) {
         this.appendChunk(payload.chunk);
       }
@@ -215,12 +202,13 @@ class ChatStore {
             
             await this.loadRecentConversations(); // Refresh sidebar order
         }
+        this.thinkingProcess = [];
       }
     };
 
     try {
       await invokeCommand('send_message', {
-        message: finalPayload, // Send context + content
+        message: content,
         sessionId: this.sessionId,
         temperature: settingsStore.settings.temperature,
         maxTokens: settingsStore.settings.maxTokens,
@@ -231,6 +219,7 @@ class ChatStore {
       console.error("ERRO NO CHAT:", err);
     } finally {
       this.isLoading = false;
+      this.thinkingProcess = [];
     }
   }
 

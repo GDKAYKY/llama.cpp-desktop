@@ -7,6 +7,7 @@ use crate::models::{
     McpConfig, McpServerConfig, McpServerStatus, McpTransport, ResourceDefinition, ToolDefinition,
 };
 use crate::services::mcp::McpService;
+use crate::services::orchestrator::ChatOrchestrator;
 use crate::state::AppState;
 
 async fn persist_config(app: &AppHandle, state: &State<'_, AppState>) -> Result<(), String> {
@@ -27,7 +28,9 @@ pub async fn mcp_add_server(
     server: McpServerConfig,
 ) -> Result<(), String> {
     mcp_add_server_with_service(&state.mcp_service, server).await?;
-    persist_config(&app, &state).await
+    persist_config(&app, &state).await?;
+    spawn_refresh_capabilities(&state.orchestrator);
+    Ok(())
 }
 
 #[command]
@@ -37,7 +40,9 @@ pub async fn mcp_update_server(
     server: McpServerConfig,
 ) -> Result<(), String> {
     mcp_update_server_with_service(&state.mcp_service, server).await?;
-    persist_config(&app, &state).await
+    persist_config(&app, &state).await?;
+    spawn_refresh_capabilities(&state.orchestrator);
+    Ok(())
 }
 
 #[command]
@@ -47,7 +52,9 @@ pub async fn mcp_remove_server(
     id: String,
 ) -> Result<(), String> {
     mcp_remove_server_with_service(&state.mcp_service, id).await?;
-    persist_config(&app, &state).await
+    persist_config(&app, &state).await?;
+    spawn_refresh_capabilities(&state.orchestrator);
+    Ok(())
 }
 
 #[command]
@@ -179,6 +186,11 @@ pub async fn mcp_resources_read_with_service(
 }
 
 #[command]
+pub async fn refresh_mcp_capabilities(state: State<'_, AppState>) -> Result<(), String> {
+    state.orchestrator.refresh_capabilities().await
+}
+
+#[command]
 pub async fn mcp_parse_config(payload: Value) -> Result<McpServerConfig, String> {
     parse_mcp_server_from_value(&payload)
         .ok_or_else(|| "Não encontrei uma configuração MCP válida.".to_string())
@@ -194,7 +206,19 @@ pub async fn mcp_import_config(
         .ok_or_else(|| "Não encontrei uma configuração MCP válida.".to_string())?;
     mcp_add_server_with_service(&state.mcp_service, server.clone()).await?;
     persist_config(&app, &state).await?;
+    spawn_refresh_capabilities(&state.orchestrator);
     Ok(server)
+}
+
+/// Spawn a background task to refresh the capability registry.
+/// Non-blocking — fire and forget.
+fn spawn_refresh_capabilities(orchestrator: &ChatOrchestrator) {
+    let orchestrator = orchestrator.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = orchestrator.refresh_capabilities().await {
+            eprintln!("[MCP] Failed to refresh capabilities: {}", e);
+        }
+    });
 }
 
 fn parse_mcp_server_from_value(value: &Value) -> Option<McpServerConfig> {

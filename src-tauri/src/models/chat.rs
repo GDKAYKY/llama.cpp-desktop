@@ -39,3 +39,21 @@ pub struct ChatResponse {
     pub choices: Vec<ChatChoice>,
     pub usage: serde_json::Value,
 }
+
+/// What the LLM returns during intent classification.
+/// The host uses this to resolve tools deterministically.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntentClassification {
+    pub needs_external: bool,
+    pub query: String,
+    /// Optional: LLM may suggest a tool, but host validates.
+    pub suggested_tool: Option<String>,
+    /// Optional: LLM may suggest a server, but host validates.
+    pub suggested_server: Option<String>,
+    /// Structured arguments for the tool.
+    pub arguments: Option<serde_json::Value>,
+    #[serde(default)]
+    pub needs_multi_step: bool,
+    #[serde(default)]
+    pub multi_step_reasoning: Option<String>,
+}

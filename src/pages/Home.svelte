@@ -180,6 +180,7 @@
   <ChatMessages
     messages={chatStore.messages}
     isLoading={chatStore.isLoading}
+    thinkingProcess={chatStore.thinkingProcess}
     bind:messagesEnd
   />
 

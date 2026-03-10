@@ -3,7 +3,9 @@ use llama_desktop_lib::commands::chat::{
     send_message_with_orchestrator,
 };
 use llama_desktop_lib::models::ChatMessage;
+use llama_desktop_lib::models::McpConfig;
 use llama_desktop_lib::services::llama::{ActorMessage, LlamaCppService};
+use llama_desktop_lib::services::mcp::McpService;
 use llama_desktop_lib::services::orchestrator::ChatOrchestrator;
 use tauri::ipc::Channel;
 use tauri::ipc::InvokeResponseBody;
@@ -71,7 +73,8 @@ fn mock_service(chunks: Vec<&'static str>) -> LlamaCppService {
 #[tokio::test]
 async fn send_message_with_orchestrator_streams_and_records() {
     let service = mock_service(vec!["Hello", " world"]);
-    let orchestrator = ChatOrchestrator::new(service);
+    let mcp_service = McpService::new(McpConfig::default());
+    let orchestrator = ChatOrchestrator::new(service, mcp_service);
     let (channel, mut rx) = test_channel();
 
     send_message_with_orchestrator(
@@ -98,13 +101,17 @@ async fn send_message_with_orchestrator_streams_and_records() {
 #[tokio::test]
 async fn clear_chat_with_orchestrator_removes_history() {
     let service = mock_service(vec!["ok"]);
-    let orchestrator = ChatOrchestrator::new(service);
+    let mcp_service = McpService::new(McpConfig::default());
+    let orchestrator = ChatOrchestrator::new(service, mcp_service);
     orchestrator
         .set_session_history(
             "session-1",
             vec![ChatMessage {
                 role: "user".to_string(),
                 content: "hi".to_string(),
+                name: None,
+                tool_call_id: None,
+                tool_calls: None,
             }],
         )
         .await;
@@ -119,10 +126,14 @@ async fn clear_chat_with_orchestrator_removes_history() {
 #[tokio::test]
 async fn load_history_context_with_orchestrator_sets_history() {
     let service = mock_service(vec!["ok"]);
-    let orchestrator = ChatOrchestrator::new(service);
+    let mcp_service = McpService::new(McpConfig::default());
+    let orchestrator = ChatOrchestrator::new(service, mcp_service);
     let history = vec![ChatMessage {
         role: "user".to_string(),
         content: "hello".to_string(),
+        name: None,
+        tool_call_id: None,
+        tool_calls: None,
     }];
 
     load_history_context_with_orchestrator(&orchestrator, "session-1".to_string(), history.clone())
