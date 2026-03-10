@@ -24,6 +24,7 @@
     ClipboardPaste,
   } from "lucide-svelte";
   import { SiModelcontextprotocol } from "@icons-pack/svelte-simple-icons";
+  import Dropdown from "$components/ui/Dropdown.svelte";
 
   let selectedId = $state<string | null>(null);
   let saving = $state(false);
@@ -182,7 +183,6 @@
     }, 5000);
   }
 
-
   async function handleSave() {
     const error = validateForm();
     if (error) {
@@ -212,7 +212,7 @@
   async function handleDelete() {
     if (!selectedId) return;
     if (selectedIsDefaultOnly) {
-      showMessage("error", "Server default não pode ser removido.");
+      showMessage("error", "Default server cannot be removed.");
       return;
     }
     if (!confirm("Remove this MCP server?")) return;
@@ -229,7 +229,7 @@
   async function handleConnect() {
     if (!selectedId) return;
     if (selectedIsDefaultOnly) {
-      showMessage("error", "Importe o server antes de conectar.");
+      showMessage("error", "Import the server before connecting.");
       return;
     }
     const status = mcpStore.statusMap[selectedId];
@@ -293,14 +293,14 @@
     try {
       const text = await navigator.clipboard.readText();
       if (!text.trim()) {
-        showMessage("error", "Clipboard vazio.");
+        showMessage("error", "Clipboard is empty.");
         return;
       }
       let parsed: unknown;
       try {
         parsed = JSON.parse(text);
       } catch {
-        showMessage("error", "O clipboard não contém JSON válido.");
+        showMessage("error", "Clipboard does not contain valid JSON.");
         return;
       }
       const server = (await invokeCommand("mcp_import_config", {
@@ -309,7 +309,7 @@
       await mcpStore.loadConfig();
       await mcpStore.refreshStatus(server.id);
       selectServer(server);
-      showMessage("success", "Config importada com sucesso.");
+      showMessage("success", "Config imported successfully.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showMessage("error", msg);
@@ -352,7 +352,7 @@
           disabled={!mcpStore.configPath}
         >
           <FileCode size={16} />
-          Editar mcp.json
+          Edit mcp.json
         </button>
         <button
           class="inline-flex items-center gap-2 rounded-lg bg-muted/30 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
@@ -434,12 +434,13 @@
                     >{server.id}</span
                   >
                 </div>
-                <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                <div
+                  class="flex items-center gap-2 text-xs text-muted-foreground"
+                >
                   <span>
                     {server.transport === "stdio" ? "Local" : "Remote"}
                   </span>
-                  {#if defaultServerIds.has(server.id) &&
-                  !userServerIds.has(server.id)}
+                  {#if defaultServerIds.has(server.id) && !userServerIds.has(server.id)}
                     <span
                       class="rounded-full bg-muted/50 px-2 py-0.5 text-[10px] uppercase tracking-wide"
                     >
@@ -505,9 +506,12 @@
         </div>
 
         {#if selectedIsDefaultOnly}
-          <div class="mb-4 rounded-lg bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-            Este server é um preset default. Clique em <span class="font-semibold">Save</span> para
-            importar para sua configuração.
+          <div
+            class="mb-4 rounded-lg bg-muted/30 px-4 py-3 text-xs text-muted-foreground"
+          >
+            This server is a default preset. Click <span class="font-semibold"
+              >Save</span
+            > to import it into your configuration.
           </div>
         {/if}
 
@@ -544,14 +548,14 @@
               for="mcp-transport"
               class="text-xs font-medium text-muted-foreground">Transport</label
             >
-            <select
+            <Dropdown
               id="mcp-transport"
-              class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
+              items={[
+                { value: "stdio", label: "Local (stdio)" },
+                { value: "http_sse", label: "Remote (HTTP/SSE)" },
+              ]}
               bind:value={form.transport}
-            >
-              <option value="stdio">Local (stdio)</option>
-              <option value="http_sse">Remote (HTTP/SSE)</option>
-            </select>
+            />
           </div>
 
           <div class="flex items-center gap-2">
@@ -790,7 +794,7 @@
           <div
             class="mt-8 rounded-lg bg-muted/30 p-6 text-center text-sm text-muted-foreground"
           >
-            Selecione um servidor na lista para ver ferramentas e recursos.
+            Select a server from the list to see tools and resources.
           </div>
         {/if}
       </section>

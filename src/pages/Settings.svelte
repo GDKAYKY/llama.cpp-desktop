@@ -27,7 +27,10 @@
     Cpu,
     Search,
     FileCode,
+    Moon,
+    Sun,
   } from "lucide-svelte";
+  import Dropdown from "../components/ui/Dropdown.svelte";
 
   let configPath = $state("");
   let loading = $state(false);
@@ -35,6 +38,25 @@
   /** @type {{ type: string, text: string }} */
   let message = $state({ type: "", text: "" });
   let unsavedChanges = $state(false);
+
+  const themeItems = [
+    { label: "Dark Mode", value: "dark", icon: Moon },
+    { label: "Light Mode", value: "light", icon: Sun },
+    { label: "System Default", value: "auto", icon: Monitor },
+  ];
+
+  const languageItems = [
+    { label: "English (US)", value: "en" },
+    { label: "Español", value: "es" },
+    { label: "Français", value: "fr" },
+    { label: "Deutsch", value: "de" },
+    { label: "中文", value: "zh" },
+  ];
+
+  const providerItems = [
+    { label: "Tavily (default)", value: "tavily" },
+    { label: "Custom MCP", value: "custom" },
+  ];
 
   onMount(async () => {
     loading = true;
@@ -326,83 +348,23 @@
 
         <div class="grid gap-6 sm:grid-cols-2">
           <div class="space-y-2">
-            <label for="theme" class="block cursor-pointer">
-              <span
-                class="flex items-center gap-2 text-sm font-medium leading-none"
-              >
-                <Monitor size={14} class="text-muted-foreground" />
-                Theme
-              </span>
-            </label>
-            <div class="relative">
-              <select
-                id="theme"
-                bind:value={settingsStore.settings.theme}
-                onchange={handleChange}
-                class="w-full cursor-pointer appearance-none rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20"
-              >
-                <option value="dark">Dark Mode</option>
-                <option value="light">Light Mode</option>
-                <option value="auto">System Default</option>
-              </select>
-              <div
-                class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground"
-              >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  ><path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  /></svg
-                >
-              </div>
-            </div>
+            <Dropdown
+              label="Theme"
+              items={themeItems}
+              bind:value={settingsStore.settings.theme}
+              onSelect={handleChange}
+              placeholder="Select theme"
+            />
           </div>
 
           <div class="space-y-2">
-            <label for="language" class="block cursor-pointer">
-              <span
-                class="flex items-center gap-2 text-sm font-medium leading-none"
-              >
-                <Globe size={14} class="text-muted-foreground" />
-                Language
-              </span>
-            </label>
-            <div class="relative">
-              <select
-                id="language"
-                bind:value={settingsStore.settings.language}
-                onchange={handleChange}
-                class="w-full cursor-pointer appearance-none rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20"
-              >
-                <option value="en">English (US)</option>
-                <option value="es">Español</option>
-                <option value="fr">Français</option>
-                <option value="de">Deutsch</option>
-                <option value="zh">中文</option>
-              </select>
-              <div
-                class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground"
-              >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  ><path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  /></svg
-                >
-              </div>
-            </div>
+            <Dropdown
+              label="Language"
+              items={languageItems}
+              bind:value={settingsStore.settings.language}
+              onSelect={handleChange}
+              placeholder="Select language"
+            />
           </div>
         </div>
       </section>
@@ -617,41 +579,13 @@
 
         <div class="grid gap-6 sm:grid-cols-2">
           <div class="space-y-2">
-            <label for="web-search-provider" class="block cursor-pointer">
-              <span
-                class="flex items-center gap-2 text-sm font-medium leading-none"
-              >
-                <Globe size={14} class="text-muted-foreground" />
-                Default Provider
-              </span>
-            </label>
-            <div class="relative">
-              <select
-                id="web-search-provider"
-                bind:value={settingsStore.settings.webSearchProvider}
-                onchange={handleChange}
-                class="w-full cursor-pointer appearance-none rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20"
-              >
-                <option value="tavily">Tavily (default)</option>
-                <option value="custom">Custom MCP</option>
-              </select>
-              <div
-                class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground"
-              >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  ><path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  /></svg
-                >
-              </div>
-            </div>
+            <Dropdown
+              label="Default Provider"
+              items={providerItems}
+              bind:value={settingsStore.settings.webSearchProvider}
+              onSelect={handleChange}
+              placeholder="Select provider"
+            />
             <p class="text-xs text-muted-foreground leading-relaxed pl-1">
               Tavily uses MCP server id <span class="font-mono">tavily</span>.
             </p>
