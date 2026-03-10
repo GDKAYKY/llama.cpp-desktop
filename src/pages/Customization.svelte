@@ -10,11 +10,17 @@
     Save,
     Check,
   } from "lucide-svelte";
+  import { settingsStore } from "$lib/stores/settings.svelte";
 
   let theme = $state("dark");
   let density = $state("balanced");
   let radius = $state(14);
   let accent = $state("ember");
+
+  async function setChatHeaderStyle(style) {
+    settingsStore.settings.chatHeaderStyle = style;
+    await settingsStore.update({ chatHeaderStyle: style });
+  }
 </script>
 
 <div
@@ -216,6 +222,37 @@
               class="h-5 w-5 border-2 border-zinc-600 rounded-full shrink-0"
             ></div>
           </div>
+        </div>
+
+        <div
+          class="flex flex-col gap-3 bg-zinc-900/30 p-5 rounded-2xl border border-zinc-800/60"
+        >
+          <div class="text-sm font-medium text-zinc-300">Chat Header</div>
+          <div
+            class="inline-flex bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-1 shadow-inner self-start mt-1"
+          >
+            <button
+              onclick={() => setChatHeaderStyle("default")}
+              class="px-4 py-2 rounded-lg text-sm font-medium transition-all {settingsStore
+              .settings.chatHeaderStyle === 'default'
+                ? 'bg-zinc-700/60 text-white shadow-sm border border-zinc-600/50'
+                : 'text-zinc-400 hover:text-zinc-200 border border-transparent'}"
+            >
+              Default
+            </button>
+            <button
+              onclick={() => setChatHeaderStyle("capsule")}
+              class="px-4 py-2 rounded-lg text-sm font-medium transition-all {settingsStore
+              .settings.chatHeaderStyle === 'capsule'
+                ? 'bg-zinc-700/60 text-white shadow-sm border border-zinc-600/50'
+                : 'text-zinc-400 hover:text-zinc-200 border border-transparent'}"
+            >
+              Capsule
+            </button>
+          </div>
+          <p class="text-xs text-zinc-500">
+            Capsule sets the chat header to #171717.
+          </p>
         </div>
       </div>
     </section>

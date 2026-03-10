@@ -15,6 +15,7 @@ pub struct AppConfig {
     pub server_port: u16,
     pub web_search_provider: String,
     pub web_search_mcp_id: Option<String>,
+    pub chat_header_style: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -49,6 +50,7 @@ impl Default for AppConfig {
             server_port: 8080,
             web_search_provider: "tavily".to_string(),
             web_search_mcp_id: None,
+            chat_header_style: "default".to_string(),
         }
     }
 }

@@ -1,7 +1,14 @@
 <script lang="ts">
   import { cn } from "$shared/cn.js";
-  import { ChevronDown, Check, LoaderCircle, Square } from "lucide-svelte";
+  import {
+    ChevronDown,
+    Check,
+    LoaderCircle,
+    Square,
+    PanelLeft,
+  } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
+  import { settingsStore } from "$lib/stores/settings.svelte";
   import ModelLogo from "./ModelLogo.svelte";
 
   /** @type {{
@@ -41,7 +48,12 @@
 <svelte:window on:click={handleClickOutside} />
 
 <header
-  class="sticky top-0 z-50 flex h-[60px] items-center bg-background px-4 p-2 shadow-background shadow-2xl"
+  class={cn(
+    "sticky top-0 z-50 flex h-[60px] items-center px-4 p-2",
+    settingsStore.settings.chatHeaderStyle === "capsule"
+      ? "bg-[#171717]"
+      : "bg-background",
+  )}
 >
   <div class="flex min-w-[80px] shrink-0"></div>
 

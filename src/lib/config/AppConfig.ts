@@ -11,4 +11,5 @@ export interface AppConfig {
   serverPort: number;
   webSearchProvider: "tavily" | "custom";
   webSearchMcpId: string | null;
+  chatHeaderStyle: "default" | "capsule";
 }

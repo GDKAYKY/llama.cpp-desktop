@@ -10,6 +10,7 @@
   import { serverStore } from "$lib/stores/server.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { mcpStore } from "$lib/stores/mcp.svelte";
+  import { cn } from "$lib/shared/cn.js";
 
   let userInput = $state("");
   let messagesEnd: any = $state();
@@ -155,24 +156,35 @@
 />
 
 {#if isEmpty}
-  <div class="flex grow items-center justify-center p-5">
-    <div class="w-full max-w-3xl text-center">
-      <h1 class="mb-2 text-3xl font-semibold tracking-tight">llama.cpp</h1>
-      <p class="mb-10 text-lg text-muted-foreground">
-        Type a message or upload files to get started
-      </p>
+  <div
+    class={cn(
+      "flex grow items-center justify-center",
+      settingsStore.settings.chatHeaderStyle === "capsule"
+        ? "bg-[#171717]"
+        : "bg-background",
+    )}
+  >
+    <div
+      class="flex grow items-center justify-center p-5 bg-background h-full rounded-tl-xl"
+    >
+      <div class="w-full max-w-3xl text-center">
+        <h1 class="mb-2 text-3xl font-semibold tracking-tight">llama.cpp</h1>
+        <p class="mb-10 text-lg text-muted-foreground">
+          Type a message or upload files to get started
+        </p>
 
-      <div class="w-full">
-        <ChatForm
-          bind:userInput
-          modelLoaded={serverStore.isRunning}
-          isLoading={chatStore.isLoading}
-          onKeydown={handleKeydown}
-          onInput={handleInput}
-          onSend={sendMessage}
-          bind:textarea
-          selectedModel={modelsStore.selectedModel}
-        />
+        <div class="w-full">
+          <ChatForm
+            bind:userInput
+            modelLoaded={serverStore.isRunning}
+            isLoading={chatStore.isLoading}
+            onKeydown={handleKeydown}
+            onInput={handleInput}
+            onSend={sendMessage}
+            bind:textarea
+            selectedModel={modelsStore.selectedModel}
+          />
+        </div>
       </div>
     </div>
   </div>

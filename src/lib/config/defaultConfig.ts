@@ -16,4 +16,5 @@ export const DEFAULT_CONFIG: AppConfig = {
   serverPort: 8080,
   webSearchProvider: "tavily",
   webSearchMcpId: null,
+  chatHeaderStyle: "default",
 };
