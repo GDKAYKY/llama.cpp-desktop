@@ -2,6 +2,7 @@
   import MessageAvatar from "$components/ui/MessageAvatar.svelte";
   import MarkdownContent from "$components/ui/MarkdownContent.svelte";
   import TextShimmer from "$components/ui/TextShimmer.svelte";
+  import ChatMessageWindow from "./ChatMessageWindow.svelte";
   import { cn } from "$shared/cn.js";
   import {
     Copy,
@@ -16,8 +17,8 @@
   import { modelsStore } from "$lib/stores/models.svelte";
   import { toast } from "svelte-sonner";
 
-  /** @type {{ message: { role: string, content: string, model?: string }, index: number, isStreaming?: boolean, thinkingProcess?: string[] }} */
-  let { message, index, isStreaming = false, thinkingProcess = [] } = $props();
+  /** @type {{ message: { role: string, content: string, model?: string }, index: number, isStreaming?: boolean, thinkingProcess?: string[], pill?: boolean }} */
+  let { message, index, isStreaming = false, thinkingProcess = [], pill = false } = $props();
 
   let isEditing = $state(false);
   let editText = $state("");
@@ -246,93 +247,187 @@
         {/if}
       {:else}
         <div class="w-full min-w-0 text-foreground">
-          {#if message.role === "assistant" && message.model}
-            <div
-              class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2"
-            >
-              {message.model}
-            </div>
-          {/if}
-
-          {#if thinkingProcess.length > 0}
-            <div
-              class="mb-3 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-muted-foreground font-mono"
-            >
-              {#each thinkingProcess as step, stepIndex}
-                {#if isStreaming && stepIndex === thinkingProcess.length - 1 && !message.content}
-                  <TextShimmer as="div" duration={2}>
-                    {step}
-                  </TextShimmer>
-                {:else}
-                  <div>{step}</div>
+          {#if message.role === "assistant" && pill}
+            <ChatMessageWindow {pill} class="w-full">
+              {#snippet header()}
+                {#if message.model}
+                  {message.model}
                 {/if}
-              {/each}
-            </div>
-          {/if}
+              {/snippet}
+              {#snippet body()}
+                <div class="px-3 py-2">
+                  {#if thinkingProcess.length > 0}
+                    <div
+                      class="mb-3 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-muted-foreground font-mono"
+                    >
+                      {#each thinkingProcess as step, stepIndex}
+                        {#if isStreaming && stepIndex === thinkingProcess.length - 1 && !message.content}
+                          <TextShimmer as="div" duration={2}>
+                            {step}
+                          </TextShimmer>
+                        {:else}
+                          <div>{step}</div>
+                        {/if}
+                      {/each}
+                    </div>
+                  {/if}
 
-          {#if message.content}
-            <MarkdownContent content={message.content} />
-          {/if}
+                  {#if message.content}
+                    <MarkdownContent content={message.content} />
+                  {/if}
 
-          {#if isStreaming && !message.content && thinkingProcess.length === 0}
-            <div class="mt-1">
-              <TextShimmer
-                duration={2}
-                spread={3}
-                className="text-[15px] leading-6 md:text-base md:leading-relaxed"
-              >
-                {loadingPhrases[loadingPhraseIndex]}
-              </TextShimmer>
-            </div>
-          {/if}
+                  {#if isStreaming && !message.content && thinkingProcess.length === 0}
+                    <div class="mt-1">
+                      <TextShimmer
+                        duration={2}
+                        spread={3}
+                        className="text-[15px] leading-6 md:text-base md:leading-relaxed"
+                      >
+                        {loadingPhrases[loadingPhraseIndex]}
+                      </TextShimmer>
+                    </div>
+                  {/if}
+                </div>
+              {/snippet}
+            </ChatMessageWindow>
 
-          {#if !isStreaming || message.content}
-            <div
-              class="mt-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <button
-                class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
-                onclick={copyToClipboard}
-                title="Copy message"
+            {#if !isStreaming || message.content}
+              <div
+                class="mt-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
               >
-                <Copy size={16} />
-              </button>
-              <button
-                class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
-                onclick={handleLike}
-                title="Like"
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={copyToClipboard}
+                  title="Copy message"
+                >
+                  <Copy size={16} />
+                </button>
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={handleLike}
+                  title="Like"
+                >
+                  <ThumbsUp size={16} />
+                </button>
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={handleDislike}
+                  title="Dislike"
+                >
+                  <ThumbsDown size={16} />
+                </button>
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={handleShare}
+                  title="Share"
+                >
+                  <Share2 size={16} />
+                </button>
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={handleRegenerate}
+                  title="Regenerate"
+                >
+                  <RotateCcw size={16} />
+                </button>
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={handleMore}
+                  title="More"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+              </div>
+            {/if}
+          {:else}
+            {#if message.role === "assistant" && message.model}
+              <div
+                class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2"
               >
-                <ThumbsUp size={16} />
-              </button>
-              <button
-                class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
-                onclick={handleDislike}
-                title="Dislike"
+                {message.model}
+              </div>
+            {/if}
+
+            {#if thinkingProcess.length > 0}
+              <div
+                class="mb-3 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-muted-foreground font-mono"
               >
-                <ThumbsDown size={16} />
-              </button>
-              <button
-                class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
-                onclick={handleShare}
-                title="Share"
+                {#each thinkingProcess as step, stepIndex}
+                  {#if isStreaming && stepIndex === thinkingProcess.length - 1 && !message.content}
+                    <TextShimmer as="div" duration={2}>
+                      {step}
+                    </TextShimmer>
+                  {:else}
+                    <div>{step}</div>
+                  {/if}
+                {/each}
+              </div>
+            {/if}
+
+            {#if message.content}
+              <MarkdownContent content={message.content} />
+            {/if}
+
+            {#if isStreaming && !message.content && thinkingProcess.length === 0}
+              <div class="mt-1">
+                <TextShimmer
+                  duration={2}
+                  spread={3}
+                  className="text-[15px] leading-6 md:text-base md:leading-relaxed"
+                >
+                  {loadingPhrases[loadingPhraseIndex]}
+                </TextShimmer>
+              </div>
+            {/if}
+
+            {#if !isStreaming || message.content}
+              <div
+                class="mt-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
               >
-                <Share2 size={16} />
-              </button>
-              <button
-                class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
-                onclick={handleRegenerate}
-                title="Regenerate"
-              >
-                <RotateCcw size={16} />
-              </button>
-              <button
-                class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
-                onclick={handleMore}
-                title="More"
-              >
-                <MoreHorizontal size={16} />
-              </button>
-            </div>
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={copyToClipboard}
+                  title="Copy message"
+                >
+                  <Copy size={16} />
+                </button>
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={handleLike}
+                  title="Like"
+                >
+                  <ThumbsUp size={16} />
+                </button>
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={handleDislike}
+                  title="Dislike"
+                >
+                  <ThumbsDown size={16} />
+                </button>
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={handleShare}
+                  title="Share"
+                >
+                  <Share2 size={16} />
+                </button>
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={handleRegenerate}
+                  title="Regenerate"
+                >
+                  <RotateCcw size={16} />
+                </button>
+                <button
+                  class="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all"
+                  onclick={handleMore}
+                  title="More"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+              </div>
+            {/if}
           {/if}
         </div>
       {/if}

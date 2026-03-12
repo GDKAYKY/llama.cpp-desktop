@@ -97,7 +97,7 @@
               No models found
             </div>
           {:else}
-            {#each models as model}
+            {#each models as model (model.full_identifier)}
               <button
                 type="button"
                 role="option"
@@ -150,7 +150,7 @@
         class="flex items-center justify-center text-muted-foreground"
         aria-live="polite"
       >
-        <LoaderCircle class="h-4 w-4 animate-spin" />
+        <LoaderCircle class="h-3.5 w-3.5 animate-spin" />
       </div>
     {/if}
   </div>

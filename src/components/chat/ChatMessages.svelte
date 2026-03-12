@@ -3,12 +3,13 @@
   import MessageAvatar from "$components/ui/MessageAvatar.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
 
-  /** @type {{ messages: Array<{role: string, content: string}>, isLoading: boolean, messagesEnd: HTMLElement, thinkingProcess?: string[] }} */
+  /** @type {{ messages: Array<{role: string, content: string}>, isLoading: boolean, messagesEnd: HTMLElement, thinkingProcess?: string[], pill?: boolean }} */
   let {
     messages,
     isLoading,
     thinkingProcess = [],
     messagesEnd = $bindable(),
+    pill = true,
   } = $props();
 </script>
 
@@ -22,6 +23,7 @@
         thinkingProcess={isLoading && i === messages.length - 1
           ? thinkingProcess
           : []}
+        {pill}
       />
     {/each}
     <div bind:this={messagesEnd} class="mt-[-1px] h-px"></div>
