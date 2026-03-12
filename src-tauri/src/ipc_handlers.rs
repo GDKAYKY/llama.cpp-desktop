@@ -23,6 +23,7 @@ pub fn configure_ipc(builder: Builder<Wry>) -> Builder<Wry> {
         commands::models::scan_models_directory,
         commands::models::save_model_library,
         commands::models::load_model_library,
+        commands::models::download_model_from_registry,
         commands::config::load_config,
         commands::config::save_config,
         commands::config::reset_config,

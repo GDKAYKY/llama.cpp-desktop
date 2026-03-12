@@ -46,6 +46,12 @@
 :root {
   --font-inter:
     "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono:
+    "JetBrainsMono Nerd Font", "JetBrainsMono Nerd Font Mono", "JetBrains Mono",
+    "SF Mono", "SFMono-Regular", ui-monospace, "Cascadia Mono", "Roboto Mono",
+    "Source Code Pro", Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  --code-block-font: var(--font-mono);
 
   --radius: 0.625rem;
   --background: #212121;
@@ -118,14 +124,14 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  --code-background: oklch(0.225 0 0);
+  --code-background: #181818;
   --code-foreground: oklch(0.875 0 0);
-  --code-block-bg: #171717;
-  --code-block-header: #151922;
-  --code-block-border: #22262f;
+  --code-block-bg: #141414;
+  --code-block-header: #141414;
+  --code-block-border: rgba(255, 255, 255, 0.05);
   --code-block-text: #e6edf3;
-  --code-block-muted: #9aa4b2;
-  --code-block-hover: #1f2530;
+  --code-block-muted: #bbbbbb;
+  --code-block-hover: #a7a7a7;
   --theme-entity-accent: #339cff;
 }
 
@@ -311,7 +317,6 @@
 
 .code-block-header {
   background: var(--code-block-header);
-  border-bottom: 1px solid var(--code-block-border);
   color: var(--code-block-muted);
 }
 
@@ -324,10 +329,7 @@
   background: var(--code-block-bg);
   color: var(--code-block-text);
   padding: 1rem 1.25rem;
-  font-family:
-    "SF Mono", "SFMono-Regular", ui-monospace, "Cascadia Mono", "Roboto Mono",
-    "Source Code Pro", Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+  font-family: var(--code-block-font);
 }
 
 .copy-code-btn {

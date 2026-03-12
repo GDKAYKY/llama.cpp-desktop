@@ -32,6 +32,7 @@ fn test_app_config_serialization() {
         server_port: 9090,
         web_search_provider: "tavily".to_string(),
         web_search_mcp_id: None,
+        chat_header_style: "default".to_string(),
     };
 
     save_json(&path, &config).unwrap();

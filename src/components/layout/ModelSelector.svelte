@@ -16,7 +16,7 @@
   import { settingsStore } from "$lib/stores/settings.svelte";
   import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
   import ModelLogo from "./ModelLogo.svelte";
-  import { Play, Rocket } from "lucide-svelte";
+  import { Play, Rocket, Plus } from "lucide-svelte";
 
   import ModelCard from "./ModelCard.svelte";
   import Modal from "$components/ui/Modal.svelte";
@@ -25,6 +25,8 @@
   let activeDropdown = $state<string | null>(null);
   let viewingManifest = $state<Model | null>(null);
   let showCopySuccess = $state(false);
+  let showAddModal = $state(false);
+  let downloadReference = $state("");
 
   function toggleDropdown(id: string, e: MouseEvent) {
     e.stopPropagation();
@@ -60,6 +62,14 @@
 
   function handleSelectModel(model: Model) {
     modelsStore.selectModel(model);
+  }
+
+  async function handleDownloadModel() {
+    await modelsStore.download(downloadReference);
+    if (!modelsStore.error) {
+      showAddModal = false;
+      downloadReference = "";
+    }
   }
 
   function handleLoadModel() {
@@ -120,8 +130,17 @@
 
     <div class="flex flex-wrap gap-2">
       <button
+        onclick={() => (showAddModal = true)}
+        disabled={modelsStore.isLoading || modelsStore.isDownloading}
+        class="flex cursor-pointer items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-all hover:bg-secondary/80 disabled:opacity-50"
+      >
+        <Plus size={18} />
+        Add New
+      </button>
+
+      <button
         onclick={handleSelectDirectory}
-        disabled={modelsStore.isLoading}
+        disabled={modelsStore.isLoading || modelsStore.isDownloading}
         class="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-white/5 disabled:opacity-50"
       >
         <FolderOpen size={18} />
@@ -131,7 +150,7 @@
       {#if modelsStore.modelsRoot}
         <button
           onclick={handleScanDirectory}
-          disabled={modelsStore.isLoading}
+          disabled={modelsStore.isLoading || modelsStore.isDownloading}
           class="flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50"
         >
           <Scan size={18} class={cn(modelsStore.isLoading && "animate-spin")} />
@@ -281,5 +300,42 @@
         {/if}
       </div>
     {/if}
+  </Modal>
+
+  <Modal
+    title="Download Model"
+    isOpen={showAddModal}
+    onClose={() => (showAddModal = false)}
+  >
+    <div class="space-y-4">
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-foreground">Model reference</label>
+        <input
+          class="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60"
+          placeholder="hf.co/unsloth/Qwen3.5-9B-GGUF:Q4_K_M"
+          bind:value={downloadReference}
+        />
+        <p class="text-xs text-muted-foreground">
+          Examples: <span class="font-mono">llama3:latest</span>, <span class="font-mono">registry.ollama.ai/library/llama3:latest</span>, <span class="font-mono">hf.co/unsloth/Qwen3.5-9B-GGUF:Q4_K_M</span>
+        </p>
+      </div>
+
+      <div class="flex items-center justify-end gap-2">
+        <button
+          onclick={() => (showAddModal = false)}
+          class="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-white/5"
+        >
+          Cancel
+        </button>
+        <button
+          onclick={handleDownloadModel}
+          disabled={modelsStore.isDownloading}
+          class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          <Rocket size={16} />
+          {modelsStore.isDownloading ? "Downloading..." : "Download"}
+        </button>
+      </div>
+    </div>
   </Modal>
 </div>
