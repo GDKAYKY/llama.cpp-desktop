@@ -80,6 +80,9 @@ async fn test_actual_model_call() {
                 vec![ChatMessage {
                     role: "user".to_string(),
                     content: prompt,
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
                 }],
                 0.1, // Low temperature for deterministic output
                 0.95,

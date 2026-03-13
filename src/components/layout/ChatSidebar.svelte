@@ -57,12 +57,17 @@
   ];
 
   const profileMenuItems = [
-    { id: "mcps", label: "MCPS", icon: SiModelcontextprotocol, action: "upgrade" },
+    {
+      id: "mcps",
+      label: "MCPS",
+      icon: SiModelcontextprotocol,
+      action: "upgrade",
+    },
     {
       id: "customization",
       label: "Customization",
       icon: Settings,
-      action: "customize",
+      path: "/customization",
     },
     {
       id: "settings",
@@ -98,7 +103,7 @@
 >
   <div class="flex h-full flex-col">
     <!-- HEADER -->
-    <div class="mb-auto shrink-0 pt-2.5 pb-2">
+    <div class="mb-auto shrink-0 pt-2.5 pb-2.5">
       <div class="flex w-[60px] shrink-0 items-center justify-center">
         <button
           class="flex h-10 w-10 items-center justify-center rounded-lg text-[#b4b4b4] transition-colors hover:bg-[#2f2f2f] hover:text-white"

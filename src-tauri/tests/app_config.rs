@@ -25,10 +25,14 @@ fn test_app_config_serialization() {
         theme: "light".to_string(),
         language: "pt".to_string(),
         max_tokens: 4096,
+        context_size: 2048,
         temperature: 0.9,
         auto_save_chat: false,
         chat_history_limit: 100,
         server_port: 9090,
+        web_search_provider: "tavily".to_string(),
+        web_search_mcp_id: None,
+        chat_header_style: "default".to_string(),
     };
 
     save_json(&path, &config).unwrap();

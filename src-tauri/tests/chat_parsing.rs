@@ -59,11 +59,16 @@ async fn test_chat_parsing_logic() {
         messages: vec![llama_desktop_lib::models::ChatMessage {
             role: "user".to_string(),
             content: "Say hello".to_string(),
+            name: None,
+            tool_call_id: None,
+            tool_calls: None,
         }],
         temperature: 0.1,
         top_p: 0.95,
         top_k: 40,
         max_tokens: 16,
+        tools: None,
+        tool_choice: None,
         stream: true,
     };
 

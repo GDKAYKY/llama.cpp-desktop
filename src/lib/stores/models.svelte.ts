@@ -1,4 +1,5 @@
 import { scanModelsDirectory, loadModelLibrary, saveModelLibrary, selectModelsDirectory } from '$lib/services/models';
+import { downloadModelFromRegistry } from '$lib/services/model_downloads';
 import { settingsStore } from './settings.svelte';
 import type { Model } from '$lib/types/models';
 
@@ -6,6 +7,7 @@ class ModelsStore {
   models = $state<Model[]>([]);
   selectedModel = $state<Model | null>(null);
   isLoading = $state(false);
+  isDownloading = $state(false);
   error = $state<string | null>(null);
   successMessage = $state('');
 
@@ -70,6 +72,41 @@ class ModelsStore {
       this.error = `Failed to scan directory: ${err instanceof Error ? err.message : String(err)}`;
     } finally {
       this.isLoading = false;
+    }
+  }
+
+  async download(modelReference: string) {
+    if (!this.modelsRoot) {
+      this.error = 'Please select a models directory first';
+      return;
+    }
+
+    const trimmed = modelReference.trim();
+    if (!trimmed) {
+      this.error = 'Please enter a model reference';
+      return;
+    }
+
+    try {
+      this.isDownloading = true;
+      this.error = null;
+      this.successMessage = '';
+
+      const model = await downloadModelFromRegistry(this.modelsRoot, trimmed);
+      const existingIndex = this.models.findIndex((m) => m.full_identifier === model.full_identifier);
+
+      if (existingIndex >= 0) {
+        this.models[existingIndex] = model;
+      } else {
+        this.models = [model, ...this.models];
+      }
+
+      await saveModelLibrary(this.libraryPath, this.models);
+      this.successMessage = `Downloaded ${model.full_identifier}`;
+    } catch (err) {
+      this.error = `Failed to download model: ${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      this.isDownloading = false;
     }
   }
 

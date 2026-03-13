@@ -58,7 +58,7 @@ A specialized component that maps model names to their official brand logos:
 ## 4. Typography
 - **Primary Font**: `Inter` or system-default Sans-serif.
 - **Hierarchy**: Clear distinction between headings and body text using weight (600 for headings, 400 for body).
-- **Monospace**: `SF Mono` (with system fallbacks) for code blocks.
+- **Monospace**: `JetBrains Mono Nerd Font` (with system fallbacks) for code blocks.
 
 ---
 *Last updated: 2026-02-04*

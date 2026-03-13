@@ -114,6 +114,8 @@ impl LlamaServer {
             .arg(config.parallel.to_string())
             .arg("-ngl")
             .arg(config.n_gpu_layers.to_string())
+            // Enable Jinja templates for tool calling support.
+            .arg("--jinja")
             .spawn()
             .map_err(|e| format!("Failed to spawn llama-server: {}", e))?;
 
@@ -255,6 +257,35 @@ impl LlamaServer {
             }
         });
         Ok(rx)
+    }
+
+    pub async fn chat_completion(
+        client: reqwest::Client,
+        port: u16,
+        request: ChatRequest,
+    ) -> Result<serde_json::Value, String> {
+        let url = format!("http://localhost:{}/v1/chat/completions", port);
+        let response = client
+            .post(&url)
+            .json(&request)
+            .timeout(Duration::from_secs(300))
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            if body.is_empty() {
+                return Err(format!("Chat completion failed: {}", status));
+            }
+            return Err(format!("Chat completion failed: {} - {}", status, body));
+        }
+
+        response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| format!("Failed to parse response: {}", e))
     }
 }
 

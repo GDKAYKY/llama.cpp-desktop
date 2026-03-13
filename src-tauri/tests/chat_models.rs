@@ -6,6 +6,9 @@ fn test_chat_message_creation() {
     let msg = ChatMessage {
         role: "user".to_string(),
         content: "Hello".to_string(),
+        name: None,
+        tool_call_id: None,
+        tool_calls: None,
     };
 
     assert_eq!(msg.role, "user");
@@ -21,12 +24,17 @@ fn test_chat_request_serialization() {
             ChatMessage {
                 role: "user".to_string(),
                 content: "Test".to_string(),
+                name: None,
+                tool_call_id: None,
+                tool_calls: None,
             },
         ],
         temperature: 0.7,
         top_p: 0.9,
         top_k: 40,
         max_tokens: 2048,
+        tools: None,
+        tool_choice: None,
         stream: false,
     };
 
@@ -62,6 +70,9 @@ fn test_chat_response_structure() {
             message: ChatMessage {
                 role: "assistant".to_string(),
                 content: "Response".to_string(),
+                name: None,
+                tool_call_id: None,
+                tool_calls: None,
             },
             finish_reason: "stop".to_string(),
         }],
@@ -78,6 +89,9 @@ fn test_chat_message_clone() {
     let msg = ChatMessage {
         role: "system".to_string(),
         content: "You are helpful".to_string(),
+        name: None,
+        tool_call_id: None,
+        tool_calls: None,
     };
 
     let cloned = msg.clone();
@@ -94,16 +108,24 @@ fn test_chat_request_with_multiple_messages() {
             ChatMessage {
                 role: "system".to_string(),
                 content: "System prompt".to_string(),
+                name: None,
+                tool_call_id: None,
+                tool_calls: None,
             },
             ChatMessage {
                 role: "user".to_string(),
                 content: "User message".to_string(),
+                name: None,
+                tool_call_id: None,
+                tool_calls: None,
             },
         ],
         temperature: 0.5,
         top_p: 1.0,
         top_k: 30,
         max_tokens: 512,
+        tools: None,
+        tool_choice: None,
         stream: false,
     };
 

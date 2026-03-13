@@ -235,7 +235,7 @@
         <div class="w-full min-w-0 text-foreground">
           {#if message.role === "assistant" && message.model}
             <div
-              class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60"
+              class="text-[12px] font-inter tracking-wider text-muted-foreground/60 leading-none"
             >
               {message.model}
             </div>

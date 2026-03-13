@@ -50,6 +50,9 @@ fn regenerate_at_fails_on_invalid_index() {
     let history = vec![ChatMessage {
         role: "assistant".to_string(),
         content: "hi".to_string(),
+        name: None,
+        tool_call_id: None,
+        tool_calls: None,
     }];
 
     let err = ChatOrchestrator::prepare_regenerate_history(&history, 5)
@@ -62,6 +65,9 @@ fn regenerate_at_fails_on_non_assistant_message() {
     let history = vec![ChatMessage {
         role: "user".to_string(),
         content: "hi".to_string(),
+        name: None,
+        tool_call_id: None,
+        tool_calls: None,
     }];
 
     let err = ChatOrchestrator::prepare_regenerate_history(&history, 0)

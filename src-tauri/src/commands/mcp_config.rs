@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{command, AppHandle, Manager, State};
 
-use crate::models::McpConfig;
+use crate::models::{McpConfig, McpServerConfig, McpTransport};
 use crate::state::AppState;
 
 fn get_config_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -23,6 +23,7 @@ pub fn build_mcp_config_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 pub fn load_mcp_config_file(app: &AppHandle) -> Result<McpConfig, String> {
+    ensure_default_mcp_config_file(app)?;
     let path = build_mcp_config_path(app)?;
     load_mcp_config_from_path(&path)
 }
@@ -32,6 +33,21 @@ pub async fn load_mcp_config(app: AppHandle, state: State<'_, AppState>) -> Resu
     let config = load_mcp_config_file(&app)?;
     state.mcp_service.set_config(config.clone()).await;
     Ok(config)
+}
+
+#[command]
+pub async fn load_default_mcp_config(app: AppHandle) -> Result<McpConfig, String> {
+    ensure_default_mcp_config_file(&app)?;
+    let app_dir = get_config_path(&app)?;
+    let path = build_default_mcp_config_path_from_dir(app_dir);
+    match load_mcp_config_from_path(&path) {
+        Ok(config) => Ok(config),
+        Err(_) => {
+            let fallback = default_tavily_config();
+            save_mcp_config_to_path(&path, &fallback)?;
+            Ok(fallback)
+        }
+    }
 }
 
 #[command]
@@ -68,6 +84,42 @@ pub fn get_mcp_config_path_string(app: AppHandle) -> Result<String, String> {
 pub fn build_mcp_config_path_from_dir(mut app_dir: PathBuf) -> PathBuf {
     app_dir.push("mcp.json");
     app_dir
+}
+
+pub fn build_default_mcp_config_path_from_dir(mut app_dir: PathBuf) -> PathBuf {
+    app_dir.push("defaultMcp.json");
+    app_dir
+}
+
+fn default_tavily_config() -> McpConfig {
+    McpConfig {
+        servers: vec![McpServerConfig {
+            id: "tavily".to_string(),
+            name: "Tavily MCP (Remote)".to_string(),
+            enabled: true,
+            transport: McpTransport::HttpSse,
+            command: None,
+            args: None,
+            cwd: None,
+            env: None,
+            url: Some(
+                "https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>".to_string(),
+            ),
+            headers: None,
+            tool_allowlist: None,
+            resource_allowlist: None,
+        }],
+    }
+}
+
+fn ensure_default_mcp_config_file(app: &AppHandle) -> Result<(), String> {
+    let app_dir = get_config_path(app)?;
+    let path = build_default_mcp_config_path_from_dir(app_dir);
+    if path.exists() {
+        return Ok(());
+    }
+    let config = default_tavily_config();
+    crate::utils::save_json(&path, &config)
 }
 
 pub fn load_mcp_config_from_path(path: &Path) -> Result<McpConfig, String> {

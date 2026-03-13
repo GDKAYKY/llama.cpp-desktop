@@ -1,6 +1,7 @@
-use llama_desktop_lib::models::ChatMessage;
+use llama_desktop_lib::models::{ChatMessage, McpConfig};
 use llama_desktop_lib::services::llama::ActorMessage;
 use llama_desktop_lib::services::llama::LlamaCppService;
+use llama_desktop_lib::services::mcp::McpService;
 use llama_desktop_lib::services::orchestrator::ChatOrchestrator;
 use tauri::ipc::Channel;
 use tokio::sync::mpsc;
@@ -55,10 +56,16 @@ async fn prepare_regenerate_history_validates_role() {
         ChatMessage {
             role: "user".to_string(),
             content: "hi".to_string(),
+            name: None,
+            tool_call_id: None,
+            tool_calls: None,
         },
         ChatMessage {
             role: "assistant".to_string(),
             content: "hello".to_string(),
+            name: None,
+            tool_call_id: None,
+            tool_calls: None,
         },
     ];
 
@@ -75,6 +82,9 @@ async fn prepare_regenerate_history_errors_when_missing() {
     let history = vec![ChatMessage {
         role: "assistant".to_string(),
         content: "hi".to_string(),
+        name: None,
+        tool_call_id: None,
+        tool_calls: None,
     }];
     let err = ChatOrchestrator::prepare_regenerate_history(&history, 2).expect_err("missing");
     assert!(err.contains("Message not found"));
@@ -83,7 +93,8 @@ async fn prepare_regenerate_history_errors_when_missing() {
 #[tokio::test]
 async fn process_appends_messages_and_updates_history() {
     let service = mock_service(vec!["Hello", " world"]);
-    let orchestrator = ChatOrchestrator::new(service);
+    let mcp_service = McpService::new(McpConfig::default());
+    let orchestrator = ChatOrchestrator::new(service, mcp_service);
     let (channel, mut rx) = test_channel();
 
     orchestrator
@@ -118,7 +129,8 @@ async fn process_propagates_send_errors() {
         }
     });
     let service = LlamaCppService::from_sender(tx);
-    let orchestrator = ChatOrchestrator::new(service);
+    let mcp_service = McpService::new(McpConfig::default());
+    let orchestrator = ChatOrchestrator::new(service, mcp_service);
     let (channel, _rx) = test_channel();
 
     let err = orchestrator
@@ -131,7 +143,8 @@ async fn process_propagates_send_errors() {
 #[tokio::test]
 async fn regenerate_at_replaces_message() {
     let service = mock_service(vec!["New", " answer"]);
-    let orchestrator = ChatOrchestrator::new(service);
+    let mcp_service = McpService::new(McpConfig::default());
+    let orchestrator = ChatOrchestrator::new(service, mcp_service);
     let (channel, _rx) = test_channel();
     orchestrator
         .set_session_history(
@@ -140,10 +153,16 @@ async fn regenerate_at_replaces_message() {
                 ChatMessage {
                     role: "user".to_string(),
                     content: "Ask".to_string(),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
                 },
                 ChatMessage {
                     role: "assistant".to_string(),
                     content: "Old".to_string(),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
                 },
             ],
         )
@@ -161,7 +180,8 @@ async fn regenerate_at_replaces_message() {
 #[tokio::test]
 async fn regenerate_at_errors_when_session_missing() {
     let service = mock_service(vec!["ok"]);
-    let orchestrator = ChatOrchestrator::new(service);
+    let mcp_service = McpService::new(McpConfig::default());
+    let orchestrator = ChatOrchestrator::new(service, mcp_service);
     let (channel, _rx) = test_channel();
     let err = orchestrator
         .regenerate_at("missing", 0, 0.5, 10, channel)
@@ -194,7 +214,8 @@ async fn regenerate_at_errors_when_message_removed() {
         }
     });
     let service = LlamaCppService::from_sender(tx);
-    let orchestrator = ChatOrchestrator::new(service);
+    let mcp_service = McpService::new(McpConfig::default());
+    let orchestrator = ChatOrchestrator::new(service, mcp_service);
     let (channel, _rx) = test_channel();
     orchestrator
         .set_session_history(
@@ -203,10 +224,16 @@ async fn regenerate_at_errors_when_message_removed() {
                 ChatMessage {
                     role: "user".to_string(),
                     content: "Ask".to_string(),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
                 },
                 ChatMessage {
                     role: "assistant".to_string(),
                     content: "Old".to_string(),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
                 },
             ],
         )

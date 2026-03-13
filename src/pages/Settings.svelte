@@ -25,8 +25,13 @@
     Thermometer,
     Hash,
     Cpu,
+    Search,
     FileCode,
+    Moon,
+    Sun,
   } from "lucide-svelte";
+  import Dropdown from "../components/ui/Dropdown.svelte";
+  import Checkbox from "../components/ui/Checkbox.svelte";
 
   let configPath = $state("");
   let loading = $state(false);
@@ -34,6 +39,25 @@
   /** @type {{ type: string, text: string }} */
   let message = $state({ type: "", text: "" });
   let unsavedChanges = $state(false);
+
+  const themeItems = [
+    { label: "Dark Mode", value: "dark", icon: Moon },
+    { label: "Light Mode", value: "light", icon: Sun },
+    { label: "System Default", value: "auto", icon: Monitor },
+  ];
+
+  const languageItems = [
+    { label: "English (US)", value: "en" },
+    { label: "Español", value: "es" },
+    { label: "Français", value: "fr" },
+    { label: "Deutsch", value: "de" },
+    { label: "中文", value: "zh" },
+  ];
+
+  const providerItems = [
+    { label: "Tavily (default)", value: "tavily" },
+    { label: "Custom MCP", value: "custom" },
+  ];
 
   onMount(async () => {
     loading = true;
@@ -59,10 +83,13 @@
         theme: settingsStore.settings.theme,
         language: settingsStore.settings.language,
         maxTokens: settingsStore.settings.maxTokens,
+        contextSize: settingsStore.settings.contextSize,
         temperature: settingsStore.settings.temperature,
         autoSaveChat: settingsStore.settings.autoSaveChat,
         chatHistoryLimit: settingsStore.settings.chatHistoryLimit,
         serverPort: settingsStore.settings.serverPort,
+        webSearchProvider: settingsStore.settings.webSearchProvider,
+        webSearchMcpId: settingsStore.settings.webSearchMcpId,
       };
       await settingsStore.update(configObj);
       await modelsStore.refresh();
@@ -322,83 +349,23 @@
 
         <div class="grid gap-6 sm:grid-cols-2">
           <div class="space-y-2">
-            <label for="theme" class="block cursor-pointer">
-              <span
-                class="flex items-center gap-2 text-sm font-medium leading-none"
-              >
-                <Monitor size={14} class="text-muted-foreground" />
-                Theme
-              </span>
-            </label>
-            <div class="relative">
-              <select
-                id="theme"
-                bind:value={settingsStore.settings.theme}
-                onchange={handleChange}
-                class="w-full cursor-pointer appearance-none rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20"
-              >
-                <option value="dark">Dark Mode</option>
-                <option value="light">Light Mode</option>
-                <option value="auto">System Default</option>
-              </select>
-              <div
-                class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground"
-              >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  ><path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  /></svg
-                >
-              </div>
-            </div>
+            <Dropdown
+              label="Theme"
+              items={themeItems}
+              bind:value={settingsStore.settings.theme}
+              onSelect={handleChange}
+              placeholder="Select theme"
+            />
           </div>
 
           <div class="space-y-2">
-            <label for="language" class="block cursor-pointer">
-              <span
-                class="flex items-center gap-2 text-sm font-medium leading-none"
-              >
-                <Globe size={14} class="text-muted-foreground" />
-                Language
-              </span>
-            </label>
-            <div class="relative">
-              <select
-                id="language"
-                bind:value={settingsStore.settings.language}
-                onchange={handleChange}
-                class="w-full cursor-pointer appearance-none rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20"
-              >
-                <option value="en">English (US)</option>
-                <option value="es">Español</option>
-                <option value="fr">Français</option>
-                <option value="de">Deutsch</option>
-                <option value="zh">中文</option>
-              </select>
-              <div
-                class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground"
-              >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  ><path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  /></svg
-                >
-              </div>
-            </div>
+            <Dropdown
+              label="Language"
+              items={languageItems}
+              bind:value={settingsStore.settings.language}
+              onSelect={handleChange}
+              placeholder="Select language"
+            />
           </div>
         </div>
       </section>
@@ -489,6 +456,37 @@
                   : "Balanced"})
             </p>
           </div>
+
+          <div class="space-y-4 sm:col-span-2">
+            <div class="flex items-center justify-between">
+              <label for="context-size" class="block cursor-pointer">
+                <span
+                  class="flex items-center gap-2 text-sm font-medium leading-none"
+                >
+                  <Hash size={14} class="text-muted-foreground" />
+                  Context Size
+                </span>
+              </label>
+              <span
+                class="rounded bg-muted px-2 py-0.5 text-xs font-mono text-foreground"
+              >
+                {settingsStore.settings.contextSize}
+              </span>
+            </div>
+            <input
+              id="context-size"
+              type="range"
+              min="1024"
+              max="32768"
+              step="1024"
+              bind:value={settingsStore.settings.contextSize}
+              oninput={handleChange}
+              class="h-2 w-full cursor-pointer appearance-none rounded-full bg-secondary accent-primary outline-none"
+            />
+            <p class="text-xs text-muted-foreground leading-relaxed">
+              Total context window size for the model (1024-32768)
+            </p>
+          </div>
         </div>
       </section>
 
@@ -514,12 +512,12 @@
           <div
             class="flex items-start gap-3 rounded-lg border border-border/40 bg-muted/20 p-4 transition-colors hover:bg-muted/40"
           >
-            <input
-              type="checkbox"
+            <Checkbox
               id="auto-save"
               bind:checked={settingsStore.settings.autoSaveChat}
-              onchange={handleChange}
-              class="mt-1 h-4 w-4 cursor-pointer rounded border-border text-primary focus:ring-primary"
+              on:change={handleChange}
+              ariaLabel="Auto-save Chat History"
+              className="mt-1"
             />
             <label for="auto-save" class="block cursor-pointer">
               <span class="block text-sm font-medium leading-none"
@@ -557,6 +555,67 @@
             />
             <p class="text-xs text-muted-foreground leading-relaxed">
               Limit the number of recent chats stored (10-100)
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Web Search Section -->
+      <section class="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
+        <div
+          class="mb-6 flex items-center gap-3 border-b border-border/40 pb-4"
+        >
+          <div
+            class="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-500"
+          >
+            <Search size={18} />
+          </div>
+          <div>
+            <h2 class="text-lg font-semibold leading-tight">Web Search</h2>
+            <p class="text-xs text-muted-foreground leading-relaxed">
+              Choose the MCP server used for web search
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-6 sm:grid-cols-2">
+          <div class="space-y-2">
+            <Dropdown
+              label="Default Provider"
+              items={providerItems}
+              bind:value={settingsStore.settings.webSearchProvider}
+              onSelect={handleChange}
+              placeholder="Select provider"
+            />
+            <p class="text-xs text-muted-foreground leading-relaxed pl-1">
+              Tavily uses MCP server id <span class="font-mono">tavily</span>.
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <label for="web-search-mcp" class="block cursor-pointer">
+              <span
+                class="flex items-center gap-2 text-sm font-medium leading-none"
+              >
+                <Globe size={14} class="text-muted-foreground" />
+                Custom MCP ID
+              </span>
+            </label>
+            <input
+              id="web-search-mcp"
+              type="text"
+              value={settingsStore.settings.webSearchMcpId ?? ""}
+              oninput={(e) => {
+                settingsStore.settings.webSearchMcpId =
+                  e.currentTarget.value || null;
+                handleChange();
+              }}
+              placeholder="my-web-search-mcp"
+              disabled={settingsStore.settings.webSearchProvider !== "custom"}
+              class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20 disabled:opacity-60"
+            />
+            <p class="text-xs text-muted-foreground leading-relaxed pl-1">
+              When custom is selected, this MCP server id will be used.
             </p>
           </div>
         </div>
