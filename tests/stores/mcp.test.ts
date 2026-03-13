@@ -9,6 +9,7 @@ describe('mcp store', () => {
   it('loads config and status', async () => {
     const invokeCommand = vi.fn()
       .mockResolvedValueOnce({ servers: [{ id: 'one' }] }) // load_mcp_config
+      .mockResolvedValueOnce({ servers: [] }) // load_default_mcp_config
       .mockResolvedValueOnce([{ id: 'one', connected: false }]) // mcp_status
       .mockResolvedValueOnce('/path/mcp.json'); // get_mcp_config_path_string
 
