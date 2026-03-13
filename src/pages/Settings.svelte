@@ -31,6 +31,7 @@
     Sun,
   } from "lucide-svelte";
   import Dropdown from "../components/ui/Dropdown.svelte";
+  import Checkbox from "../components/ui/Checkbox.svelte";
 
   let configPath = $state("");
   let loading = $state(false);
@@ -511,12 +512,12 @@
           <div
             class="flex items-start gap-3 rounded-lg border border-border/40 bg-muted/20 p-4 transition-colors hover:bg-muted/40"
           >
-            <input
-              type="checkbox"
+            <Checkbox
               id="auto-save"
               bind:checked={settingsStore.settings.autoSaveChat}
-              onchange={handleChange}
-              class="mt-1 h-4 w-4 cursor-pointer rounded border-border text-primary focus:ring-primary"
+              on:change={handleChange}
+              ariaLabel="Auto-save Chat History"
+              className="mt-1"
             />
             <label for="auto-save" class="block cursor-pointer">
               <span class="block text-sm font-medium leading-none"

@@ -16,7 +16,7 @@
   import { settingsStore } from "$lib/stores/settings.svelte";
   import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
   import ModelLogo from "./ModelLogo.svelte";
-  import { Play, Rocket, Plus } from "lucide-svelte";
+  import { Play, Rocket, Plus, Copy } from "lucide-svelte";
 
   import ModelCard from "./ModelCard.svelte";
   import Modal from "$components/ui/Modal.svelte";
@@ -64,6 +64,13 @@
     modelsStore.selectModel(model);
   }
 
+  function handleCopyModelsRoot() {
+    if (!modelsStore.modelsRoot) return;
+    navigator.clipboard.writeText(modelsStore.modelsRoot);
+    showCopySuccess = true;
+    setTimeout(() => (showCopySuccess = false), 2000);
+  }
+
   async function handleDownloadModel() {
     await modelsStore.download(downloadReference);
     if (!modelsStore.error) {
@@ -109,63 +116,79 @@
 <svelte:window onclick={() => (activeDropdown = null)} />
 
 <div class="mx-auto max-w-7xl p-6 text-foreground">
-  <div
-    class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-  >
-    <div>
-      <div class="flex items-center gap-3">
-        <div
-          class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500"
-        >
-          <Box size={20} />
-        </div>
+  <div class="w-full bg-background text-foreground">
+    <div class="mx-auto max-w-[1200px]">
+      <div class="flex items-start justify-between">
         <div>
-          <h2 class="text-2xl font-semibold">Model Library</h2>
-          <p class="text-sm text-muted-foreground mt-1">
+          <div class="flex items-center gap-3">
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-950"
+            >
+              <Box size={20} />
+            </div>
+            <h2 class="text-3xl font-bold tracking-tight leading-none">
+              Model Library
+            </h2>
+          </div>
+          <p class="mt-1 text-sm text-muted-foreground leading-normal">
             Manage and select models for inference
           </p>
         </div>
+
+        <div class="flex items-center gap-2">
+          <button
+            onclick={() => (showAddModal = true)}
+            disabled={modelsStore.isLoading || modelsStore.isDownloading}
+            class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted/50 disabled:opacity-50"
+          >
+            <Plus size={16} />
+            Add New
+          </button>
+
+          <button
+            onclick={handleSelectDirectory}
+            disabled={modelsStore.isLoading || modelsStore.isDownloading}
+            class="cursor-pointer inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-white/5 disabled:opacity-50"
+          >
+            <FolderOpen size={16} />
+            Select Models Directory
+          </button>
+
+          {#if modelsStore.modelsRoot}
+            <button
+              onclick={handleScanDirectory}
+              disabled={modelsStore.isLoading || modelsStore.isDownloading}
+              class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-blue-500/15 px-4 py-2 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/25 disabled:opacity-50"
+            >
+              <Scan
+                size={16}
+                class={cn(modelsStore.isLoading && "animate-spin")}
+              />
+              {modelsStore.isLoading ? "Scanning..." : "Scan for Models"}
+            </button>
+          {/if}
+        </div>
       </div>
-    </div>
-
-    <div class="flex flex-wrap gap-2">
-      <button
-        onclick={() => (showAddModal = true)}
-        disabled={modelsStore.isLoading || modelsStore.isDownloading}
-        class="flex cursor-pointer items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-all hover:bg-secondary/80 disabled:opacity-50"
-      >
-        <Plus size={18} />
-        Add New
-      </button>
-
-      <button
-        onclick={handleSelectDirectory}
-        disabled={modelsStore.isLoading || modelsStore.isDownloading}
-        class="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-white/5 disabled:opacity-50"
-      >
-        <FolderOpen size={18} />
-        Select Models Directory
-      </button>
-
-      {#if modelsStore.modelsRoot}
-        <button
-          onclick={handleScanDirectory}
-          disabled={modelsStore.isLoading || modelsStore.isDownloading}
-          class="flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50"
-        >
-          <Scan size={18} class={cn(modelsStore.isLoading && "animate-spin")} />
-          {modelsStore.isLoading ? "Scanning..." : "Scan for Models"}
-        </button>
-      {/if}
     </div>
   </div>
 
   {#if modelsStore.modelsRoot}
     <div
-      class="mb-6 rounded-lg border border-border bg-white/0.02 p-3 font-mono text-sm text-muted-foreground"
+      class="mt-4 mb-6 flex items-center justify-between gap-3 rounded-lg border border-border bg-white/0.02 p-3 font-mono text-sm text-muted-foreground"
     >
-      <span class="mr-2 font-bold text-foreground">Path:</span
-      >{modelsStore.modelsRoot}
+      <div class="min-w-0 flex-1 break-all">
+        <span class="mr-2 font-bold text-foreground">Path:</span
+        >{modelsStore.modelsRoot}
+      </div>
+      <button
+        class="bg-neutral-900 size-8 flex items-center justify-center rounded-md"
+        onclick={handleCopyModelsRoot}
+        aria-label="Copy models path"
+        title="Copy path"
+        type="button"
+      >
+        <Copy size={14} />
+      </button>
     </div>
   {/if}
 
@@ -309,14 +332,18 @@
   >
     <div class="space-y-4">
       <div class="space-y-2">
-        <label class="text-sm font-medium text-foreground">Model reference</label>
+        <label class="text-sm font-medium text-foreground"
+          >Model reference</label
+        >
         <input
           class="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60"
           placeholder="hf.co/unsloth/Qwen3.5-9B-GGUF:Q4_K_M"
           bind:value={downloadReference}
         />
         <p class="text-xs text-muted-foreground">
-          Examples: <span class="font-mono">llama3:latest</span>, <span class="font-mono">registry.ollama.ai/library/llama3:latest</span>, <span class="font-mono">hf.co/unsloth/Qwen3.5-9B-GGUF:Q4_K_M</span>
+          Examples: <span class="font-mono">llama3:latest</span>,
+          <span class="font-mono">registry.ollama.ai/library/llama3:latest</span
+          >, <span class="font-mono">hf.co/unsloth/Qwen3.5-9B-GGUF:Q4_K_M</span>
         </p>
       </div>
 

@@ -259,7 +259,8 @@ fn build_server_from_object(obj: &serde_json::Map<String, Value>) -> Option<McpS
         .unwrap_or(&id)
         .to_string();
     let enabled = obj.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
-    let transport = parse_transport(obj.get("transport").or_else(|| obj.get("type")))?;
+    let transport = parse_transport(obj.get("transport").or_else(|| obj.get("type")))
+        .or_else(|| infer_transport(obj))?;
     Some(McpServerConfig {
         id,
         name,
@@ -296,6 +297,7 @@ fn build_server_from_legacy_map(
         .to_string();
     let enabled = obj.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
     let transport = parse_transport(obj.get("transport").or_else(|| obj.get("type")))
+        .or_else(|| infer_transport(obj))
         .unwrap_or(McpTransport::HttpSse);
     McpServerConfig {
         id: key.to_string(),
@@ -329,6 +331,16 @@ fn parse_transport(value: Option<&Value>) -> Option<McpTransport> {
         "http_sse" | "http" | "sse" => Some(McpTransport::HttpSse),
         _ => None,
     }
+}
+
+fn infer_transport(obj: &serde_json::Map<String, Value>) -> Option<McpTransport> {
+    if obj.get("command").and_then(|v| v.as_str()).is_some() {
+        return Some(McpTransport::Stdio);
+    }
+    if obj.get("url").and_then(|v| v.as_str()).is_some() {
+        return Some(McpTransport::HttpSse);
+    }
+    None
 }
 
 fn parse_string_list(value: Option<&Value>) -> Option<Vec<String>> {

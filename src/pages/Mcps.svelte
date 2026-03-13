@@ -12,6 +12,7 @@
     Link,
     Unlink,
     Plus,
+    Copy,
     Save,
     Trash2,
     SquarePen,
@@ -25,10 +26,12 @@
   } from "lucide-svelte";
   import { SiModelcontextprotocol } from "@icons-pack/svelte-simple-icons";
   import Dropdown from "$components/ui/Dropdown.svelte";
+  import Checkbox from "$components/ui/Checkbox.svelte";
 
   let selectedId = $state<string | null>(null);
   let saving = $state(false);
   let message = $state<{ type: string; text: string }>({ type: "", text: "" });
+  let showCopySuccess = $state(false);
 
   const defaultServerIds = $derived.by(
     () => new Set(mcpStore.defaultServers.map((server) => server.id)),
@@ -325,6 +328,18 @@
       showMessage("error", msg);
     }
   }
+
+  async function handleCopyConfigPath() {
+    if (!mcpStore.configPath) return;
+    try {
+      await navigator.clipboard.writeText(mcpStore.configPath);
+      showCopySuccess = true;
+      setTimeout(() => (showCopySuccess = false), 2000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showMessage("error", msg);
+    }
+  }
 </script>
 
 <div class="w-full bg-background text-foreground">
@@ -333,7 +348,7 @@
       <div>
         <div class="flex items-center gap-3">
           <div
-            class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500"
+            class="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black"
           >
             <SiModelcontextprotocol size={20} />
           </div>
@@ -347,7 +362,7 @@
       </div>
       <div class="flex items-center gap-2">
         <button
-          class="inline-flex items-center gap-2 rounded-lg bg-muted/30 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted/50 disabled:opacity-50"
+          class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted/50 disabled:opacity-50"
           onclick={handleOpenConfig}
           disabled={!mcpStore.configPath}
         >
@@ -355,23 +370,36 @@
           Edit mcp.json
         </button>
         <button
-          class="inline-flex items-center gap-2 rounded-lg bg-muted/30 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+          class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-blue-500/15 px-4 py-2 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/25"
           onclick={resetForm}
         >
-          <Plus size={16} />
-          New Server
+          <Plus size={16} /> New Server
         </button>
       </div>
     </div>
     {#if mcpStore.configPath}
-      <div class="mt-4 text-xs text-muted-foreground">
-        Config path: <span class="font-mono">{mcpStore.configPath}</span>
+      <div
+        class="mt-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-white/0.02 p-3 font-mono text-sm text-muted-foreground"
+      >
+        <div class="min-w-0 flex-1 break-all">
+          <span class="mr-2 font-bold text-foreground">Config path:</span
+          >{mcpStore.configPath}
+        </div>
+        <button
+          class="bg-neutral-900 size-8 flex items-center justify-center rounded-md"
+          onclick={handleCopyConfigPath}
+          aria-label="Copy config path"
+          title="Copy path"
+          type="button"
+        >
+          <Copy size={14} />
+        </button>
       </div>
     {/if}
   </div>
 </div>
 
-<div class="mt-6 flex w-full justify-center">
+<div class="mt-3 flex w-full justify-center">
   <div
     class="flex w-[min(1200px,100%)] min-h-[calc(100vh-160px)] flex-col gap-6 px-6 pb-10 text-foreground"
   >
@@ -384,6 +412,18 @@
         }`}
       >
         {message.text}
+      </div>
+    {/if}
+
+    {#if showCopySuccess}
+      <div
+        class="fixed bottom-8 left-1/2 z-100 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none"
+      >
+        <div
+          class="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg"
+        >
+          Path copied to clipboard!
+        </div>
       </div>
     {/if}
 
@@ -559,7 +599,11 @@
           </div>
 
           <div class="flex items-center gap-2">
-            <input type="checkbox" bind:checked={form.enabled} id="enabled" />
+            <Checkbox
+              id="enabled"
+              bind:checked={form.enabled}
+              ariaLabel="Enabled"
+            />
             <label
               for="enabled"
               class="text-xs font-medium text-muted-foreground"

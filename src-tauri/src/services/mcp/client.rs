@@ -1,10 +1,11 @@
+use futures::StreamExt;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
-use futures::StreamExt;
 
 use crate::services::mcp::protocol::{JsonRpcRequest, JsonRpcResponse};
 
@@ -21,14 +22,19 @@ impl McpClient {
         cwd: Option<String>,
         env: Option<HashMap<String, String>>,
     ) -> Result<Self, String> {
-        let mut cmd = Command::new(command);
+        let resolved = resolve_command(command, env.as_ref())
+            .ok_or_else(|| format!("Spawn failed: program not found: {}", command))?;
+        let mut cmd = build_command_for_platform(&resolved, args);
         #[cfg(windows)]
         {
             // Avoid flashing a console window for stdio-based MCP servers.
             cmd.creation_flags(0x08000000);
         }
-        cmd.args(args)
-            .stdin(Stdio::piped())
+        #[cfg(not(windows))]
+        {
+            cmd.args(args);
+        }
+        cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
@@ -305,6 +311,99 @@ impl HttpClient {
     }
 }
 
+fn resolve_command(command: &str, env: Option<&HashMap<String, String>>) -> Option<PathBuf> {
+    if command.is_empty() {
+        return None;
+    }
+
+    let path = Path::new(command);
+    if path.components().count() > 1 || path.is_absolute() {
+        return path.exists().then(|| path.to_path_buf());
+    }
+
+    let path_env = env
+        .and_then(|vars| vars.get("PATH").cloned())
+        .or_else(|| std::env::var("PATH").ok())
+        .unwrap_or_default();
+
+    #[cfg(windows)]
+    let separators = ';';
+    #[cfg(not(windows))]
+    let separators = ':';
+
+    #[cfg(windows)]
+    let pathext = env
+        .and_then(|vars| vars.get("PATHEXT").cloned())
+        .or_else(|| std::env::var("PATHEXT").ok())
+        .unwrap_or_else(|| ".COM;.EXE;.BAT;.CMD".to_string());
+
+    #[cfg(windows)]
+    let extensions: Vec<String> = pathext
+        .split(';')
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .collect();
+
+    for dir in path_env.split(separators) {
+        if dir.trim().is_empty() {
+            continue;
+        }
+
+        #[cfg(windows)]
+        {
+            // Try PATHEXT variants before the extensionless file.
+            let has_ext = Path::new(command).extension().is_some();
+            if !has_ext {
+                for ext in &extensions {
+                    let candidate = Path::new(dir).join(format!("{}{}", command, ext));
+                    if candidate.exists() {
+                        return Some(candidate);
+                    }
+                }
+            }
+        }
+
+        let base = Path::new(dir).join(command);
+        if base.exists() {
+            return Some(base);
+        }
+    }
+
+    None
+}
+
+#[cfg(not(windows))]
+fn build_command_for_platform(resolved: &Path, _args: &[String]) -> Command {
+    Command::new(resolved)
+}
+
+#[cfg(windows)]
+fn build_command_for_platform(resolved: &Path, args: &[String]) -> Command {
+    let ext = resolved
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase());
+
+    match ext.as_deref() {
+        Some("cmd") | Some("bat") => {
+            let mut cmd = Command::new("cmd.exe");
+            cmd.arg("/c").arg(resolved).args(args);
+            cmd
+        }
+        Some("exe") | None => {
+            let mut cmd = Command::new(resolved);
+            cmd.args(args);
+            cmd
+        }
+        _ => {
+            // Unknown extension: let cmd.exe resolve file associations (ASSOC/FTYPE).
+            let mut cmd = Command::new("cmd.exe");
+            cmd.arg("/c").arg(resolved).args(args);
+            cmd
+        }
+    }
+}
+
 fn extract_sse_data(raw_event: &str) -> Option<String> {
     let mut data_lines = Vec::new();
     for line in raw_event.lines() {
@@ -319,10 +418,7 @@ fn extract_sse_data(raw_event: &str) -> Option<String> {
     }
 }
 
-fn parse_jsonrpc_response_data(
-    data: &str,
-    id: u64,
-) -> Result<Option<serde_json::Value>, String> {
+fn parse_jsonrpc_response_data(data: &str, id: u64) -> Result<Option<serde_json::Value>, String> {
     if data.trim().is_empty() {
         return Ok(None);
     }
@@ -364,10 +460,7 @@ fn split_next_line(input: &str) -> Option<(String, String)> {
     None
 }
 
-fn try_parse_jsonrpc_inline(
-    raw_event: &str,
-    id: u64,
-) -> Result<Option<serde_json::Value>, String> {
+fn try_parse_jsonrpc_inline(raw_event: &str, id: u64) -> Result<Option<serde_json::Value>, String> {
     let trimmed = raw_event.trim();
     if trimmed.is_empty() {
         return Ok(None);
