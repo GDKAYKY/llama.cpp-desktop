@@ -14,9 +14,10 @@
   import { chatStore } from "$lib/stores/chat.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
   import { toast } from "svelte-sonner";
+  import ThinkingBlock from "$components/ui/ThinkingBlock.svelte";
 
-  /** @type {{ message: { role: string, content: string }, index: number }} */
-  let { message, index } = $props();
+  /** @type {{ message: { role: string, content: string }, index: number, isStreaming?: boolean, thinkingProcess?: string[] }} */
+  let { message, index, isStreaming = false, thinkingProcess = [] } = $props();
 
   let isEditing = $state(false);
   let editText = $state("");
@@ -240,7 +241,11 @@
               {message.model}
             </div>
           {/if}
-          <MarkdownContent content={message.content} />
+          <ThinkingBlock
+            thoughts={thinkingProcess}
+            isStreaming={isStreaming && !message.content}
+          />
+          <MarkdownContent content={message.content} isStreaming={isStreaming} />
           <div
             class="mt-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
           >

@@ -22,8 +22,8 @@
   import "highlight.js/styles/github-dark.css";
   import "katex/dist/katex.min.css";
 
-  /** @type {{ content: string, class?: string }} */
-  let { content, class: className = "" } = $props();
+  /** @type {{ content: string, class?: string, isStreaming?: boolean }} */
+  let { content, class: className = "", isStreaming = false } = $props();
 
   let containerRef = $state();
   let renderedBlocks = $state([]);
@@ -32,22 +32,35 @@
   let pendingMarkdown = null;
   let isProcessing = false;
 
-  const processor = () => {
-    return unified()
-      .use(remarkParse)
-      .use(remarkGfm)
-      .use(remarkMath)
-      .use(remarkBreaks)
-      .use(remarkLiteralHtml)
-      .use(remarkRehype)
-      .use(rehypeKatex)
-      .use(rehypeHighlight)
-      .use(rehypeRestoreTableHtml)
-      .use(rehypeEnhanceLinks)
-      .use(rehypeEnhanceCodeBlocks)
-      .use(rehypeSanitize, sanitizeSchema)
-      .use(rehypeStringify);
-  };
+  // Memoized processors — created once, reused on every chunk
+  const fullProcessor = unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkMath)
+    .use(remarkBreaks)
+    .use(remarkLiteralHtml)
+    .use(remarkRehype)
+    .use(rehypeKatex)
+    .use(rehypeHighlight)
+    .use(rehypeRestoreTableHtml)
+    .use(rehypeEnhanceLinks)
+    .use(rehypeEnhanceCodeBlocks)
+    .use(rehypeSanitize, sanitizeSchema)
+    .use(rehypeStringify);
+
+  // Lightweight processor for streaming — skips syntax highlighting and KaTeX
+  const streamProcessor = unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkBreaks)
+    .use(remarkLiteralHtml)
+    .use(remarkRehype)
+    .use(rehypeRestoreTableHtml)
+    .use(rehypeEnhanceLinks)
+    .use(rehypeSanitize, sanitizeSchema)
+    .use(rehypeStringify);
+
+  const processor = () => (isStreaming ? streamProcessor : fullProcessor);
 
   function cleanupEventListeners() {
     if (!containerRef) return;
@@ -184,6 +197,13 @@
 
   $effect(() => {
     updateRenderedBlocks(content);
+  });
+
+  // When streaming finishes, do a final full render with highlight + KaTeX
+  $effect(() => {
+    if (!isStreaming && content) {
+      updateRenderedBlocks(content);
+    }
   });
 
   $effect(() => {

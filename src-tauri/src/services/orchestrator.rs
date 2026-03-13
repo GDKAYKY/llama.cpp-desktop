@@ -72,7 +72,9 @@ impl ChatOrchestrator {
         }
 
         // ── Step 1: Intent classification (cheap, fast) ──
-        if !allowed_servers.is_empty() {
+        // Skip MCP entirely for internal sessions (title generation, etc.)
+        let is_internal_session = session_id.starts_with("summary-");
+        if !is_internal_session && !allowed_servers.is_empty() {
             let intent = self
                 .classify_intent(
                     session_id,
@@ -702,17 +704,43 @@ fn parse_mcp_token(token: &str) -> Option<String> {
 fn parse_intent(content: &str, original_query: &str) -> IntentClassification {
     let trimmed = content.trim();
 
+    // Strip Qwen3 / thinking-mode <think>...</think> wrapper before parsing.
+    // The model emits <think>...reasoning...</think>\n{...json...}
+    let stripped = if let (Some(open), Some(close)) = (trimmed.find("<think>"), trimmed.find("</think>")) {
+        if close > open {
+            trimmed[close + "</think>".len()..].trim()
+        } else {
+            trimmed
+        }
+    } else {
+        trimmed
+    };
+
     // Try direct parse
-    if let Ok(intent) = serde_json::from_str::<IntentClassification>(trimmed) {
+    if let Ok(intent) = serde_json::from_str::<IntentClassification>(stripped) {
         return intent;
     }
 
-    // Try extracting fenced JSON
-    if let Some(start) = trimmed.find('{') {
-        if let Some(end) = trimmed.rfind('}') {
+    // Try extracting fenced JSON block (```json ... ```)
+    if let Some(fence_start) = stripped.find("```") {
+        let after_fence = &stripped[fence_start + 3..];
+        let after_lang = after_fence
+            .trim_start_matches(|c: char| c.is_alphabetic())
+            .trim_start_matches('\n');
+        if let Some(fence_end) = after_lang.find("```") {
+            let candidate = after_lang[..fence_end].trim();
+            if let Ok(intent) = serde_json::from_str::<IntentClassification>(candidate) {
+                return intent;
+            }
+        }
+    }
+
+    // Try extracting bare JSON object
+    if let Some(start) = stripped.find('{') {
+        if let Some(end) = stripped.rfind('}') {
             if end > start {
                 if let Ok(intent) =
-                    serde_json::from_str::<IntentClassification>(&trimmed[start..=end])
+                    serde_json::from_str::<IntentClassification>(&stripped[start..=end])
                 {
                     return intent;
                 }

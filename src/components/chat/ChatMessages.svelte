@@ -20,9 +20,7 @@
         message={msg}
         index={i}
         isStreaming={isLoading && i === messages.length - 1}
-        thinkingProcess={isLoading && i === messages.length - 1
-          ? thinkingProcess
-          : []}
+        thinkingProcess={isLoading && i === messages.length - 1 ? thinkingProcess : []}
         {pill}
       />
     {/each}

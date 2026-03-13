@@ -32,6 +32,9 @@ pub fn load_mcp_config_file(app: &AppHandle) -> Result<McpConfig, String> {
 pub async fn load_mcp_config(app: AppHandle, state: State<'_, AppState>) -> Result<McpConfig, String> {
     let config = load_mcp_config_file(&app)?;
     state.mcp_service.set_config(config.clone()).await;
+    if let Err(e) = state.orchestrator.refresh_capabilities().await {
+        eprintln!("[load_mcp_config] Failed to refresh capabilities: {}", e);
+    }
     Ok(config)
 }
 
@@ -59,6 +62,9 @@ pub async fn save_mcp_config(
     let path = build_mcp_config_path(&app)?;
     save_mcp_config_to_path(&path, &config)?;
     state.mcp_service.set_config(config).await;
+    if let Err(e) = state.orchestrator.refresh_capabilities().await {
+        eprintln!("[save_mcp_config] Failed to refresh capabilities: {}", e);
+    }
     Ok(())
 }
 
@@ -70,6 +76,9 @@ pub async fn reset_mcp_config(
     let path = build_mcp_config_path(&app)?;
     let config = reset_mcp_config_at_path(&path)?;
     state.mcp_service.set_config(config.clone()).await;
+    if let Err(e) = state.orchestrator.refresh_capabilities().await {
+        eprintln!("[reset_mcp_config] Failed to refresh capabilities: {}", e);
+    }
     Ok(config)
 }
 

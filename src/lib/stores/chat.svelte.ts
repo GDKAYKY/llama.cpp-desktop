@@ -112,20 +112,88 @@ class ChatStore {
       }
   }
 
+  // Buffer for accumulating <think> content mid-stream
+  private thinkBuffer = '';
+  private inThinkBlock = false;
+  private streamBuffer = ''; // raw unprocessed tail
+
   appendChunk(chunk: string) {
     if (this.messages.length === 0) return;
+
+    this.streamBuffer += chunk;
+
+    // Process the stream buffer, extracting <think>...</think> blocks
+    let buf = this.streamBuffer;
+    let textOut = '';
+
+    while (buf.length > 0) {
+      if (this.inThinkBlock) {
+        const closeIdx = buf.indexOf('</think>');
+        if (closeIdx === -1) {
+          // Still inside think block, no closing tag yet — buffer it all
+          this.thinkBuffer += buf;
+          buf = '';
+        } else {
+          // Found closing tag
+          this.thinkBuffer += buf.slice(0, closeIdx);
+          // Flush the completed think block to thinkingProcess
+          const thought = this.thinkBuffer.trim();
+          if (thought) {
+            this.thinkingProcess = [...this.thinkingProcess, thought];
+          }
+          this.thinkBuffer = '';
+          this.inThinkBlock = false;
+          buf = buf.slice(closeIdx + '</think>'.length);
+        }
+      } else {
+        const openIdx = buf.indexOf('<think>');
+        if (openIdx === -1) {
+          // Check for a partial opening tag at the tail (e.g. "<thi")
+          const partialMatch = findPartialOpenTag(buf);
+          if (partialMatch > -1) {
+            textOut += buf.slice(0, partialMatch);
+            buf = buf.slice(partialMatch); // hold remainder for next chunk
+            break;
+          }
+          textOut += buf;
+          buf = '';
+        } else {
+          textOut += buf.slice(0, openIdx);
+          this.inThinkBlock = true;
+          this.thinkBuffer = '';
+          buf = buf.slice(openIdx + '<think>'.length);
+        }
+      }
+    }
+
+    this.streamBuffer = buf;
+
+    if (!textOut) return;
+
     const lastMsg = this.messages[this.messages.length - 1];
     if (lastMsg.role === 'assistant') {
-      lastMsg.content += chunk;
-      this.currentAssistantResponse += chunk;
+      lastMsg.content += textOut;
+      this.currentAssistantResponse += textOut;
     } else {
-      // First chunk of assistant response
       this.messages.push({
         role: 'assistant',
-        content: chunk,
+        content: textOut,
         timestamp: Date.now()
       });
-      this.currentAssistantResponse = chunk;
+      this.currentAssistantResponse = textOut;
+    }
+  }
+
+  flushStreamBuffer() {
+    // Called when stream ends — flush any remaining buffered text
+    if (this.streamBuffer) {
+      const remaining = this.streamBuffer;
+      this.streamBuffer = '';
+      this.inThinkBlock = false;
+      this.thinkBuffer = '';
+      if (remaining.trim()) {
+        this.appendChunk(remaining);
+      }
     }
   }
 
@@ -163,6 +231,9 @@ class ChatStore {
     this.error = null;
     this.thinkingProcess = [];
     this.currentAssistantResponse = '';
+    this.streamBuffer = '';
+    this.inThinkBlock = false;
+    this.thinkBuffer = '';
 
     const onEvent = new Channel<any>();
     onEvent.onmessage = async (payload) => {
@@ -173,6 +244,7 @@ class ChatStore {
         this.appendChunk(payload.chunk);
       }
       if (payload.status === 'done') {
+        this.flushStreamBuffer();
         console.log('Stream finished');
         // 5. Save Assistant Message to DB
         if (this.activeConversationId && this.currentAssistantResponse) {
@@ -354,46 +426,50 @@ class ChatStore {
   }
 
   async generateTitle(conversationId: number, userFirstMsg: string, aiFirstMsg: string) {
-      console.log("Generating title...");
       const summarySessionId = `summary-${crypto.randomUUID()}`;
-      const prompt = `Generate a short, concise title (max 5 words) for this chat conversation. Do not use quotes.
-      
-      User: ${userFirstMsg.slice(0, 200)}
-      AI: ${aiFirstMsg.slice(0, 200)}
-      
-      Title:`;
-      
-      let titleBuffer = "";
-      
+      // /no_think suppresses Qwen3 chain-of-thought so the response is just the title
+      const prompt = `/no_think Generate a short, concise title (max 5 words) for this conversation. Reply with ONLY the title, no quotes, no punctuation.
+
+User: ${userFirstMsg.slice(0, 300)}
+Assistant: ${aiFirstMsg.slice(0, 300)}
+
+Title:`;
+
+      let rawBuffer = '';
+
       const onEvent = new Channel<any>();
       onEvent.onmessage = (payload) => {
           if (payload.chunk) {
-              titleBuffer += payload.chunk;
+              rawBuffer += payload.chunk;
           }
       };
-      
+
       try {
-          // Use a clean session for summary
           await invokeCommand('send_message', {
               message: prompt,
               sessionId: summarySessionId,
-              temperature: 0.7,
-              maxTokens: 50,
+              temperature: 0.3,
+              maxTokens: 24,
               onEvent
           });
-          
-          let finalTitle = titleBuffer.trim().replace(/^["']|["']$/g, ''); // Remove quotes if any
-          if (finalTitle) {
-              console.log("Generated Title:", finalTitle);
+
+          // Strip any <think>...</think> blocks Qwen3 may emit despite /no_think
+          const stripped = rawBuffer.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+          // Take only the first line in case the model rambles
+          const firstLine = stripped.split('\n')[0].trim();
+          const finalTitle = firstLine
+              .replace(/^["'`]+|["'`]+$/g, '')  // strip surrounding quotes
+              .replace(/[.!?]+$/, '')             // strip trailing punctuation
+              .trim();
+
+          if (finalTitle && finalTitle.length > 0 && finalTitle.length < 80) {
               await updateConversationTitle(conversationId, finalTitle);
-              await this.loadRecentConversations(); // Refresh UI
+              await this.loadRecentConversations();
           }
-          
-          // Cleanup summary session
-          await invokeCommand('clear_chat', { sessionId: summarySessionId });
-          
       } catch (err) {
-          console.warn("Title generation failed:", err);
+          console.warn('Title generation failed:', err);
+      } finally {
+          try { await invokeCommand('clear_chat', { sessionId: summarySessionId }); } catch {}
       }
   }
 
@@ -408,3 +484,18 @@ class ChatStore {
 }
 
 export const chatStore = new ChatStore();
+
+/**
+ * Returns the index where a partial '<think>' tag starts at the end of `buf`,
+ * or -1 if no partial match exists. Prevents a tag split across chunks from
+ * leaking into the visible message content.
+ */
+function findPartialOpenTag(buf: string): number {
+  const tag = '<think>';
+  for (let len = tag.length - 1; len >= 1; len--) {
+    if (buf.endsWith(tag.slice(0, len))) {
+      return buf.length - len;
+    }
+  }
+  return -1;
+}
