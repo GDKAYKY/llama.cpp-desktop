@@ -1,4 +1,4 @@
-use llama_desktop_lib::models::chat::{ChatChoice, ChatMessage, ChatRequest, ChatResponse};
+use llama_desktop_lib::models::chat_model::{ChatChoice, ChatMessage, ChatRequest, ChatResponse};
 use serde_json::json;
 
 #[test]
@@ -20,15 +20,13 @@ fn test_chat_request_serialization() {
     let request = ChatRequest {
         model: "llama-3".to_string(),
         session_id: Some("session-123".to_string()),
-        messages: vec![
-            ChatMessage {
-                role: "user".to_string(),
-                content: "Test".to_string(),
-                name: None,
-                tool_call_id: None,
-                tool_calls: None,
-            },
-        ],
+        messages: vec![ChatMessage {
+            role: "user".to_string(),
+            content: "Test".to_string(),
+            name: None,
+            tool_call_id: None,
+            tool_calls: None,
+        }],
         temperature: 0.7,
         top_p: 0.9,
         top_k: 40,

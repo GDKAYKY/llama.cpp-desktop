@@ -1,4 +1,4 @@
-use llama_desktop_lib::models::app_config::{AppConfig, ConfigError};
+use llama_desktop_lib::models::app_settings_model::{AppConfig, ConfigError};
 use llama_desktop_lib::utils::{read_json, save_json};
 use tempfile::TempDir;
 

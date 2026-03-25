@@ -216,7 +216,10 @@ impl ChatOrchestrator {
         temperature: f32,
         _max_tokens: i32,
     ) -> Result<IntentClassification, String> {
-        let capabilities_summary = self.registry.summary_for_prompt(allowed_servers).await;
+        let capabilities_summary = self
+            .registry
+            .summary_for_prompt_json(allowed_servers)
+            .await;
 
         let system_prompt = format!(
             r#"You are an intent classifier. Given the user message and available tools, return ONLY valid JSON:
@@ -230,7 +233,7 @@ impl ChatOrchestrator {
   "multi_step_reasoning": "why multiple steps are needed or null"
 }}
 
-Available capabilities:
+Available capabilities (JSON):
 {}
 
 Rules:

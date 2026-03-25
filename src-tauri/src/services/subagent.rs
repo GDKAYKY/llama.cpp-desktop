@@ -231,14 +231,17 @@ impl Subagent {
         original_query: &str,
         allowed_servers: &[String],
     ) -> String {
-        let capabilities = self.registry.summary_for_prompt(allowed_servers).await;
+        let capabilities = self
+            .registry
+            .summary_for_prompt_json(allowed_servers)
+            .await;
 
         format!(
             r#"You are a data-gathering subagent. Your job is to collect all necessary information to answer the user's query by calling external tools.
 
 Original query: {}
 
-Available tools:
+Available tools (JSON):
 {}
 
 RESPONSE FORMAT (JSON only):

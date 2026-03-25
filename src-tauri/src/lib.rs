@@ -22,17 +22,17 @@ pub mod infrastructure {
 pub mod ipc_handlers;
 
 pub mod models {
-    pub mod app_config;
-    pub mod chat;
-    pub mod llama;
-    pub mod manifest;
-    pub mod mcp;
+    pub mod app_settings_model;
+    pub mod chat_model;
+    pub mod llama_model;
+    pub mod manifest_model;
+    pub mod mcp_model;
 
-    pub use app_config::*;
-    pub use chat::*;
-    pub use llama::*;
-    pub use manifest::*;
-    pub use mcp::*;
+    pub use app_settings_model::*;
+    pub use chat_model::*;
+    pub use llama_model::*;
+    pub use manifest_model::*;
+    pub use mcp_model::*;
 }
 
 pub mod services {
