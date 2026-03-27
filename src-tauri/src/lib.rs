@@ -54,6 +54,7 @@ pub mod services {
     pub mod orchestrator;
     pub mod subagent;
     pub mod templates;
+    pub mod thinking_parser;
 }
 
 pub mod state;

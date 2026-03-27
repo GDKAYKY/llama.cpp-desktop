@@ -153,6 +153,14 @@
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default; /* Optional nice-to-have */
+  }
 }
 
 @layer utilities {

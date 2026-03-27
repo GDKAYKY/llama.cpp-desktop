@@ -2,6 +2,7 @@ use crate::models::ChatMessage;
 use crate::services::capability_registry::{CapabilityRegistry, LlmToolSpecBundle, ResolvedCall};
 use crate::services::llama::service::LlamaCppService;
 use crate::services::mcp::McpService;
+use crate::services::thinking_parser::{ParsedChunk, ThinkingStreamParser};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tauri::ipc::Channel;
@@ -374,10 +375,33 @@ impl ChatOrchestrator {
             .await?;
 
         let mut full_response = String::new();
+        let mut parser = ThinkingStreamParser::new();
 
         while let Some(chunk) = rx.recv().await {
-            full_response.push_str(&chunk);
-            let _ = on_event.send(serde_json::json!({ "chunk": chunk }));
+            for parsed in parser.push(&chunk) {
+                match parsed {
+                    ParsedChunk::Content(text) => {
+                        full_response.push_str(&text);
+                        let _ = on_event.send(serde_json::json!({ "chunk": text }));
+                    }
+                    ParsedChunk::Thinking(text) => {
+                        let _ = on_event.send(serde_json::json!({ "thinking_chunk": text }));
+                    }
+                }
+            }
+        }
+
+        // Flush any buffered content at end-of-stream
+        for parsed in parser.flush() {
+            match parsed {
+                ParsedChunk::Content(text) => {
+                    full_response.push_str(&text);
+                    let _ = on_event.send(serde_json::json!({ "chunk": text }));
+                }
+                ParsedChunk::Thinking(text) => {
+                    let _ = on_event.send(serde_json::json!({ "thinking_chunk": text }));
+                }
+            }
         }
 
         let _ = on_event.send(serde_json::json!({ "status": "done" }));
@@ -490,10 +514,32 @@ impl ChatOrchestrator {
             .await?;
 
         let mut full_response = String::new();
+        let mut parser = ThinkingStreamParser::new();
 
         while let Some(chunk) = rx.recv().await {
-            full_response.push_str(&chunk);
-            let _ = on_event.send(serde_json::json!({ "chunk": chunk }));
+            for parsed in parser.push(&chunk) {
+                match parsed {
+                    ParsedChunk::Content(text) => {
+                        full_response.push_str(&text);
+                        let _ = on_event.send(serde_json::json!({ "chunk": text }));
+                    }
+                    ParsedChunk::Thinking(text) => {
+                        let _ = on_event.send(serde_json::json!({ "thinking_chunk": text }));
+                    }
+                }
+            }
+        }
+
+        for parsed in parser.flush() {
+            match parsed {
+                ParsedChunk::Content(text) => {
+                    full_response.push_str(&text);
+                    let _ = on_event.send(serde_json::json!({ "chunk": text }));
+                }
+                ParsedChunk::Thinking(text) => {
+                    let _ = on_event.send(serde_json::json!({ "thinking_chunk": text }));
+                }
+            }
         }
 
         let _ = on_event.send(serde_json::json!({ "status": "done" }));

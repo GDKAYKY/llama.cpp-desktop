@@ -25,6 +25,7 @@ export interface Message {
 class ChatStore {
   messages = $state<Message[]>([]);
   thinkingProcess = $state<string[]>([]);
+  modelThinking = $state('');
   isLoading = $state(false);
   error = $state<string | null>(null);
   modelLoaded = $state(true);
@@ -114,17 +115,25 @@ class ChatStore {
 
   appendChunk(chunk: string) {
     if (this.messages.length === 0) return;
-    const lastMsg = this.messages[this.messages.length - 1];
+    const lastIndex = this.messages.length - 1;
+    const lastMsg = this.messages[lastIndex];
     if (lastMsg.role === 'assistant') {
-      lastMsg.content += chunk;
+      const updated = { ...lastMsg, content: lastMsg.content + chunk };
+      this.messages = [
+        ...this.messages.slice(0, lastIndex),
+        updated
+      ];
       this.currentAssistantResponse += chunk;
     } else {
       // First chunk of assistant response
-      this.messages.push({
-        role: 'assistant',
-        content: chunk,
-        timestamp: Date.now()
-      });
+      this.messages = [
+        ...this.messages,
+        {
+          role: 'assistant',
+          content: chunk,
+          timestamp: Date.now()
+        }
+      ];
       this.currentAssistantResponse = chunk;
     }
   }
@@ -162,6 +171,7 @@ class ChatStore {
     this.isLoading = true;
     this.error = null;
     this.thinkingProcess = [];
+    this.modelThinking = '';
     this.currentAssistantResponse = '';
 
     const onEvent = new Channel<any>();
@@ -169,21 +179,21 @@ class ChatStore {
       if (payload.thinking) {
         this.thinkingProcess = [...this.thinkingProcess, String(payload.thinking)];
       }
+      if (payload.thinking_chunk) {
+        this.modelThinking += payload.thinking_chunk;
+      }
       if (payload.chunk) {
         this.appendChunk(payload.chunk);
       }
       if (payload.status === 'done') {
         console.log('Stream finished');
-        // 5. Save Assistant Message to DB
         if (this.activeConversationId && this.currentAssistantResponse) {
-            // Get the model that is ACTUALLY running in the server
             const runningModelPath = serverStore.currentConfig?.model_path;
             const modelInLibrary = modelsStore.models.find(m => m.model_file_path === runningModelPath);
             const modelName = modelInLibrary?.name || "Unknown Model";
 
             await saveMessage(this.activeConversationId, 'assistant', this.currentAssistantResponse, modelName);
             
-            // Set model on the last message in store too
             if (this.messages.length > 0) {
                 const lastMsg = this.messages[this.messages.length - 1];
                 if (lastMsg.role === 'assistant') {
@@ -191,18 +201,14 @@ class ChatStore {
                 }
             }
             
-            // 6. Auto-generate Title if this is the first exchange (2 messages: User + Assistant)
-            // And title is "New Chat" (or roughly check if we haven't generated one yet)
-            // We verify by checking if the active conversation title is "New Chat" (we might need to fetch it or check store state if we tracked it closer)
-            // For simplicity: If messages.length === 2.
             if (this.messages.length === 2 && this.activeConversationId) {
-                 // Run in background
                  this.generateTitle(this.activeConversationId, this.messages[0].content, this.currentAssistantResponse);
             }
             
-            await this.loadRecentConversations(); // Refresh sidebar order
+            await this.loadRecentConversations();
         }
         this.thinkingProcess = [];
+        this.modelThinking = '';
       }
     };
 
@@ -266,12 +272,26 @@ class ChatStore {
     const onEvent = new Channel<any>();
     let buffer = '';
 
+    this.thinkingProcess = [];
+    this.modelThinking = '';
+
     onEvent.onmessage = (payload) => {
+      if (payload.thinking) {
+        this.thinkingProcess = [...this.thinkingProcess, String(payload.thinking)];
+      }
+      if (payload.thinking_chunk) {
+        this.modelThinking += payload.thinking_chunk;
+      }
       if (payload.chunk) {
         buffer += payload.chunk;
         const msg = this.messages[messageIndex];
         if (msg && msg.role === 'assistant') {
-          msg.content = buffer;
+          const updated = { ...msg, content: buffer };
+          this.messages = [
+            ...this.messages.slice(0, messageIndex),
+            updated,
+            ...this.messages.slice(messageIndex + 1)
+          ];
         }
       }
 
@@ -286,6 +306,8 @@ class ChatStore {
         if (msg && msg.role === 'assistant') {
           msg.model = modelName;
         }
+        this.thinkingProcess = [];
+        this.modelThinking = '';
       }
     };
 

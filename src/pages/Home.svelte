@@ -193,6 +193,7 @@
             messages={chatStore.messages}
             isLoading={chatStore.isLoading}
             thinkingProcess={chatStore.thinkingProcess}
+            modelThinking={chatStore.modelThinking}
             bind:messagesEnd
           />
 

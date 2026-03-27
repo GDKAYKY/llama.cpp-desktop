@@ -10,16 +10,18 @@
     RotateCcw,
     Share2,
     MoreHorizontal,
+    ChevronRight,
   } from "lucide-svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
   import { toast } from "svelte-sonner";
 
-  /** @type {{ message: { role: string, content: string }, index: number }} */
-  let { message, index } = $props();
+  /** @type {{ message: { role: string, content: string }, index: number, thinkingProcess?: string[], modelThinking?: string }} */
+  let { message, index, thinkingProcess = [], modelThinking = "" } = $props();
 
   let isEditing = $state(false);
   let editText = $state("");
+  let thinkingOpen = $state(false);
 
   function startEditing() {
     editText = message.content;
@@ -117,6 +119,32 @@
   function handleMore() {
     toast.message("Mais ações em breve");
   }
+
+  function classifyThinking(entries) {
+    let fileCount = 0;
+    let searchCount = 0;
+    for (const entry of entries) {
+      const text = String(entry || "")
+        .trim()
+        .toLowerCase();
+      if (!text) continue;
+      if (text.startsWith("read ") || text.includes("read ")) {
+        fileCount += 1;
+      } else if (text.startsWith("search") || text.includes("searched")) {
+        searchCount += 1;
+      }
+    }
+    return { fileCount, searchCount };
+  }
+
+  $effect(() => {
+    if (
+      message.role === "assistant" &&
+      (thinkingProcess.length > 0 || modelThinking)
+    ) {
+      thinkingOpen = true;
+    }
+  });
 </script>
 
 <div class="group w-full py-4">
@@ -238,6 +266,67 @@
               class="text-[12px] font-inter tracking-wider text-muted-foreground/60 leading-none"
             >
               {message.model}
+            </div>
+          {/if}
+          {#if message.role === "assistant" && (thinkingProcess.length > 0 || modelThinking)}
+            {@const counts = classifyThinking(thinkingProcess)}
+            <div class="mt-2 w-full">
+              <div class="relative">
+                <button
+                  class="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left text-[12px] text-muted-foreground/80 hover:text-foreground transition-colors"
+                  onclick={() => (thinkingOpen = !thinkingOpen)}
+                  aria-expanded={thinkingOpen}
+                  type="button"
+                >
+                  <ChevronRight
+                    size={14}
+                    class={cn(
+                      "transition-transform",
+                      thinkingOpen ? "rotate-90" : "rotate-0",
+                    )}
+                  />
+                  <span class="min-w-0 flex-1 truncate">
+                    Exploring {counts.fileCount} file{counts.fileCount === 1
+                      ? ""
+                      : "s"}, {counts.searchCount} search{counts.searchCount ===
+                    1
+                      ? ""
+                      : "es"}
+                  </span>
+                </button>
+
+                {#if thinkingOpen}
+                  <div
+                    class="mt-1 rounded-lg border border-border bg-secondary/30 px-3 py-2"
+                  >
+                    <div
+                      class="max-h-56 overflow-auto text-[12px] text-muted-foreground/80"
+                    >
+                      <div class="flex flex-col gap-1">
+                        {#each thinkingProcess as step}
+                          {#if String(step || "").trim()}
+                            <div class="truncate">{step}</div>
+                          {/if}
+                        {/each}
+                        {#if modelThinking}
+                          <div
+                            class="mt-2 text-[11px] text-muted-foreground/70"
+                          >
+                            <div class="mb-1 uppercase tracking-wider">
+                              Model thinking
+                            </div>
+                            <div
+                              class="whitespace-pre-wrap break-words text-[12px] text-muted-foreground/80"
+                            >
+                              {modelThinking}
+                            </div>
+                          </div>
+                        {/if}
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+              </div>
             </div>
           {/if}
           <MarkdownContent content={message.content} />
