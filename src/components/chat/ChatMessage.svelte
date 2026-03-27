@@ -126,15 +126,27 @@
     let searchCount = 0;
     let hasMcp = false;
     let hasTool = false;
+    let isListing = false;
+    const ignoredPatterns = [
+      'tool loop',
+      'no tool calls',
+      'streaming final',
+      'exceeded max iterations',
+      'iteration',
+    ];
     for (const entry of entries) {
       const text = String(entry || "")
         .trim()
         .toLowerCase();
       if (!text) continue;
+      if (ignoredPatterns.some(p => text.includes(p))) continue;
       if (text.startsWith("read ") || text.includes("read ")) {
         fileCount += 1;
       } else if (text.startsWith("search") || text.includes("searched")) {
         searchCount += 1;
+      }
+      if (text.includes("listing") || text.includes("listing mcp")) {
+        isListing = true;
       }
       if (text.includes("mcp")) {
         hasMcp = true;
@@ -143,10 +155,11 @@
         hasTool = true;
       }
     }
-    return { fileCount, searchCount, hasMcp, hasTool };
+    return { fileCount, searchCount, hasMcp, hasTool, isListing };
   }
 
   function buildThinkingLabel(counts) {
+    if (counts.isListing) return "Listing MCP tools";
     if (counts.hasMcp) return "Calling MCP tool";
     if (counts.hasTool) return "Calling tool";
     return `Exploring ${counts.fileCount} file${counts.fileCount === 1 ? "" : "s"}, ${counts.searchCount} search${counts.searchCount === 1 ? "" : "es"}`;

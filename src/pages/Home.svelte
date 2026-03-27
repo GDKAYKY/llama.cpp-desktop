@@ -215,9 +215,7 @@
               />
               <p
                 class="mt-2 text-center text-[0.75rem] text-muted-foreground opacity-80"
-              >
-                Llama-desktop can make mistakes. Check important info.
-              </p>
+              ></p>
             </div>
           </div>
         {/if}

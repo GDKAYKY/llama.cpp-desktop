@@ -719,6 +719,14 @@ fn parse_tool_calls_from_response(response: &serde_json::Value) -> Result<Parsed
         }
     }
 
+    if let Some(parsed_from_content) = parse_tool_calls_from_content(&content) {
+        return Ok(ParsedToolCalls {
+            content: parsed_from_content.cleaned_content,
+            raw_tool_calls: parsed_from_content.raw_tool_calls,
+            tool_calls: parsed_from_content.tool_calls,
+        });
+    }
+
     Ok(ParsedToolCalls {
         content,
         raw_tool_calls: Vec::new(),
@@ -776,6 +784,221 @@ fn resolve_tool_id(tool_id: &str, tool_bundle: &LlmToolSpecBundle) -> Option<(St
         return Some(pair.clone());
     }
     None
+}
+
+#[derive(Debug, Clone)]
+struct ParsedToolCallsFromContent {
+    cleaned_content: String,
+    raw_tool_calls: Vec<serde_json::Value>,
+    tool_calls: Vec<LlmToolCall>,
+}
+
+fn parse_tool_calls_from_content(content: &str) -> Option<ParsedToolCallsFromContent> {
+    const OPEN_TAG: &str = "<tool_call>";
+    const CLOSE_TAG: &str = "</tool_call>";
+
+    let mut cleaned = String::new();
+    let mut tool_calls = Vec::new();
+    let mut raw_tool_calls = Vec::new();
+    let mut cursor = 0;
+    let mut idx = 0;
+
+    while let Some(start_rel) = content[cursor..].find(OPEN_TAG) {
+        let start = cursor + start_rel;
+        cleaned.push_str(&content[cursor..start]);
+
+        let block_start = start + OPEN_TAG.len();
+        let Some(end_rel) = content[block_start..].find(CLOSE_TAG) else {
+            cleaned.push_str(&content[start..]);
+            return None;
+        };
+
+        let end = block_start + end_rel;
+        let block = &content[block_start..end];
+
+        if let Some((call, raw_call)) = parse_tool_call_block(block, idx) {
+            tool_calls.push(call);
+            raw_tool_calls.push(raw_call);
+            idx += 1;
+        } else {
+            cleaned.push_str(OPEN_TAG);
+            cleaned.push_str(block);
+            cleaned.push_str(CLOSE_TAG);
+        }
+
+        cursor = end + CLOSE_TAG.len();
+    }
+
+    if cursor < content.len() {
+        cleaned.push_str(&content[cursor..]);
+    }
+
+    if tool_calls.is_empty() {
+        None
+    } else {
+        Some(ParsedToolCallsFromContent {
+            cleaned_content: cleaned,
+            raw_tool_calls,
+            tool_calls,
+        })
+    }
+}
+
+fn parse_tool_call_block(block: &str, idx: usize) -> Option<(LlmToolCall, serde_json::Value)> {
+    let tool_id = parse_function_name(block)?;
+    let args = parse_parameter_map(block);
+    let arguments = serde_json::Value::Object(args);
+    let call_id = default_tool_call_id(idx);
+
+    let raw_call = serde_json::json!({
+        "id": call_id,
+        "type": "function",
+        "function": {
+            "name": tool_id,
+            "arguments": arguments
+        }
+    });
+
+    Some((
+        LlmToolCall {
+            id: call_id,
+            tool_id,
+            arguments,
+            arguments_valid: true,
+        },
+        raw_call,
+    ))
+}
+
+fn parse_function_name(block: &str) -> Option<String> {
+    if let Some(start) = block.find("<function=") {
+        let after = start + "<function=".len();
+        if let Some(gt_rel) = block[after..].find('>') {
+            let raw = block[after..after + gt_rel].trim();
+            let name = trim_quotes(raw);
+            if !name.is_empty() {
+                return Some(name.to_string());
+            }
+        }
+    }
+
+    if let Some(start) = block.find("<function") {
+        if let Some(gt_rel) = block[start..].find('>') {
+            let open_tag = &block[start..start + gt_rel + 1];
+            if let Some(name) = parse_attr_value(open_tag, "name") {
+                if !name.is_empty() {
+                    return Some(name);
+                }
+            }
+
+            if open_tag.trim() == "<function>" {
+                let inner_start = start + open_tag.len();
+                if let Some(close_rel) = block[inner_start..].find("</function>") {
+                    let raw = block[inner_start..inner_start + close_rel].trim();
+                    if !raw.is_empty() {
+                        return Some(raw.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn parse_parameter_map(block: &str) -> serde_json::Map<String, serde_json::Value> {
+    let mut args = serde_json::Map::new();
+    let mut cursor = 0;
+
+    loop {
+        let Some(start_rel) = block[cursor..].find("<parameter") else {
+            break;
+        };
+        let start = cursor + start_rel;
+        let Some(gt_rel) = block[start..].find('>') else {
+            break;
+        };
+
+        let open_tag = &block[start..start + gt_rel + 1];
+        let name = parse_parameter_name(open_tag);
+        let value_start = start + gt_rel + 1;
+        let Some(close_rel) = block[value_start..].find("</parameter>") else {
+            break;
+        };
+        let value_raw = &block[value_start..value_start + close_rel];
+
+        if let Some(param_name) = name {
+            let value = parse_param_value(value_raw);
+            args.insert(param_name, value);
+        }
+
+        cursor = value_start + close_rel + "</parameter>".len();
+    }
+
+    args
+}
+
+fn parse_parameter_name(open_tag: &str) -> Option<String> {
+    if open_tag.starts_with("<parameter=") {
+        let raw = open_tag["<parameter=".len()..open_tag.len() - 1].trim();
+        let name = trim_quotes(raw);
+        if !name.is_empty() {
+            return Some(name.to_string());
+        }
+    }
+
+    if let Some(name) = parse_attr_value(open_tag, "name") {
+        if !name.is_empty() {
+            return Some(name);
+        }
+    }
+
+    None
+}
+
+fn parse_attr_value(tag: &str, attr: &str) -> Option<String> {
+    let attr_pos = tag.find(attr)?;
+    let after_attr = &tag[attr_pos + attr.len()..];
+    let eq_pos = after_attr.find('=')?;
+    let mut rest = after_attr[eq_pos + 1..].trim_start();
+
+    if rest.starts_with('"') || rest.starts_with('\'') {
+        let quote = rest.chars().next()?;
+        rest = &rest[1..];
+        let end = rest.find(quote)?;
+        return Some(rest[..end].to_string());
+    }
+
+    let end = rest
+        .find(|c: char| c.is_whitespace() || c == '>')
+        .unwrap_or(rest.len());
+    let raw = rest[..end].trim();
+    if raw.is_empty() {
+        None
+    } else {
+        Some(raw.to_string())
+    }
+}
+
+fn trim_quotes(value: &str) -> &str {
+    let value = value.trim();
+    if (value.starts_with('"') && value.ends_with('"'))
+        || (value.starts_with('\'') && value.ends_with('\''))
+    {
+        return &value[1..value.len() - 1];
+    }
+    value
+}
+
+fn parse_param_value(value_raw: &str) -> serde_json::Value {
+    let trimmed = value_raw.trim();
+    if trimmed.is_empty() {
+        return serde_json::Value::String(String::new());
+    }
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        return parsed;
+    }
+    serde_json::Value::String(trimmed.to_string())
 }
 
 fn compute_prompt_budget(ctx_size: usize, max_tokens: i32) -> usize {
@@ -873,5 +1096,35 @@ mod tests {
         assert_eq!(parsed.tool_calls.len(), 1);
         assert_eq!(parsed.tool_calls[0].tool_id, "mcp__s1__t1");
         assert_eq!(parsed.tool_calls[0].arguments["q"], "hi");
+    }
+
+    #[test]
+    fn parse_tool_calls_from_xml_style_block() {
+        let response = serde_json::json!({
+            "choices": [
+                { "message": { "content": "\
+<tool_call>\n\
+<function=mcp__tavily__tavily_search>\n\
+<parameter=query>\n\
+Jeffrey Epstein\n\
+</parameter>\n\
+<parameter=search_depth>\n\
+advanced\n\
+</parameter>\n\
+<parameter=max_results>\n\
+10\n\
+</parameter>\n\
+</function>\n\
+</tool_call>" } }
+            ]
+        });
+
+        let parsed = parse_tool_calls_from_response(&response).expect("parsed");
+        assert_eq!(parsed.tool_calls.len(), 1);
+        assert_eq!(parsed.tool_calls[0].tool_id, "mcp__tavily__tavily_search");
+        assert_eq!(parsed.tool_calls[0].arguments["query"], "Jeffrey Epstein");
+        assert_eq!(parsed.tool_calls[0].arguments["search_depth"], "advanced");
+        assert_eq!(parsed.tool_calls[0].arguments["max_results"], 10);
+        assert!(parsed.content.trim().is_empty());
     }
 }
