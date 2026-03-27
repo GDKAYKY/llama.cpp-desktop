@@ -32,6 +32,10 @@ impl ChatOrchestrator {
         }
     }
 
+    fn try_send(on_event: &Channel<serde_json::Value>, payload: serde_json::Value) -> bool {
+        on_event.send(payload).is_ok()
+    }
+
     /// Call once at startup and whenever MCP config changes.
     pub async fn refresh_capabilities(&self) -> Result<(), String> {
         self.registry.refresh(&self.mcp_service).await
@@ -99,12 +103,17 @@ impl ChatOrchestrator {
         loop {
             iteration += 1;
             if iteration > MAX_TOOL_ITERATIONS {
-                let _ = on_event.send(serde_json::json!({
-                    "thinking": format!(
-                        "Tool loop exceeded max iterations ({}). Streaming final answer.",
-                        MAX_TOOL_ITERATIONS
-                    )
-                }));
+                if !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
+                        "thinking": format!(
+                            "Tool loop exceeded max iterations ({}). Streaming final answer.",
+                            MAX_TOOL_ITERATIONS
+                        )
+                    }),
+                ) {
+                    return Ok(());
+                }
                 let messages = self.get_history(session_id).await;
                 return self
                     .run_streaming(session_id, messages, temperature, max_tokens, on_event)
@@ -118,9 +127,14 @@ impl ChatOrchestrator {
             let request_messages =
                 sanitize_messages_for_request(trim_messages_to_budget(&history, prompt_budget));
 
-            let _ = on_event.send(serde_json::json!({
-                "thinking": format!("Tool loop iteration {}", iteration)
-            }));
+            if !Self::try_send(
+                &on_event,
+                serde_json::json!({
+                    "thinking": format!("Tool loop iteration {}", iteration)
+                }),
+            ) {
+                return Ok(());
+            }
 
             let response = self
                 .service
@@ -138,9 +152,14 @@ impl ChatOrchestrator {
 
             let parsed = parse_tool_calls_from_response(&response)?;
             if parsed.tool_calls.is_empty() {
-                let _ = on_event.send(serde_json::json!({
-                    "thinking": "No tool calls detected. Streaming final answer."
-                }));
+                if !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
+                        "thinking": "No tool calls detected. Streaming final answer."
+                    }),
+                ) {
+                    return Ok(());
+                }
                 let messages = self.get_history(session_id).await;
                 return self
                     .run_streaming(session_id, messages, temperature, max_tokens, on_event)
@@ -172,9 +191,14 @@ impl ChatOrchestrator {
                 .await?;
 
             if repeat_detected {
-                let _ = on_event.send(serde_json::json!({
-                    "thinking": "Repeated tool call detected. Streaming final answer."
-                }));
+                if !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
+                        "thinking": "Repeated tool call detected. Streaming final answer."
+                    }),
+                ) {
+                    return Ok(());
+                }
                 let messages = self.get_history(session_id).await;
                 return self
                     .run_streaming(session_id, messages, temperature, max_tokens, on_event)
@@ -264,9 +288,14 @@ impl ChatOrchestrator {
                 continue;
             }
 
-            let _ = on_event.send(serde_json::json!({
-                "thinking": format!("Calling MCP tool {}::{}", server_id, tool_name)
-            }));
+            if !Self::try_send(
+                &on_event,
+                serde_json::json!({
+                    "thinking": format!("Calling MCP tool {}::{}", server_id, tool_name)
+                }),
+            ) {
+                return Ok(repeat_detected);
+            }
 
             let result = match self.mcp_service.connect(&server_id).await {
                 Ok(()) => {
@@ -280,9 +309,14 @@ impl ChatOrchestrator {
             let content = match result {
                 Ok(res) => format_tool_result(&res),
                 Err(e) => {
-                    let _ = on_event.send(serde_json::json!({
-                        "thinking": format!("Tool call failed: {}", e)
-                    }));
+                    if !Self::try_send(
+                        &on_event,
+                        serde_json::json!({
+                            "thinking": format!("Tool call failed: {}", e)
+                        }),
+                    ) {
+                        return Ok(repeat_detected);
+                    }
                     serde_json::json!({ "error": e }).to_string()
                 }
             };
@@ -300,9 +334,14 @@ impl ChatOrchestrator {
             .await;
 
             if idx + 1 == tool_calls.len() {
-                let _ = on_event.send(serde_json::json!({
-                    "thinking": "Tool results injected into context."
-                }));
+                if !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
+                        "thinking": "Tool results injected into context."
+                    }),
+                ) {
+                    return Ok(repeat_detected);
+                }
             }
         }
 
@@ -382,10 +421,15 @@ impl ChatOrchestrator {
                 match parsed {
                     ParsedChunk::Content(text) => {
                         full_response.push_str(&text);
-                        let _ = on_event.send(serde_json::json!({ "chunk": text }));
+                        if !Self::try_send(&on_event, serde_json::json!({ "chunk": text })) {
+                            return Ok(());
+                        }
                     }
                     ParsedChunk::Thinking(text) => {
-                        let _ = on_event.send(serde_json::json!({ "thinking_chunk": text }));
+                        if !Self::try_send(&on_event, serde_json::json!({ "thinking_chunk": text }))
+                        {
+                            return Ok(());
+                        }
                     }
                 }
             }
@@ -396,15 +440,21 @@ impl ChatOrchestrator {
             match parsed {
                 ParsedChunk::Content(text) => {
                     full_response.push_str(&text);
-                    let _ = on_event.send(serde_json::json!({ "chunk": text }));
+                    if !Self::try_send(&on_event, serde_json::json!({ "chunk": text })) {
+                        return Ok(());
+                    }
                 }
                 ParsedChunk::Thinking(text) => {
-                    let _ = on_event.send(serde_json::json!({ "thinking_chunk": text }));
+                    if !Self::try_send(&on_event, serde_json::json!({ "thinking_chunk": text })) {
+                        return Ok(());
+                    }
                 }
             }
         }
 
-        let _ = on_event.send(serde_json::json!({ "status": "done" }));
+        if !Self::try_send(&on_event, serde_json::json!({ "status": "done" })) {
+            return Ok(());
+        }
 
         let mut sessions = self.sessions.lock().await;
         if let Some(history) = sessions.get_mut(session_id) {
@@ -521,10 +571,15 @@ impl ChatOrchestrator {
                 match parsed {
                     ParsedChunk::Content(text) => {
                         full_response.push_str(&text);
-                        let _ = on_event.send(serde_json::json!({ "chunk": text }));
+                        if !Self::try_send(&on_event, serde_json::json!({ "chunk": text })) {
+                            return Ok(());
+                        }
                     }
                     ParsedChunk::Thinking(text) => {
-                        let _ = on_event.send(serde_json::json!({ "thinking_chunk": text }));
+                        if !Self::try_send(&on_event, serde_json::json!({ "thinking_chunk": text }))
+                        {
+                            return Ok(());
+                        }
                     }
                 }
             }
@@ -534,15 +589,21 @@ impl ChatOrchestrator {
             match parsed {
                 ParsedChunk::Content(text) => {
                     full_response.push_str(&text);
-                    let _ = on_event.send(serde_json::json!({ "chunk": text }));
+                    if !Self::try_send(&on_event, serde_json::json!({ "chunk": text })) {
+                        return Ok(());
+                    }
                 }
                 ParsedChunk::Thinking(text) => {
-                    let _ = on_event.send(serde_json::json!({ "thinking_chunk": text }));
+                    if !Self::try_send(&on_event, serde_json::json!({ "thinking_chunk": text })) {
+                        return Ok(());
+                    }
                 }
             }
         }
 
-        let _ = on_event.send(serde_json::json!({ "status": "done" }));
+        if !Self::try_send(&on_event, serde_json::json!({ "status": "done" })) {
+            return Ok(());
+        }
 
         let mut sessions = self.sessions.lock().await;
         let history = sessions

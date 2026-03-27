@@ -8,14 +8,14 @@
     messages,
     isLoading,
     thinkingProcess = [],
-    modelThinking = '',
+    modelThinking = "",
     messagesEnd = $bindable(),
     pill = true,
   } = $props();
 </script>
 
 <div class="flex w-full grow flex-col">
-  <div class="flex flex-col pb-8">
+  <div class="flex flex-col pb-4">
     {#each messages as msg, i}
       <ChatMessage
         message={msg}
@@ -26,7 +26,7 @@
           : []}
         modelThinking={isLoading && i === messages.length - 1
           ? modelThinking
-          : ''}
+          : ""}
         {pill}
       />
     {/each}

@@ -5,11 +5,13 @@
     as = "p",
     className = "",
     duration = 2,
+    size = "12px",
     children,
   }: {
     as?: string;
     className?: string;
     duration?: number;
+    size?: string;
     spread?: number; // Kept for backwards compatibility, but we now use purely CSS-driven spread!
     children: Snippet;
   } = $props();
@@ -18,7 +20,7 @@
 <svelte:element
   this={as}
   class="shimmer-text {className}"
-  style="--duration: {duration}s;"
+  style="--duration: {duration}s; font-size: {size};"
 >
   {@render children()}
 </svelte:element>

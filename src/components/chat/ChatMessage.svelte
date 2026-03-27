@@ -1,6 +1,7 @@
 <script>
   import MessageAvatar from "$components/ui/MessageAvatar.svelte";
   import MarkdownContent from "$components/ui/MarkdownContent.svelte";
+  import TextShimmer from "$components/ui/TextShimmer.svelte";
   import { cn } from "$shared/cn.js";
   import {
     Copy,
@@ -123,6 +124,8 @@
   function classifyThinking(entries) {
     let fileCount = 0;
     let searchCount = 0;
+    let hasMcp = false;
+    let hasTool = false;
     for (const entry of entries) {
       const text = String(entry || "")
         .trim()
@@ -133,8 +136,20 @@
       } else if (text.startsWith("search") || text.includes("searched")) {
         searchCount += 1;
       }
+      if (text.includes("mcp")) {
+        hasMcp = true;
+      }
+      if (text.includes("tool")) {
+        hasTool = true;
+      }
     }
-    return { fileCount, searchCount };
+    return { fileCount, searchCount, hasMcp, hasTool };
+  }
+
+  function buildThinkingLabel(counts) {
+    if (counts.hasMcp) return "Calling MCP tool";
+    if (counts.hasTool) return "Calling tool";
+    return `Exploring ${counts.fileCount} file${counts.fileCount === 1 ? "" : "s"}, ${counts.searchCount} search${counts.searchCount === 1 ? "" : "es"}`;
   }
 
   $effect(() => {
@@ -147,7 +162,7 @@
   });
 </script>
 
-<div class="group w-full py-4">
+<div class="group w-full py-2">
   <div
     class={cn(
       "mx-auto relative flex w-full max-w-[40rem] px-4 md:px-6 lg:max-w-[48rem] gap-3 md:gap-4",
@@ -270,10 +285,10 @@
           {/if}
           {#if message.role === "assistant" && (thinkingProcess.length > 0 || modelThinking)}
             {@const counts = classifyThinking(thinkingProcess)}
-            <div class="mt-2 w-full">
+            <div class="w-full">
               <div class="relative">
                 <button
-                  class="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left text-[12px] text-muted-foreground/80 hover:text-foreground transition-colors"
+                  class="flex w-full items-center gap-0.5 text-left"
                   onclick={() => (thinkingOpen = !thinkingOpen)}
                   aria-expanded={thinkingOpen}
                   type="button"
@@ -281,24 +296,20 @@
                   <ChevronRight
                     size={14}
                     class={cn(
-                      "transition-transform",
+                      "transition-transform text-muted-foreground/80",
                       thinkingOpen ? "rotate-90" : "rotate-0",
                     )}
                   />
-                  <span class="min-w-0 flex-1 truncate">
-                    Exploring {counts.fileCount} file{counts.fileCount === 1
-                      ? ""
-                      : "s"}, {counts.searchCount} search{counts.searchCount ===
-                    1
-                      ? ""
-                      : "es"}
-                  </span>
+                  <TextShimmer
+                    class="min-w-0 flex-1 truncate rounded-lg text-[12px] hover:text-foreground transition-colors"
+                    duration={1.5}
+                  >
+                    {buildThinkingLabel(counts)}
+                  </TextShimmer>
                 </button>
 
                 {#if thinkingOpen}
-                  <div
-                    class="mt-1 rounded-lg border border-border bg-secondary/30 px-3 py-2"
-                  >
+                  <div class="rounded-lg bg-background px-3 py-2">
                     <div
                       class="max-h-56 overflow-auto text-[12px] text-muted-foreground/80"
                     >
@@ -385,3 +396,6 @@
     {/if}
   </div>
 </div>
+
+<style>
+</style>
