@@ -71,6 +71,8 @@ export interface LlamaCppConfig {
     ctx_size: number;
     parallel: number;
     n_gpu_layers: number;
+    chat_template?: string | null;
+    chat_template_file?: string | null;
 }
 
 export type McpTransport = 'stdio' | 'http_sse';

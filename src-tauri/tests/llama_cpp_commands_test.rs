@@ -15,6 +15,8 @@ fn sample_config() -> LlamaCppConfig {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     }
 }
 
@@ -67,6 +69,9 @@ async fn start_stop_and_status_helpers_work() {
         8080,
         128,
         0,
+        None,
+        None,
+        None,
     )
     .await
     .expect("start");

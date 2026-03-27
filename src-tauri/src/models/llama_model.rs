@@ -17,6 +17,10 @@ pub struct LlamaCppConfig {
     pub ctx_size: u32,
     pub parallel: u32,
     pub n_gpu_layers: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chat_template: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chat_template_file: Option<String>,
 }
 
 pub type ActiveModel = Option<ModelId>;

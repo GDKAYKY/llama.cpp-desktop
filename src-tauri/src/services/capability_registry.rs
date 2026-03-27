@@ -26,6 +26,13 @@ pub struct ResolvedCall {
     pub arguments: serde_json::Value,
 }
 
+/// LLM-facing tool specs and a reverse lookup map.
+#[derive(Debug, Clone, Default)]
+pub struct LlmToolSpecBundle {
+    pub tools: Vec<serde_json::Value>,
+    pub tool_map: HashMap<String, (String, String)>, // tool_id -> (server_id, tool_name)
+}
+
 impl CapabilityRegistry {
     pub fn new() -> Self {
         Self {
@@ -200,11 +207,13 @@ impl CapabilityRegistry {
         allowed_server_ids: &[String],
     ) -> Option<ResolvedCall> {
         let results = self.search_tools(query, allowed_server_ids, 1).await;
-        results.first().map(|(_, server_id, tool_name)| ResolvedCall {
-            server_id: server_id.clone(),
-            tool_name: tool_name.clone(),
-            arguments: serde_json::json!({}),
-        })
+        results
+            .first()
+            .map(|(_, server_id, tool_name)| ResolvedCall {
+                server_id: server_id.clone(),
+                tool_name: tool_name.clone(),
+                arguments: serde_json::json!({}),
+            })
     }
 
     /// Build a compact summary for the LLM intent-classification prompt.
@@ -279,7 +288,13 @@ impl CapabilityRegistry {
 
             let mut resources_list = Vec::new();
             // Don't filter resources for now, or maybe only include if server is in filter
-            if filter.is_none() || filter.as_ref().unwrap().iter().any(|(srv, _)| srv == server_id) {
+            if filter.is_none()
+                || filter
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .any(|(srv, _)| srv == server_id)
+            {
                 for (uri, def) in &caps.resources {
                     let desc = def
                         .get("description")
@@ -302,13 +317,92 @@ impl CapabilityRegistry {
             serde_json::json!({ "note": "No matching/available MCP capabilities found." })
                 .to_string()
         } else {
-            serde_json::json!({ "servers": servers_val })
-                .to_string()
+            serde_json::json!({ "servers": servers_val }).to_string()
         }
     }
 
     pub async fn available_server_ids(&self) -> Vec<String> {
         self.servers.read().await.keys().cloned().collect()
+    }
+
+    /// Build LLM tool specs (OpenAI-style) plus a tool_id -> (server, tool) map.
+    /// If max_tools > 0 and total tools exceed max_tools, uses a lightweight
+    /// search-based filter to select the top-N tools for the query.
+    pub async fn llm_tools_for_query(
+        &self,
+        query: &str,
+        allowed_server_ids: &[String],
+        max_tools: usize,
+    ) -> LlmToolSpecBundle {
+        let total_tools = {
+            let guard = self.servers.read().await;
+            guard
+                .iter()
+                .filter(|(server_id, _)| {
+                    allowed_server_ids.is_empty()
+                        || allowed_server_ids.iter().any(|id| id == *server_id)
+                })
+                .map(|(_, caps)| caps.tools.len())
+                .sum::<usize>()
+        };
+
+        let filtered: Option<HashSet<(String, String)>> =
+            if max_tools > 0 && total_tools > max_tools {
+                let matches = self
+                    .search_tools(query, allowed_server_ids, max_tools)
+                    .await;
+                Some(
+                    matches
+                        .into_iter()
+                        .map(|(_, server_id, tool_name)| (server_id, tool_name))
+                        .collect(),
+                )
+            } else {
+                None
+            };
+
+        let guard = self.servers.read().await;
+        let mut bundle = LlmToolSpecBundle::default();
+
+        for (server_id, caps) in guard.iter() {
+            if !allowed_server_ids.is_empty()
+                && !allowed_server_ids.iter().any(|id| id == server_id)
+            {
+                continue;
+            }
+
+            for (tool_name, tool_def) in &caps.tools {
+                if let Some(filter) = &filtered {
+                    if !filter.contains(&(server_id.clone(), tool_name.clone())) {
+                        continue;
+                    }
+                }
+
+                let tool_id = encode_tool_id(server_id, tool_name);
+                let desc = tool_def
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("(no description)");
+                let parameters = tool_def
+                    .get("inputSchema")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({ "type": "object", "properties": {} }));
+
+                bundle
+                    .tool_map
+                    .insert(tool_id.clone(), (server_id.clone(), tool_name.clone()));
+                bundle.tools.push(serde_json::json!({
+                    "type": "function",
+                    "function": {
+                        "name": tool_id,
+                        "description": format!("[{}] {}", server_id, desc),
+                        "parameters": parameters
+                    }
+                }));
+            }
+        }
+
+        bundle
     }
 
     /// Return the cached tool definition for a given server + tool.
@@ -374,5 +468,64 @@ impl CapabilityRegistry {
 
         // Ultimate fallback
         serde_json::json!({ "query": query })
+    }
+}
+
+fn encode_tool_id(server_id: &str, tool_name: &str) -> String {
+    fn sanitize(input: &str) -> String {
+        input
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect()
+    }
+
+    format!("mcp__{}__{}", sanitize(server_id), sanitize(tool_name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CapabilityRegistry, ServerCapabilities};
+    use std::collections::HashMap;
+
+    #[tokio::test]
+    async fn llm_tools_for_query_builds_tool_ids() {
+        let registry = CapabilityRegistry::new();
+        let mut guard = registry.servers.write().await;
+
+        let mut tools = HashMap::new();
+        tools.insert(
+            "search".to_string(),
+            serde_json::json!({
+                "name": "search",
+                "description": "Search tool",
+                "inputSchema": { "type": "object", "properties": { "q": { "type": "string" } } }
+            }),
+        );
+
+        guard.insert(
+            "server1".to_string(),
+            ServerCapabilities {
+                config: None,
+                tools,
+                resources: HashMap::new(),
+            },
+        );
+        drop(guard);
+
+        let bundle = registry
+            .llm_tools_for_query("search", &vec!["server1".to_string()], 0)
+            .await;
+        assert!(bundle.tool_map.contains_key("mcp__server1__search"));
+        assert_eq!(bundle.tools.len(), 1);
+        assert_eq!(
+            bundle.tools[0]["function"]["name"],
+            serde_json::json!("mcp__server1__search")
+        );
     }
 }

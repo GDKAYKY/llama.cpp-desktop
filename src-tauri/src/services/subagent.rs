@@ -1,3 +1,4 @@
+// Legacy subagent implementation (kept for reference).
 use crate::models::ChatMessage;
 use crate::services::capability_registry::{CapabilityRegistry, ResolvedCall};
 use crate::services::llama::service::LlamaCppService;
@@ -67,7 +68,9 @@ impl Subagent {
         let mut conversation_history: Vec<ChatMessage> = Vec::new();
 
         // Initial system prompt for the subagent
-        let system_prompt = self.build_system_prompt(original_query, allowed_servers).await;
+        let system_prompt = self
+            .build_system_prompt(original_query, allowed_servers)
+            .await;
         conversation_history.push(ChatMessage {
             role: "system".to_string(),
             content: system_prompt,
@@ -128,7 +131,10 @@ impl Subagent {
 
                     conversation_history.push(ChatMessage {
                         role: "assistant".to_string(),
-                        content: format!("Action: {}\nReasoning: {}", action.action_type, action.reasoning),
+                        content: format!(
+                            "Action: {}\nReasoning: {}",
+                            action.action_type, action.reasoning
+                        ),
                         name: None,
                         tool_call_id: None,
                         tool_calls: None,
@@ -233,7 +239,7 @@ impl Subagent {
     ) -> String {
         let capabilities = self
             .registry
-            .summary_for_prompt_json(allowed_servers)
+            .summary_for_prompt_json(allowed_servers, None)
             .await;
 
         format!(
@@ -276,7 +282,7 @@ Return ONLY valid JSON, nothing else."#,
     /// Summarize a tool result for the conversation history
     fn summarize_tool_result(&self, result: &serde_json::Value) -> String {
         let json_str = serde_json::to_string_pretty(result).unwrap_or_default();
-        
+
         // Truncate if too long
         if json_str.len() > 1000 {
             format!("{}... (truncated)", &json_str[..1000])
@@ -291,8 +297,11 @@ Return ONLY valid JSON, nothing else."#,
             return "No data was gathered.".to_string();
         }
 
-        let mut summary = format!("Gathered data from {} tool call(s):\n\n", tool_results.len());
-        
+        let mut summary = format!(
+            "Gathered data from {} tool call(s):\n\n",
+            tool_results.len()
+        );
+
         for (idx, result) in tool_results.iter().enumerate() {
             summary.push_str(&format!(
                 "{}. {} ({}): {}\n",

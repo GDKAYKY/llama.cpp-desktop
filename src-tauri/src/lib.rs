@@ -53,6 +53,7 @@ pub mod services {
     pub mod capability_registry;
     pub mod orchestrator;
     pub mod subagent;
+    pub mod templates;
 }
 
 pub mod state;

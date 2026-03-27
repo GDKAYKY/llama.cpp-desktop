@@ -19,6 +19,8 @@ fn sample_config() -> llama_desktop_lib::models::LlamaCppConfig {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     }
 }
 

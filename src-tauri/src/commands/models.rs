@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 use tauri::command;
+use tauri::AppHandle;
 
 use crate::models::{ModelInfo, ModelLibrary, ModelManifest};
 use futures::StreamExt;
@@ -390,6 +391,7 @@ async fn download_blob(
 }
 
 async fn download_model_from_hf(
+    app: AppHandle,
     model_reference: String,
     models_root: String,
 ) -> Result<ModelInfo, String> {
@@ -480,6 +482,9 @@ async fn download_model_from_hf(
         .join("manifest.json");
 
     crate::utils::save_json(&manifest_path, &manifest)?;
+
+    // Tenta baixar o chat template jinja automaticamente para conveniência do usuário
+    let _ = crate::services::templates::ensure_hf_chat_template(&app, &model_ref.repo_id, Some(&model_ref.revision)).await;
 
     let manifest_path_str = manifest_path
         .to_str()
@@ -709,11 +714,12 @@ pub async fn load_model_library(library_path: String) -> Result<Vec<ModelInfo>, 
 
 #[command]
 pub async fn download_model_from_registry(
+    app: AppHandle,
     model_reference: String,
     models_root: String,
 ) -> Result<ModelInfo, String> {
     if is_hf_reference(&model_reference) {
-        return download_model_from_hf(model_reference, models_root).await;
+        return download_model_from_hf(app, model_reference, models_root).await;
     }
 
     let model_ref = parse_model_reference(&model_reference)?;

@@ -29,8 +29,7 @@ fn app_config_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .path()
         .app_config_dir()
         .map_err(|e| format!("Failed to get app config directory: {}", e))?;
-    fs::create_dir_all(&path)
-        .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    fs::create_dir_all(&path).map_err(|e| format!("Failed to create config directory: {}", e))?;
     Ok(path)
 }
 
@@ -78,8 +77,7 @@ pub fn share_message_to_dir(
 
     let file_name = build_share_file_name(session_id, message_index);
     let file_path = shares_dir.join(file_name);
-    fs::write(&file_path, content)
-        .map_err(|e| format!("Failed to write share file: {}", e))?;
+    fs::write(&file_path, content).map_err(|e| format!("Failed to write share file: {}", e))?;
 
     Ok(file_path)
 }
@@ -118,7 +116,13 @@ pub async fn chat_action_dislike(
 ) -> Result<(), String> {
     ensure_message_exists(&state, &session_id, message_index).await?;
     let base_dir = app_config_dir(&app)?;
-    log_action_to_dir(&base_dir, &session_id, message_index, "dislike", Value::Null)?;
+    log_action_to_dir(
+        &base_dir,
+        &session_id,
+        message_index,
+        "dislike",
+        Value::Null,
+    )?;
     Ok(())
 }
 
@@ -175,10 +179,21 @@ pub async fn chat_action_regenerate(
 ) -> Result<(), String> {
     state
         .orchestrator
-        .regenerate_at(&session_id, message_index, temperature, max_tokens, on_event)
+        .regenerate_at(
+            &session_id,
+            message_index,
+            temperature,
+            max_tokens,
+            on_event,
+        )
         .await?;
     let base_dir = app_config_dir(&app)?;
-    log_action_to_dir(&base_dir, &session_id, message_index, "regenerate", Value::Null)?;
+    log_action_to_dir(
+        &base_dir,
+        &session_id,
+        message_index,
+        "regenerate",
+        Value::Null,
+    )?;
     Ok(())
 }
-

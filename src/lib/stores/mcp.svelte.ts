@@ -16,6 +16,7 @@ class McpStore {
         await this.loadConfig();
         await this.loadDefaultConfig();
         await this.refreshStatus();
+        await this.loadCapabilitiesForConnected();
         await this.loadConfigPath();
     }
 
@@ -73,6 +74,29 @@ class McpStore {
             this.statusMap = next;
         } catch (err) {
             this.error = err instanceof Error ? err.message : String(err);
+        }
+    }
+
+    async loadCapabilitiesForConnected() {
+        const connectedIds = Object.values(this.statusMap)
+            .filter(status => status.connected)
+            .map(status => status.id);
+        if (connectedIds.length === 0) {
+            return;
+        }
+
+        const results = await Promise.allSettled(
+            connectedIds.map(async id => {
+                await this.listTools(id);
+                await this.listResources(id);
+            })
+        );
+
+        for (const result of results) {
+            if (result.status === 'rejected') {
+                this.error = result.reason instanceof Error ? result.reason.message : String(result.reason);
+                break;
+            }
         }
     }
 

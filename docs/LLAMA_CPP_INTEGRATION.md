@@ -43,7 +43,7 @@ async function startLlamaServer() {
       llama_cpp_path: 'E:\\src\\llama_cpp',
       model_path: 'C:\\Models\\mistral-7b.gguf',
       port: 8080,
-      ctx_size: 4096,
+      ctx_size: 8192,
       parallel: 4,
       n_gpu_layers: 33, // Set to 0 for CPU only, or higher for GPU acceleration
     });
@@ -133,7 +133,7 @@ async function stopServer() {
 | `llama_cpp_path` | string | Path to llama.cpp folder containing executables                 |
 | `model_path`     | string | Full path to the GGUF model file                                |
 | `port`           | u16    | HTTP server port (default: 8080)                                |
-| `ctx_size`       | u32    | Context window size in tokens (default: 4096)                   |
+| `ctx_size`       | u32    | Context window size in tokens (default: 8192)                   |
 | `parallel`       | u32    | Number of parallel inference slots (default: 4)                 |
 | `n_gpu_layers`   | i32    | Number of layers to offload to GPU (-1 for all, 0 for CPU only) |
 
@@ -181,7 +181,7 @@ async function cleanup() {
 ## Performance Tips
 
 1. **GPU Acceleration**: Set `n_gpu_layers` to a high value (e.g., 33 for 7B models) to offload computation to GPU
-2. **Context Size**: Larger context sizes use more memory. Start with 2048 or 4096
+2. **Context Size**: Larger context sizes use more memory. Start with 4096 or 8192
 3. **Parallel Slots**: More parallel slots allow concurrent requests but use more memory
 4. **Model Selection**: Smaller quantized models (Q4, Q5) are faster than larger ones (Q8)
 

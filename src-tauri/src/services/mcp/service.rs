@@ -92,6 +92,14 @@ impl McpService {
     }
 
     pub async fn connect(&self, id: &str) -> Result<(), String> {
+        // If already connected, skip — avoids killing stdio subprocesses on every tool call.
+        {
+            let conns = self.connections.lock().await;
+            if conns.contains_key(id) {
+                return Ok(());
+            }
+        }
+
         let server = {
             let cfg = self.config.lock().await;
             cfg.servers

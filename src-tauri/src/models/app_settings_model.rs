@@ -43,7 +43,7 @@ impl Default for AppConfig {
             theme: "dark".to_string(),
             language: "en".to_string(),
             max_tokens: 2048,
-            context_size: 4096,
+            context_size: 8192,
             temperature: 0.7,
             auto_save_chat: true,
             chat_history_limit: 50,

@@ -127,6 +127,8 @@ async fn internal_start_complete_updates_state() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let child = spawn_sleep_child().await;
     let (resp_tx, resp_rx) = oneshot::channel();
@@ -172,6 +174,8 @@ async fn internal_start_complete_error_sets_stopped() {
             ctx_size: 128,
             parallel: 1,
             n_gpu_layers: 0,
+            chat_template: None,
+            chat_template_file: None,
         },
         respond_to: resp_tx,
     })
@@ -249,6 +253,8 @@ async fn get_metrics_returns_none_for_zero_pid() {
                 ctx_size: 128,
                 parallel: 1,
                 n_gpu_layers: 0,
+                chat_template: None,
+                chat_template_file: None,
             },
         },
     );
@@ -313,6 +319,8 @@ async fn handle_start_request_returns_running_pid() {
                 ctx_size: 128,
                 parallel: 1,
                 n_gpu_layers: 0,
+                chat_template: None,
+                chat_template_file: None,
             },
         },
     );
@@ -328,6 +336,8 @@ async fn handle_start_request_returns_running_pid() {
                 ctx_size: 128,
                 parallel: 1,
                 n_gpu_layers: 0,
+                chat_template: None,
+                chat_template_file: None,
             },
             resp_tx,
         )
@@ -361,6 +371,8 @@ async fn handle_start_request_returns_starting_error() {
                 ctx_size: 128,
                 parallel: 1,
                 n_gpu_layers: 0,
+                chat_template: None,
+                chat_template_file: None,
             },
             resp_tx,
         )
@@ -401,6 +413,8 @@ async fn handle_start_request_spawns_server_and_updates_state() {
                 ctx_size: 128,
                 parallel: 1,
                 n_gpu_layers: 0,
+                chat_template: None,
+                chat_template_file: None,
             },
             resp_tx,
         )
@@ -458,6 +472,8 @@ async fn stop_clears_active_model() {
             ctx_size: 128,
             parallel: 1,
             n_gpu_layers: 0,
+            chat_template: None,
+            chat_template_file: None,
         },
         respond_to: resp_tx,
     })
@@ -582,6 +598,8 @@ async fn send_chat_streams_chunks() {
                 ctx_size: 128,
                 parallel: 1,
                 n_gpu_layers: 0,
+                chat_template: None,
+                chat_template_file: None,
             },
         },
     );

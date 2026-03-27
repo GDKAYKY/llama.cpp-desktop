@@ -47,6 +47,7 @@ pub fn configure_ipc(builder: Builder<Wry>) -> Builder<Wry> {
         commands::mcp::mcp_parse_config,
         commands::mcp::mcp_import_config,
         commands::mcp::refresh_mcp_capabilities,
+        commands::llama_cpp::ensure_chat_template,
         commands::llama_cpp::start_llama_server,
         commands::llama_cpp::stop_llama_server,
         commands::llama_cpp::check_server_health,

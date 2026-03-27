@@ -93,14 +93,17 @@ impl LlamaServer {
             llama_server_path, config.port
         );
         let binary_dir = llama_server_path.parent().unwrap_or(Path::new("."));
+        if config.chat_template.is_some() && config.chat_template_file.is_some() {
+            return Err("Use either chat_template or chat_template_file, not both".to_string());
+        }
+
         let mut cmd = Command::new(&llama_server_path);
         #[cfg(windows)]
         {
             // Prevents a console window from flashing when starting the server.
             cmd.creation_flags(0x08000000);
         }
-        let mut child = cmd
-            .current_dir(binary_dir)
+        cmd.current_dir(binary_dir)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -115,7 +118,17 @@ impl LlamaServer {
             .arg("-ngl")
             .arg(config.n_gpu_layers.to_string())
             // Enable Jinja templates for tool calling support.
-            .arg("--jinja")
+            .arg("--jinja");
+
+        if let Some(template) = &config.chat_template {
+            cmd.arg("--chat-template").arg(template);
+        }
+
+        if let Some(template_file) = &config.chat_template_file {
+            cmd.arg("--chat-template-file").arg(template_file);
+        }
+
+        let mut child = cmd
             .spawn()
             .map_err(|e| format!("Failed to spawn llama-server: {}", e))?;
 

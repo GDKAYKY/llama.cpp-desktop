@@ -2,7 +2,28 @@ use crate::models::{LlamaCppConfig, ServerMetrics};
 use crate::services::llama::LlamaCppService;
 use crate::state::AppState;
 use tauri::command;
+use tauri::AppHandle;
+use tauri::Manager;
 use tauri::State;
+use std::path::PathBuf;
+
+// ─── Comando: ensure_chat_template ────────────────────────────────────────────
+//
+// Garante que o chat template Jinja de um repo HuggingFace esteja em cache.
+// Retorna o caminho absoluto do arquivo `.jinja` local.
+
+#[command]
+pub async fn ensure_chat_template(
+    app: AppHandle,
+    hf_repo: String,
+) -> Result<String, String> {
+    let path = crate::services::templates::ensure_hf_chat_template(&app, &hf_repo, None).await?;
+    path.to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Caminho de template inválido".to_string())
+}
+
+// ─── Comando: start_llama_server ──────────────────────────────────────────────
 
 #[command]
 pub async fn start_llama_server(
@@ -11,6 +32,9 @@ pub async fn start_llama_server(
     port: u16,
     ctx_size: u32,
     n_gpu_layers: i32,
+    parallel: Option<u32>,
+    chat_template: Option<String>,
+    chat_template_file: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     start_llama_server_with_service(
@@ -20,6 +44,9 @@ pub async fn start_llama_server(
         port,
         ctx_size,
         n_gpu_layers,
+        parallel,
+        chat_template,
+        chat_template_file,
     )
     .await
 }
@@ -60,14 +87,19 @@ pub async fn start_llama_server_with_service(
     port: u16,
     ctx_size: u32,
     n_gpu_layers: i32,
+    parallel: Option<u32>,
+    chat_template: Option<String>,
+    chat_template_file: Option<String>,
 ) -> Result<String, String> {
     let config = LlamaCppConfig {
         llama_cpp_path: binary_path,
         model_path,
         port,
         ctx_size,
-        parallel: 1,
+        parallel: parallel.unwrap_or(1),
         n_gpu_layers,
+        chat_template,
+        chat_template_file,
     };
 
     let pid = service.start(config).await?;

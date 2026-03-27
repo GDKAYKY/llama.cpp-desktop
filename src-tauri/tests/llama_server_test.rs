@@ -93,6 +93,8 @@ async fn spawn_errors_when_model_missing() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let err = LlamaServer::spawn(None, config, client)
@@ -112,6 +114,8 @@ async fn spawn_errors_when_server_missing() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let err = LlamaServer::spawn(None, config, client)
@@ -132,6 +136,8 @@ async fn spawn_errors_when_process_exits_early() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let err = LlamaServer::spawn(None, config, client)
@@ -152,6 +158,8 @@ async fn spawn_errors_on_healthcheck_timeout() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let err = LlamaServer::spawn(None, config, client)
@@ -174,6 +182,8 @@ async fn spawn_success_with_dummy_server_and_healthcheck() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let (_port, mut child) = LlamaServer::spawn(None, config, client)
@@ -198,6 +208,8 @@ async fn spawn_finds_server_in_directory_candidates() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let (_port, mut child) = LlamaServer::spawn(None, config, client)
@@ -241,6 +253,8 @@ async fn spawn_finds_server_in_build_candidates() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let (_port, mut child) = LlamaServer::spawn(None, config, client)
