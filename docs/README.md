@@ -9,6 +9,8 @@ Welcome to the Llama Desktop documentation. This directory contains detailed inf
 - **[Backend Architecture](./BACKEND_ARCHITECTURE.md)**: Standards and conventions for the Rust backend.
 - **[Project Structure](./PROJECT_STRUCTURE.md)**: Detailed directory and file organization.
 - **[File Responsibilities](./file-responsibilities.md)**: breakdown of what each major file does.
+- **[Tauri Capabilities](./TAURI_CAPABILITIES.md)**: Security and IPC permissions configuration.
+
 
 ### 🚀 Getting Started
 - **[Models Setup Guide](./MODELS_SETUP_GUIDE.md)**: How to acquire and organize GGUF models.

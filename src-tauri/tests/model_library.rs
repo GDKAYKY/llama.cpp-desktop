@@ -159,7 +159,7 @@ async fn test_model_library_persistence() {
         version: "1.0".to_string(),
         full_identifier: "test-provider:test-model:1.0".to_string(),
         model_file_path: Some("/path/to/model".to_string()),
-        manifest: ModelManifest {
+        manifest_data: ModelManifest {
             schema_version: 2,
             media_type: "test".to_string(),
             config: ManifestConfig {
@@ -173,6 +173,7 @@ async fn test_model_library_persistence() {
                 size: 200,
             }],
         },
+        manifest_path: Some("manifests/test-provider/test-library/test-model/1.0/manifest.json".to_string()),
     };
 
     let models = vec![model_info];

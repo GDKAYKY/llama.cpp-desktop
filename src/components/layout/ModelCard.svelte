@@ -17,6 +17,7 @@
     Tag,
     Info,
     Activity,
+    Trash2,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
@@ -61,7 +62,7 @@
   }
 
   function getTotalSize(model: Model) {
-    return model.manifest.layers.reduce((acc, layer) => acc + layer.size, 0);
+    return model.manifest_data.layers.reduce((acc, layer) => acc + layer.size, 0);
   }
 
   function getModelMetadata(model: Model) {
@@ -172,10 +173,10 @@
   class={cn(
     "group relative flex h-[400px] cursor-pointer flex-col gap-2 rounded-xl p-4 transition-all",
     isSelected
-      ? "bg-primary/5 active:scale-[0.98] active:duration-0"
+      ? "bg-primary/5 active:duration-0"
       : isModelRunning(model)
-        ? "bg-white/2 hover:bg-white/5 active:scale-[0.98] active:duration-0"
-        : "bg-white/2 hover:bg-white/5 active:scale-[0.98] active:duration-0",
+        ? "bg-white/2 hover:bg-white/5 active:duration-0"
+        : "bg-white/2 hover:bg-white/5 active:duration-0",
   )}
   onclick={() => onSelect(model)}
   role="button"
@@ -248,6 +249,14 @@
           >
             <FileText size={14} />
             View Manifest
+          </button>
+
+          <button
+            class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-red-400 hover:bg-white/5"
+            onclick={(e) => onAction("delete-model", model, e)}
+          >
+            <Trash2 size={14} />
+            Delete Model
           </button>
 
           <div class="my-1 border-t border-border"></div>
@@ -364,7 +373,7 @@
         <span>Layers</span>
       </div>
       <span class="font-medium text-foreground/80"
-        >{model.manifest.layers.length} files</span
+          >{model.manifest_data.layers.length} files</span
       >
     </div>
     <div class="flex items-center justify-between text-[10px]">
@@ -373,7 +382,7 @@
         <span>Digest</span>
       </div>
       <span class="font-mono font-medium text-foreground/80"
-        >{getShortDigest(model.manifest.config.digest)}</span
+        >{getShortDigest(model.manifest_data.config.digest)}</span
       >
     </div>
   </div>

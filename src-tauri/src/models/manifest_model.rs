@@ -67,10 +67,14 @@ pub struct ModelInfo {
     pub version: String,
 
     /// The parsed manifest data from the manifest.json file.
-    pub manifest: ModelManifest,
+    #[serde(rename = "manifest_data", alias = "manifest")]
+    pub manifest_data: ModelManifest,
 
     /// Absolute path to the model binary (blob) on the local filesystem.
     pub model_file_path: Option<String>,
+
+    /// Absolute path to the manifest.json for this model.
+    pub manifest_path: Option<String>,
 
     /// A human-readable identifier (e.g., "registry.ollama.ai:llama3:latest").
     pub full_identifier: String,

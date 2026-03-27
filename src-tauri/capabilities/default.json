@@ -2,22 +2,57 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": [
-    "main"
-  ],
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "opener:default",
     "shell:default",
     "shell:allow-open",
+    "dialog:default",
+    "fs:default",
+
     {
-      "identifier": "opener:allow-open-path",
-      "allow": [
-        {
-          "path": "$APPCONFIG/**"
-        }
-      ]
+      "identifier": "fs:allow-read",
+      "allow": ["$APPLOCALDATA/**", "$APPDATA/**", "$APPCONFIG/**"]
     },
-    "dialog:default"
+    {
+      "identifier": "fs:allow-write",
+      "allow": ["$APPLOCALDATA/**", "$APPDATA/**", "$APPCONFIG/**"]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": ["$APPLOCALDATA/**", "$APPDATA/**", "$APPCONFIG/**"]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": ["$APPLOCALDATA/**", "$APPDATA/**", "$APPCONFIG/**"]
+    },
+    {
+      "identifier": "fs:allow-stat",
+      "allow": ["$APPLOCALDATA/**", "$APPDATA/**", "$APPCONFIG/**"]
+    },
+    {
+      "identifier": "fs:allow-lstat",
+      "allow": ["$APPLOCALDATA/**", "$APPDATA/**", "$APPCONFIG/**"]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": ["$APPLOCALDATA/**", "$APPDATA/**"]
+    },
+    {
+      "identifier": "fs:allow-rename",
+      "allow": ["$APPLOCALDATA/**", "$APPDATA/**"]
+    },
+    {
+      "identifier": "fs:allow-copy-file",
+      "allow": ["$APPLOCALDATA/**", "$APPDATA/**"]
+    },
+
+    { "identifier": "core:app:default" },
+    { "identifier": "core:event:default" },
+    { "identifier": "core:path:default" },
+    { "identifier": "core:window:default" },
+    { "identifier": "core:menu:default" },
+    { "identifier": "core:tray:default" }
   ]
 }

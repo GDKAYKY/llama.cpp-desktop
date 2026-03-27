@@ -9,9 +9,18 @@ use reqwest::header::{ACCEPT, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
+use std::time::Instant;
+use tauri::Emitter;
 use tokio::fs as tokio_fs;
 use tokio::io::AsyncWriteExt;
 
+#[derive(Clone, Serialize)]
+pub struct DownloadProgressPayload {
+    pub reference: String,
+    pub downloaded: u64,
+    pub total: u64,
+    pub speed: f64,
+}
 const DEFAULT_REGISTRY: &str = "registry.ollama.ai";
 const DEFAULT_LIBRARY: &str = "library";
 const DEFAULT_VERSION: &str = "latest";
@@ -115,7 +124,10 @@ fn parse_model_reference(reference: &str) -> Result<ModelRef, String> {
         1 => (DEFAULT_LIBRARY.to_string(), parts[0]),
         2 => (parts[0].to_string(), parts[1]),
         _ => {
-            return Err("Invalid model reference. Expected registry/library/name:version or name:version".to_string());
+            return Err(
+                "Invalid model reference. Expected registry/library/name:version or name:version"
+                    .to_string(),
+            );
         }
     };
 
@@ -145,7 +157,9 @@ fn parse_hf_reference(reference: &str) -> Result<HfModelRef, String> {
     } else if trimmed.starts_with("huggingface.co/") {
         trimmed = trimmed.trim_start_matches("huggingface.co/");
     } else {
-        return Err("Invalid Hugging Face reference. Expected hf.co/<org>/<repo>:<selector>".to_string());
+        return Err(
+            "Invalid Hugging Face reference. Expected hf.co/<org>/<repo>:<selector>".to_string(),
+        );
     }
 
     let trimmed = trimmed.trim_start_matches('/');
@@ -168,7 +182,10 @@ fn parse_hf_reference(reference: &str) -> Result<HfModelRef, String> {
         return Err("Hugging Face repo must be in the format <org>/<repo>".to_string());
     }
 
-    let version_label = selector.clone().filter(|s| !s.is_empty()).unwrap_or_else(|| HF_REVISION_DEFAULT.to_string());
+    let version_label = selector
+        .clone()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| HF_REVISION_DEFAULT.to_string());
 
     Ok(HfModelRef {
         repo_id,
@@ -211,7 +228,10 @@ fn choose_hf_filename(files: &[String], selector: Option<&str>) -> Result<String
         return match matches.len() {
             0 => Err("No GGUF files match the requested selector".to_string()),
             1 => Ok(matches[0].clone()),
-            _ => Err("Multiple GGUF files match the selector. Please specify the exact filename.".to_string()),
+            _ => Err(
+                "Multiple GGUF files match the selector. Please specify the exact filename."
+                    .to_string(),
+            ),
         };
     }
 
@@ -253,6 +273,8 @@ async fn write_blob_from_bytes(blobs_dir: &Path, bytes: &[u8]) -> Result<(String
 }
 
 async fn download_hf_file(
+    app: &AppHandle,
+    reference: &str,
     client: &reqwest::Client,
     url: &str,
     blobs_dir: &Path,
@@ -264,7 +286,10 @@ async fn download_hf_file(
         .map_err(|e| format!("Failed to download model file: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!("Failed to download model file: HTTP {}", response.status()));
+        return Err(format!(
+            "Failed to download model file: HTTP {}",
+            response.status()
+        ));
     }
 
     tokio_fs::create_dir_all(blobs_dir)
@@ -272,24 +297,58 @@ async fn download_hf_file(
         .map_err(|e| format!("Failed to create blobs directory: {}", e))?;
 
     let tmp_path = blobs_dir.join("hf-download.partial");
-    let mut file = tokio_fs::File::create(&tmp_path)
+    let file = tokio_fs::File::create(&tmp_path)
         .await
         .map_err(|e| format!("Failed to create temp file: {}", e))?;
+    let mut writer = tokio::io::BufWriter::with_capacity(1024 * 1024, file);
 
     let mut hasher = Sha256::new();
     let mut size: u64 = 0;
 
+    let total_size = response.content_length().unwrap_or(0);
     let mut stream = response.bytes_stream();
+
+    let mut last_emit = Instant::now();
+    let mut speed_calc_start = Instant::now();
+    let mut bytes_since_last_calc = 0u64;
+
     while let Some(chunk) = stream.next().await {
         let bytes = chunk.map_err(|e| format!("Failed while downloading model: {}", e))?;
-        size += bytes.len() as u64;
+        let len = bytes.len() as u64;
+        size += len;
+        bytes_since_last_calc += len;
+
         hasher.update(&bytes);
-        file.write_all(&bytes)
+        writer
+            .write_all(&bytes)
             .await
             .map_err(|e| format!("Failed to write model file: {}", e))?;
+
+        if last_emit.elapsed().as_millis() >= 250 {
+            let elapsed_sec = speed_calc_start.elapsed().as_secs_f64();
+            let mut speed = 0.0;
+            if elapsed_sec > 0.0 {
+                speed = (bytes_since_last_calc as f64) / elapsed_sec;
+            }
+
+            let _ = app.emit(
+                "download-progress",
+                DownloadProgressPayload {
+                    reference: reference.to_string(),
+                    downloaded: size,
+                    total: total_size.max(size),
+                    speed,
+                },
+            );
+
+            last_emit = Instant::now();
+            speed_calc_start = Instant::now();
+            bytes_since_last_calc = 0;
+        }
     }
 
-    file.flush()
+    writer
+        .flush()
         .await
         .map_err(|e| format!("Failed to flush model file: {}", e))?;
 
@@ -311,6 +370,8 @@ async fn download_hf_file(
 }
 
 async fn download_blob(
+    app: &AppHandle,
+    reference: &str,
     client: &reqwest::Client,
     registry: &str,
     repository: &str,
@@ -347,19 +408,55 @@ async fn download_blob(
     }
 
     let tmp_path = blob_path.with_extension("partial");
-    let mut file = tokio_fs::File::create(&tmp_path)
+    let file = tokio_fs::File::create(&tmp_path)
         .await
         .map_err(|e| format!("Failed to create temp file: {}", e))?;
+    let mut writer = tokio::io::BufWriter::with_capacity(1024 * 1024, file);
 
     let mut stream = response.bytes_stream();
+    let mut downloaded = 0u64;
+
+    let mut last_emit = Instant::now();
+    let mut speed_calc_start = Instant::now();
+    let mut bytes_since_last_calc = 0u64;
+
     while let Some(chunk) = stream.next().await {
-        let bytes = chunk.map_err(|e| format!("Failed while downloading blob {}: {}", digest, e))?;
-        file.write_all(&bytes)
+        let bytes =
+            chunk.map_err(|e| format!("Failed while downloading blob {}: {}", digest, e))?;
+        let len = bytes.len() as u64;
+        downloaded += len;
+        bytes_since_last_calc += len;
+
+        writer
+            .write_all(&bytes)
             .await
             .map_err(|e| format!("Failed to write blob {}: {}", digest, e))?;
+
+        if last_emit.elapsed().as_millis() >= 250 {
+            let elapsed_sec = speed_calc_start.elapsed().as_secs_f64();
+            let mut speed = 0.0;
+            if elapsed_sec > 0.0 {
+                speed = (bytes_since_last_calc as f64) / elapsed_sec;
+            }
+
+            let _ = app.emit(
+                "download-progress",
+                DownloadProgressPayload {
+                    reference: reference.to_string(),
+                    downloaded,
+                    total: size.max(downloaded),
+                    speed,
+                },
+            );
+
+            last_emit = Instant::now();
+            speed_calc_start = Instant::now();
+            bytes_since_last_calc = 0;
+        }
     }
 
-    file.flush()
+    writer
+        .flush()
         .await
         .map_err(|e| format!("Failed to flush blob {}: {}", digest, e))?;
 
@@ -432,14 +529,12 @@ async fn download_model_from_hf(
 
     let file_url = format!(
         "https://{}/{}/resolve/{}/{}",
-        HF_HOST_LONG,
-        model_ref.repo_id,
-        model_ref.revision,
-        filename
+        HF_HOST_LONG, model_ref.repo_id, model_ref.revision, filename
     );
 
     let blobs_dir = PathBuf::from(&models_root).join("blobs");
-    let (model_digest, model_size) = download_hf_file(&client, &file_url, &blobs_dir).await?;
+    let (model_digest, model_size) =
+        download_hf_file(&app, &model_reference, &client, &file_url, &blobs_dir).await?;
 
     let config_metadata = HfConfigMetadata {
         source: HF_HOST.to_string(),
@@ -484,7 +579,12 @@ async fn download_model_from_hf(
     crate::utils::save_json(&manifest_path, &manifest)?;
 
     // Tenta baixar o chat template jinja automaticamente para conveniência do usuário
-    let _ = crate::services::templates::ensure_hf_chat_template(&app, &model_ref.repo_id, Some(&model_ref.revision)).await;
+    let _ = crate::services::templates::ensure_hf_chat_template(
+        &app,
+        &model_ref.repo_id,
+        Some(&model_ref.revision),
+    )
+    .await;
 
     let manifest_path_str = manifest_path
         .to_str()
@@ -575,8 +675,9 @@ pub async fn parse_model_manifest(
         library,
         name: name.clone(),
         version: version.clone(),
-        manifest,
+        manifest_data: manifest,
         model_file_path,
+        manifest_path: Some(model_path),
         full_identifier,
     })
 }
@@ -664,8 +765,9 @@ pub fn parse_model_manifest_sync(
         library,
         name: name.clone(),
         version: version.clone(),
-        manifest,
+        manifest_data: manifest,
         model_file_path,
+        manifest_path: Some(model_path),
         full_identifier,
     })
 }
@@ -768,6 +870,8 @@ pub async fn download_model_from_registry(
     let blobs_dir = PathBuf::from(&models_root).join("blobs");
 
     download_blob(
+        &app,
+        &model_reference,
         &client,
         &model_ref.registry,
         &repository,
@@ -779,6 +883,8 @@ pub async fn download_model_from_registry(
 
     for layer in &manifest.layers {
         download_blob(
+            &app,
+            &model_reference,
             &client,
             &model_ref.registry,
             &repository,
@@ -796,6 +902,131 @@ pub async fn download_model_from_registry(
     parse_model_manifest_sync(manifest_path_str.to_string(), models_root)
 }
 
+/// Removes a model by deleting its associated blob files and the manifest file
+#[command]
+pub async fn remove_model_by_manifest_path(
+    manifest_path: String,
+    models_root: String,
+) -> Result<bool, String> {
+    use std::fs;
+
+    // Parse the manifest to get the layers/blob information
+    let manifest: ModelManifest = crate::utils::read_json(Path::new(&manifest_path))
+        .map_err(|e| format!("Failed to read manifest: {}", e))?;
+
+    // Get the models root path
+    let models_root_path = Path::new(&models_root);
+
+    // Remove all blob files referenced in the manifest (config + layers)
+    let mut all_removed = true;
+
+    // Remove config blob
+    let config_blob_path = find_model_blob_path(models_root_path, &manifest.config.digest);
+    if let Some(path) = config_blob_path {
+        if let Err(e) = fs::remove_file(&path) {
+            eprintln!("Warning: Failed to remove config blob {}: {}", path, e);
+            all_removed = false;
+        } else {
+            println!("Removed config blob: {}", path);
+        }
+    }
+
+    // Remove layer blobs
+    for layer in &manifest.layers {
+        let layer_blob_path = find_model_blob_path(models_root_path, &layer.digest);
+        if let Some(path) = layer_blob_path {
+            if let Err(e) = fs::remove_file(&path) {
+                eprintln!("Warning: Failed to remove layer blob {}: {}", path, e);
+                all_removed = false;
+            } else {
+                println!("Removed layer blob: {}", path);
+            }
+        }
+    }
+
+    // Remove the manifest file itself
+    if let Err(e) = fs::remove_file(&manifest_path) {
+        eprintln!(
+            "Warning: Failed to remove manifest file {}: {}",
+            manifest_path, e
+        );
+        all_removed = false;
+    } else {
+        println!("Removed manifest file: {}", manifest_path);
+    }
+
+    // Attempt to clean up empty directories after removing the files
+    cleanup_empty_dirs(Path::new(&manifest_path))?;
+
+    Ok(all_removed)
+}
+
+/// Removes a model by its full identifier (e.g., "registry.ollama.ai:llama3:latest")
+#[command]
+pub async fn remove_model_by_identifier(
+    full_identifier: String,
+    models_root: String,
+) -> Result<bool, String> {
+    let models = scan_models_directory(models_root.clone()).await?;
+    let model = models
+        .into_iter()
+        .find(|m| m.full_identifier == full_identifier)
+        .ok_or_else(|| format!("Model with identifier {} not found", full_identifier))?;
+
+    if let Some(manifest_path) = model.manifest_path {
+        return remove_model_by_manifest_path(manifest_path, models_root).await;
+    }
+
+    let manifest_path = PathBuf::from(&models_root)
+        .join("manifests")
+        .join(&model.provider)
+        .join(&model.library)
+        .join(&model.name)
+        .join(&model.version)
+        .join("manifest.json");
+
+    let manifest_path_str = manifest_path
+        .to_str()
+        .ok_or_else(|| "Failed to build manifest path".to_string())?;
+
+    remove_model_by_manifest_path(manifest_path_str.to_string(), models_root).await
+}
+
+/// Attempts to remove empty directories up to the manifest file
+fn cleanup_empty_dirs(file_path: &Path) -> Result<(), String> {
+    // Navigate up from the manifest file to clean up empty directories
+    let mut current_path = file_path.parent();
+
+    while let Some(path) = current_path {
+        // Stop cleaning up if we've reached the "manifests" directory or beyond
+        if path.file_name().map_or(false, |name| name == "manifests") {
+            break;
+        }
+
+        // Check if directory is empty before attempting to remove
+        if let Ok(entries) = fs::read_dir(path) {
+            if entries.count() == 0 {
+                if let Err(e) = fs::remove_dir(path) {
+                    eprintln!(
+                        "Warning: Could not remove empty directory {:?}: {}",
+                        path, e
+                    );
+                    // If we can't remove parent, stop going up the chain
+                    break;
+                } else {
+                    println!("Removed empty directory: {:?}", path);
+                }
+            } else {
+                // Directory is not empty, stop going up the chain
+                break;
+            }
+        }
+
+        current_path = path.parent();
+    }
+
+    Ok(())
+}
 
 #[cfg(any(test, debug_assertions))]
 pub mod test_utils {

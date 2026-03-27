@@ -3,9 +3,7 @@ use crate::services::llama::LlamaCppService;
 use crate::state::AppState;
 use tauri::command;
 use tauri::AppHandle;
-use tauri::Manager;
 use tauri::State;
-use std::path::PathBuf;
 
 // ─── Comando: ensure_chat_template ────────────────────────────────────────────
 //
@@ -13,10 +11,7 @@ use std::path::PathBuf;
 // Retorna o caminho absoluto do arquivo `.jinja` local.
 
 #[command]
-pub async fn ensure_chat_template(
-    app: AppHandle,
-    hf_repo: String,
-) -> Result<String, String> {
+pub async fn ensure_chat_template(app: AppHandle, hf_repo: String) -> Result<String, String> {
     let path = crate::services::templates::ensure_hf_chat_template(&app, &hf_repo, None).await?;
     path.to_str()
         .map(|s| s.to_string())
@@ -120,7 +115,10 @@ pub async fn check_server_health_with_service(service: &LlamaCppService) -> Resu
         return Ok(false);
     }
 
-    let config = service.get_config().await.ok_or_else(|| "No config".to_string())?;
+    let config = service
+        .get_config()
+        .await
+        .ok_or_else(|| "No config".to_string())?;
     let url = format!("http://localhost:{}/health", config.port);
 
     let client = reqwest::Client::new();

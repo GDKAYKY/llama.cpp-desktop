@@ -110,8 +110,9 @@ async fn save_and_load_model_library_round_trip() {
         library: "lib".to_string(),
         name: "name".to_string(),
         version: "version".to_string(),
-        manifest,
+        manifest_data: manifest,
         model_file_path: Some("path/to/model".to_string()),
+        manifest_path: Some("path/to/manifest.json".to_string()),
         full_identifier: "provider:name:version".to_string(),
     };
 

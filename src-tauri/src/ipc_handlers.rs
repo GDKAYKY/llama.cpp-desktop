@@ -24,6 +24,8 @@ pub fn configure_ipc(builder: Builder<Wry>) -> Builder<Wry> {
         commands::models::save_model_library,
         commands::models::load_model_library,
         commands::models::download_model_from_registry,
+        commands::models::remove_model_by_manifest_path,
+        commands::models::remove_model_by_identifier,
         commands::config::load_config,
         commands::config::save_config,
         commands::config::reset_config,
