@@ -24,10 +24,20 @@ export default defineConfig(async () => ({
           host,
           port: 1421,
         }
-      : undefined,
+      : { overlay: false },
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      ignored: [
+        "**/src-tauri/**",
+        "**/models/**",
+        "**/manifests/**",
+        "**/blobs/**",
+        "**/chat_templates/**",
+        "**/downloads/**",
+        "**/logs/**",
+        "**/.vite/**",
+        "**/dist/**",
+      ],
     },
   },
   test: {

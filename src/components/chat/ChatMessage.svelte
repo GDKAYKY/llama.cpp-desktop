@@ -17,8 +17,8 @@
   import { modelsStore } from "$lib/stores/models.svelte";
   import { toast } from "svelte-sonner";
 
-  /** @type {{ message: { role: string, content: string }, index: number, thinkingProcess?: string[], modelThinking?: string }} */
-  let { message, index, thinkingProcess = [], modelThinking = "" } = $props();
+  /** @type {{ message: { role: string, content: string }, index: number, thinkingProcess?: string[], modelThinking?: string, thinkingLabel?: string, toolContext?: any[] }} */
+  let { message, index, thinkingProcess = [], modelThinking = "", thinkingLabel = "Thinking", toolContext = [] } = $props();
 
   let isEditing = $state(false);
   let editText = $state("");
@@ -121,54 +121,63 @@
     toast.message("Mais ações em breve");
   }
 
-  function classifyThinking(entries) {
-    let fileCount = 0;
-    let searchCount = 0;
-    let hasMcp = false;
-    let hasTool = false;
-    let isListing = false;
+  function summarizeThinking(entries, toolCount, labelFromTemplate) {
     const ignoredPatterns = [
-      'tool loop',
-      'no tool calls',
-      'streaming final',
-      'exceeded max iterations',
-      'iteration',
+      "tool loop",
+      "no tool calls",
+      "streaming final",
+      "exceeded max iterations",
+      "iteration",
     ];
-    for (const entry of entries) {
-      const text = String(entry || "")
-        .trim()
-        .toLowerCase();
-      if (!text) continue;
-      if (ignoredPatterns.some(p => text.includes(p))) continue;
-      if (text.startsWith("read ") || text.includes("read ")) {
-        fileCount += 1;
-      } else if (text.startsWith("search") || text.includes("searched")) {
-        searchCount += 1;
-      }
-      if (text.includes("listing") || text.includes("listing mcp")) {
-        isListing = true;
-      }
-      if (text.includes("mcp")) {
-        hasMcp = true;
-      }
-      if (text.includes("tool")) {
-        hasTool = true;
+    const cleaned = entries
+      .map((entry) => String(entry || "").trim())
+      .filter(Boolean)
+      .filter((entry) => {
+        const text = entry.toLowerCase();
+        return !ignoredPatterns.some((p) => text.includes(p));
+      });
+
+    let label = labelFromTemplate || "Thinking";
+    if (toolCount > 0) {
+      label = "Tool context";
+    } else {
+      const lowered = cleaned.map((entry) => entry.toLowerCase());
+      if (lowered.some((text) => text.includes("listing mcp"))) {
+        label = "Listing MCP tools";
+      } else if (lowered.some((text) => text.includes("calling mcp tool"))) {
+        label = "Calling MCP tool";
+      } else if (lowered.some((text) => text.includes("calling tool"))) {
+        label = "Calling tool";
       }
     }
-    return { fileCount, searchCount, hasMcp, hasTool, isListing };
+
+    return { label, steps: cleaned };
   }
 
-  function buildThinkingLabel(counts) {
-    if (counts.isListing) return "Listing MCP tools";
-    if (counts.hasMcp) return "Calling MCP tool";
-    if (counts.hasTool) return "Calling tool";
-    return `Exploring ${counts.fileCount} file${counts.fileCount === 1 ? "" : "s"}, ${counts.searchCount} search${counts.searchCount === 1 ? "" : "es"}`;
+  function formatValue(value) {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return JSON.stringify(parsed, null, 2);
+      } catch {
+        return value;
+      }
+    }
+    if (typeof value === "object") {
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
   }
 
   $effect(() => {
     if (
       message.role === "assistant" &&
-      (thinkingProcess.length > 0 || modelThinking)
+      (thinkingProcess.length > 0 || modelThinking || toolContext.length > 0)
     ) {
       thinkingOpen = true;
     }
@@ -296,8 +305,8 @@
               {message.model}
             </div>
           {/if}
-          {#if message.role === "assistant" && (thinkingProcess.length > 0 || modelThinking)}
-            {@const counts = classifyThinking(thinkingProcess)}
+          {#if message.role === "assistant" && (thinkingProcess.length > 0 || modelThinking || toolContext.length > 0)}
+            {@const summary = summarizeThinking(thinkingProcess, toolContext.length, thinkingLabel)}
             <div class="w-full">
               <div class="relative">
                 <button
@@ -317,7 +326,7 @@
                     class="min-w-0 flex-1 truncate rounded-lg text-[12px] hover:text-foreground transition-colors"
                     duration={1.5}
                   >
-                    {buildThinkingLabel(counts)}
+                    {summary.label}
                   </TextShimmer>
                 </button>
 
@@ -327,11 +336,44 @@
                       class="max-h-56 overflow-auto text-[12px] text-muted-foreground/80"
                     >
                       <div class="flex flex-col gap-1">
-                        {#each thinkingProcess as step}
-                          {#if String(step || "").trim()}
+                        {#if summary.steps.length > 0}
+                          {#each summary.steps as step}
                             <div class="truncate">{step}</div>
-                          {/if}
-                        {/each}
+                          {/each}
+                        {/if}
+                        {#if toolContext.length > 0}
+                          <div class="mt-2 text-[11px] text-muted-foreground/70">
+                            <div class="mb-1 uppercase tracking-wider">
+                              Tool context
+                            </div>
+                            <div class="flex flex-col gap-2">
+                              {#each toolContext as ctx}
+                                <div class="rounded-md border border-border/60 bg-secondary/40 px-2 py-2">
+                                  <div class="text-[12px] text-foreground/90">
+                                    {ctx.serverId || "unknown"}::{ctx.toolName || "tool"}
+                                  </div>
+                                  {#if ctx.toolCallId}
+                                    <div class="text-[10px] text-muted-foreground/70">
+                                      {ctx.toolCallId}
+                                    </div>
+                                  {/if}
+                                  <div class="mt-2 text-[11px] text-muted-foreground/70">
+                                    Arguments
+                                  </div>
+                                  <pre class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/60 px-2 py-1 text-[11px] text-muted-foreground/80">
+{formatValue(ctx.arguments)}
+                                  </pre>
+                                  <div class="mt-2 text-[11px] text-muted-foreground/70">
+                                    Result
+                                  </div>
+                                  <pre class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/60 px-2 py-1 text-[11px] text-muted-foreground/80">
+{formatValue(ctx.result)}
+                                  </pre>
+                                </div>
+                              {/each}
+                            </div>
+                          </div>
+                        {/if}
                         {#if modelThinking}
                           <div
                             class="mt-2 text-[11px] text-muted-foreground/70"

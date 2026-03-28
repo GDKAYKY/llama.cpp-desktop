@@ -37,34 +37,6 @@ export async function loadModelLibrary(libraryPath: string): Promise<Model[]> {
 }
 
 /**
- * Remove a model by its manifest path, including all associated blob files
- */
-export async function removeModelByManifestPath(manifestPath: string, modelsRoot: string): Promise<boolean> {
-    return await invokeCommand('remove_model_by_manifest_path', { 
-        manifestPath: manifestPath, 
-        modelsRoot: modelsRoot 
-    }) as Promise<boolean>;
-}
-
-/**
- * Remove a model by its full identifier
- */
-export async function removeModelByIdentifier(fullIdentifier: string, modelsRoot: string): Promise<boolean> {
-    // First, we need to find the manifest path for this model
-    const allModels = await scanModelsDirectory(modelsRoot);
-    const model = allModels.find(m => m.full_identifier === fullIdentifier);
-    
-    if (!model) {
-        throw new Error(`Model with identifier ${fullIdentifier} not found`);
-    }
-    
-    // Derive the manifest path from the model's properties
-    // From the Rust code, the format is: {modelsRoot}/manifests/{provider}/{library}/{name}/{version}/manifest.json
-    const manifestPath = `${modelsRoot}/manifests/${model.provider}/${model.library}/${model.name}/${model.version}/manifest.json`;
-    return await removeModelByManifestPath(manifestPath, modelsRoot);
-}
-
-/**
  * Open directory picker dialog for user to select models folder
  */
 export async function selectModelsDirectory(): Promise<string | null> {
@@ -89,12 +61,42 @@ export async function selectLlamaDirectory(): Promise<string | null> {
         const selected = await open({
             directory: true,
             multiple: false,
-            title: 'Select Llama Directory'
+            title: 'Select Llama Directory',
         });
-
         return selected;
     } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
         throw new Error(`Failed to open directory dialog: ${errorMessage}`);
     }
+}
+
+/**
+ * Format model identifier from components
+ */
+export function formatModelIdentifier(provider: string, name: string, version: string): string {
+    return `${provider}:${name}:${version}`;
+}
+
+/**
+ * Parse model identifier into components
+ */
+export function parseModelIdentifier(identifier: string): { provider: string; name: string; version: string } {
+    const parts = identifier.split(':');
+    if (parts.length !== 3) {
+        throw new Error('Invalid model identifier format. Expected: provider:name:version');
+    }
+    return {
+        provider: parts[0],
+        name: parts[1],
+        version: parts[2]
+    };
+}
+
+/**
+ * This mounts the blob path according to the Ollama Default Installation path
+ * automatically gets the archive according to the manifest Json
+ */
+export function getModelBlobPath(modelsRoot: string, digest: string): string {
+    const blobFilename = digest.replace(':', '-');
+    return `${modelsRoot}/blobs/${blobFilename}`;
 }

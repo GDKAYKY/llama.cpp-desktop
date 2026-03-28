@@ -109,9 +109,13 @@ impl ThinkingStreamParser {
     fn could_be_partial_tag(&self, text: &str, tag: &str) -> bool {
         let check_len = tag.len().min(text.len());
         for i in 1..=check_len {
-            let suffix = &text[text.len() - i..];
-            if tag.starts_with(suffix) {
-                return true;
+            if let Some(start) = text.len().checked_sub(i) {
+                if text.is_char_boundary(start) {
+                    let suffix = &text[start..];
+                    if tag.starts_with(suffix) {
+                        return true;
+                    }
+                }
             }
         }
         false

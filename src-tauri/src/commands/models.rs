@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 use tauri::command;
 use tauri::AppHandle;
+use tauri::Emitter; // required to call .emit() on AppHandle
 
 use crate::models::{ModelInfo, ModelLibrary, ModelManifest};
 use futures::StreamExt;
@@ -9,28 +10,42 @@ use reqwest::header::{ACCEPT, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
-use std::time::Instant;
-use tauri::Emitter;
 use tokio::fs as tokio_fs;
 use tokio::io::AsyncWriteExt;
 
-#[derive(Clone, Serialize)]
-pub struct DownloadProgressPayload {
-    pub reference: String,
-    pub downloaded: u64,
-    pub total: u64,
-    pub speed: f64,
-}
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
 const DEFAULT_REGISTRY: &str = "registry.ollama.ai";
 const DEFAULT_LIBRARY: &str = "library";
 const DEFAULT_VERSION: &str = "latest";
-const MANIFEST_ACCEPT: &str = "application/vnd.ollama.manifest.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json";
+
+// Multi-value Accept header required by Ollama's registry — order matters,
+// OCI manifest format takes priority over Docker v2 schema.
+const MANIFEST_ACCEPT: &str = "application/vnd.ollama.manifest.v1+json, \
+    application/vnd.oci.image.manifest.v1+json, \
+    application/vnd.docker.distribution.manifest.v2+json";
+
 const HF_HOST: &str = "hf.co";
 const HF_HOST_LONG: &str = "huggingface.co";
+
+// Default branch used when the user doesn't supply a commit/revision selector.
 const HF_REVISION_DEFAULT: &str = "main";
+
+// Media types mimic Ollama's blob conventions so the manifest directory
+// stays compatible with ollama CLI tooling.
 const HF_MANIFEST_MEDIA_TYPE: &str = "application/vnd.ollama.manifest.v1+json";
 const HF_MODEL_MEDIA_TYPE: &str = "application/vnd.ollama.image.model";
 const HF_CONFIG_MEDIA_TYPE: &str = "application/vnd.ollama.image.config";
+
+// Chunk size at which download progress events are emitted.
+// 1 MiB keeps the event rate reasonable without hiding progress for large models.
+const PROGRESS_EMIT_INTERVAL_BYTES: u64 = 1024 * 1024;
+
+// ---------------------------------------------------------------------------
+// Internal reference types — never cross the Tauri boundary
+// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
 struct ModelRef {
@@ -43,10 +58,17 @@ struct ModelRef {
 #[derive(Debug, Clone)]
 struct HfModelRef {
     repo_id: String,
+    // None means "pick the only GGUF, or fail if ambiguous".
     selector: Option<String>,
+    // Actual Git ref used for download URL construction.
     revision: String,
+    // Human-readable label used as the manifest version directory name.
     version_label: String,
 }
+
+// ---------------------------------------------------------------------------
+// HuggingFace API response shapes
+// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct HfApiModel {
@@ -58,6 +80,7 @@ struct HfApiSibling {
     rfilename: String,
 }
 
+// Stored as the config blob so the runtime knows where a model came from.
 #[derive(Debug, Serialize)]
 struct HfConfigMetadata {
     source: String,
@@ -66,6 +89,12 @@ struct HfConfigMetadata {
     filename: String,
 }
 
+// ---------------------------------------------------------------------------
+// Reference parsing helpers
+// ---------------------------------------------------------------------------
+
+/// Returns true if the first path segment looks like a registry hostname
+/// rather than a library name (e.g. "registry.ollama.ai", "localhost:5000").
 fn is_registry_host(value: &str) -> bool {
     value.contains('.') || value.contains(':') || value == "localhost"
 }
@@ -80,6 +109,7 @@ fn is_hf_reference(value: &str) -> bool {
         || value.starts_with("http://huggingface.co/")
 }
 
+/// Rejects segments that could escape the models directory via path traversal.
 fn ensure_clean_segment(segment: &str, label: &str) -> Result<(), String> {
     if segment.is_empty() {
         return Err(format!("{} cannot be empty", label));
@@ -90,11 +120,14 @@ fn ensure_clean_segment(segment: &str, label: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Splits "name:version" using the last colon so names with colons still work.
 fn split_name_version(value: &str) -> Result<(String, String), String> {
     let mut parts = value.rsplitn(2, ':');
     let version = parts.next().unwrap_or(DEFAULT_VERSION);
     let name = parts.next().unwrap_or("");
 
+    // rsplitn on a string without ':' yields the whole string as version
+    // and an empty name — treat that as "name only, use default version".
     let (name, version) = if name.is_empty() {
         (version.to_string(), DEFAULT_VERSION.to_string())
     } else {
@@ -116,6 +149,7 @@ fn parse_model_reference(reference: &str) -> Result<ModelRef, String> {
     let mut parts: Vec<&str> = trimmed.split('/').collect();
     let mut registry = DEFAULT_REGISTRY.to_string();
 
+    // Only the first segment is a registry host; library/name never contain dots.
     if parts.len() >= 2 && is_registry_host(parts[0]) {
         registry = parts.remove(0).to_string();
     }
@@ -124,10 +158,9 @@ fn parse_model_reference(reference: &str) -> Result<ModelRef, String> {
         1 => (DEFAULT_LIBRARY.to_string(), parts[0]),
         2 => (parts[0].to_string(), parts[1]),
         _ => {
-            return Err(
-                "Invalid model reference. Expected registry/library/name:version or name:version"
-                    .to_string(),
-            );
+            return Err("Invalid model reference. Expected \
+                 registry/library/name:version or name:version"
+                .to_string());
         }
     };
 
@@ -145,6 +178,7 @@ fn parse_model_reference(reference: &str) -> Result<ModelRef, String> {
 }
 
 fn parse_hf_reference(reference: &str) -> Result<HfModelRef, String> {
+    // Strip scheme prefix before processing — we don't need it beyond this point.
     let mut trimmed = reference.trim();
     if trimmed.starts_with("https://") {
         trimmed = trimmed.trim_start_matches("https://");
@@ -157,9 +191,9 @@ fn parse_hf_reference(reference: &str) -> Result<HfModelRef, String> {
     } else if trimmed.starts_with("huggingface.co/") {
         trimmed = trimmed.trim_start_matches("huggingface.co/");
     } else {
-        return Err(
-            "Invalid Hugging Face reference. Expected hf.co/<org>/<repo>:<selector>".to_string(),
-        );
+        return Err("Invalid Hugging Face reference. \
+             Expected hf.co/<org>/<repo>:<selector>"
+            .to_string());
     }
 
     let trimmed = trimmed.trim_start_matches('/');
@@ -167,11 +201,13 @@ fn parse_hf_reference(reference: &str) -> Result<HfModelRef, String> {
         return Err("Hugging Face reference cannot be empty".to_string());
     }
 
+    // Split on the last ':' — the right side is an optional file/quant selector.
     let mut parts = trimmed.rsplitn(2, ':');
     let selector = parts.next().unwrap_or("").to_string();
     let repo_id = parts.next().unwrap_or("").to_string();
 
     let (repo_id, selector) = if repo_id.is_empty() {
+        // No ':' found — the whole string is the repo ID, no selector.
         (selector, None)
     } else {
         (repo_id, Some(selector))
@@ -182,24 +218,56 @@ fn parse_hf_reference(reference: &str) -> Result<HfModelRef, String> {
         return Err("Hugging Face repo must be in the format <org>/<repo>".to_string());
     }
 
-    let version_label = selector
-        .clone()
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| HF_REVISION_DEFAULT.to_string());
+    // If the selector looks like a 40-char hex commit hash, use it as the
+    // Git revision so the download URL resolves to that exact commit.
+    // Otherwise treat it as a filename/quant selector and use the default branch.
+    let (revision, version_label) = match &selector {
+        Some(s) if is_git_commit_hash(s) => (s.clone(), s.chars().take(8).collect::<String>()),
+        Some(s) => (HF_REVISION_DEFAULT.to_string(), s.clone()),
+        None => (
+            HF_REVISION_DEFAULT.to_string(),
+            HF_REVISION_DEFAULT.to_string(),
+        ),
+    };
 
     Ok(HfModelRef {
         repo_id,
-        selector: selector.filter(|s| !s.is_empty()),
-        revision: HF_REVISION_DEFAULT.to_string(),
+        selector: selector.filter(|s| !s.is_empty() && !is_git_commit_hash(s)),
+        revision,
         version_label,
     })
 }
 
+/// A 40-character hex string is treated as a Git commit SHA.
+fn is_git_commit_hash(s: &str) -> bool {
+    s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Normalise a user-supplied selector for fuzzy GGUF matching.
+/// Dash-separated quant tags (e.g. "Q4-K-M") should match underscore variants.
 fn normalize_selector(value: &str) -> String {
     value.to_lowercase().replace('-', "_")
 }
 
-fn choose_hf_filename(files: &[String], selector: Option<&str>) -> Result<String, String> {
+// ---------------------------------------------------------------------------
+// GGUF file selection
+// ---------------------------------------------------------------------------
+
+/// Result type for GGUF selection — Ambiguous carries the candidate list so
+/// the frontend can present a picker instead of a raw error string.
+#[derive(Debug)]
+pub enum ChooseFileResult {
+    Found(String),
+    Ambiguous(Vec<String>),
+}
+
+/// Select a GGUF file from the repository file list, optionally filtered by
+/// `selector`. Returns `Ambiguous` when multiple files match so callers can
+/// surface the list to the user.
+fn choose_hf_filename(
+    files: &[String],
+    selector: Option<&str>,
+) -> Result<ChooseFileResult, String> {
     let gguf_files: Vec<String> = files
         .iter()
         .filter(|f| f.to_lowercase().ends_with(".gguf"))
@@ -211,11 +279,16 @@ fn choose_hf_filename(files: &[String], selector: Option<&str>) -> Result<String
     }
 
     if let Some(selector) = selector {
+        // Exact filename match takes priority over fuzzy matching.
         if selector.to_lowercase().ends_with(".gguf") {
             if gguf_files.iter().any(|f| f == selector) {
-                return Ok(selector.to_string());
+                return Ok(ChooseFileResult::Found(selector.to_string()));
             }
-            return Err(format!("File {} not found in repository", selector));
+            return Err(format!(
+                "File '{}' not found in repository. Available GGUF files: {}",
+                selector,
+                gguf_files.join(", ")
+            ));
         }
 
         let normalized = normalize_selector(selector);
@@ -226,21 +299,28 @@ fn choose_hf_filename(files: &[String], selector: Option<&str>) -> Result<String
             .collect();
 
         return match matches.len() {
-            0 => Err("No GGUF files match the requested selector".to_string()),
-            1 => Ok(matches[0].clone()),
-            _ => Err(
-                "Multiple GGUF files match the selector. Please specify the exact filename."
-                    .to_string(),
-            ),
+            0 => Err(format!(
+                "No GGUF files match '{}'. Available: {}",
+                selector,
+                gguf_files.join(", ")
+            )),
+            1 => Ok(ChooseFileResult::Found(matches.into_iter().next().unwrap())),
+            _ => Ok(ChooseFileResult::Ambiguous(matches)),
         };
     }
 
     if gguf_files.len() == 1 {
-        Ok(gguf_files[0].clone())
+        Ok(ChooseFileResult::Found(
+            gguf_files.into_iter().next().unwrap(),
+        ))
     } else {
-        Err("Multiple GGUF files found. Please specify the exact filename.".to_string())
+        Ok(ChooseFileResult::Ambiguous(gguf_files))
     }
 }
+
+// ---------------------------------------------------------------------------
+// Crypto / encoding helpers
+// ---------------------------------------------------------------------------
 
 fn hex_encode(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -252,6 +332,15 @@ fn hex_encode(bytes: &[u8]) -> String {
     out
 }
 
+// ---------------------------------------------------------------------------
+// Blob I/O
+// ---------------------------------------------------------------------------
+
+/// Write raw bytes as a content-addressed blob, computing the sha256 digest
+/// in one pass. Skips the write if the blob already exists (idempotent).
+///
+/// Uses a temp-then-rename strategy so a crashed write never leaves a partial
+/// blob at the canonical path.
 async fn write_blob_from_bytes(blobs_dir: &Path, bytes: &[u8]) -> Result<(String, u64), String> {
     tokio_fs::create_dir_all(blobs_dir)
         .await
@@ -261,22 +350,39 @@ async fn write_blob_from_bytes(blobs_dir: &Path, bytes: &[u8]) -> Result<(String
     hasher.update(bytes);
     let digest = format!("sha256:{}", hex_encode(&hasher.finalize()));
     let blob_filename = digest_to_blob_filename(&digest);
-    let blob_path = blobs_dir.join(blob_filename);
+    let blob_path = blobs_dir.join(&blob_filename);
 
-    if tokio_fs::metadata(&blob_path).await.is_err() {
-        tokio_fs::write(&blob_path, bytes)
-            .await
-            .map_err(|e| format!("Failed to write blob {}: {}", digest, e))?;
+    // Blob already present — nothing to do.
+    if tokio_fs::metadata(&blob_path).await.is_ok() {
+        return Ok((digest, bytes.len() as u64));
     }
+
+    // Write to a unique temp path so concurrent writers don't clobber each other.
+    let tmp_path = blobs_dir.join(format!("{}.tmp", blob_filename));
+    tokio_fs::write(&tmp_path, bytes)
+        .await
+        .map_err(|e| format!("Failed to write blob {}: {}", digest, e))?;
+
+    // Atomic rename — on the same filesystem this is a directory entry swap,
+    // never leaving a partial file at the canonical path.
+    tokio_fs::rename(&tmp_path, &blob_path)
+        .await
+        .map_err(|e| format!("Failed to finalise blob {}: {}", digest, e))?;
 
     Ok((digest, bytes.len() as u64))
 }
 
+/// Stream a HuggingFace model file to disk, computing its sha256 on the fly.
+/// Emits `download:progress` Tauri events every `PROGRESS_EMIT_INTERVAL_BYTES`
+/// so the frontend can show a real progress bar.
+///
+/// Returns `(digest, byte_count)`. The digest can be used for manifest construction
+/// — we don't receive an expected digest from HF, so we produce our own.
 async fn download_hf_file(
     app: &AppHandle,
-    reference: &str,
     client: &reqwest::Client,
     url: &str,
+    filename: &str,
     blobs_dir: &Path,
 ) -> Result<(String, u64), String> {
     let response = client
@@ -292,86 +398,98 @@ async fn download_hf_file(
         ));
     }
 
+    // Content-Length is optional — surface it as total_bytes = 0 when absent.
+    let total_bytes: u64 = response.content_length().unwrap_or(0);
+
     tokio_fs::create_dir_all(blobs_dir)
         .await
         .map_err(|e| format!("Failed to create blobs directory: {}", e))?;
 
-    let tmp_path = blobs_dir.join("hf-download.partial");
-    let file = tokio_fs::File::create(&tmp_path)
+    // Unique temp name avoids collision when two HF downloads run concurrently.
+    let tmp_path = blobs_dir.join(format!(
+        "hf-download-{}.partial",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0)
+    ));
+
+    let mut file = tokio_fs::File::create(&tmp_path)
         .await
         .map_err(|e| format!("Failed to create temp file: {}", e))?;
-    let mut writer = tokio::io::BufWriter::with_capacity(1024 * 1024, file);
 
     let mut hasher = Sha256::new();
-    let mut size: u64 = 0;
+    let mut downloaded: u64 = 0;
+    let mut since_last_emit: u64 = 0;
 
-    let total_size = response.content_length().unwrap_or(0);
     let mut stream = response.bytes_stream();
-
-    let mut last_emit = Instant::now();
-    let mut speed_calc_start = Instant::now();
-    let mut bytes_since_last_calc = 0u64;
-
     while let Some(chunk) = stream.next().await {
         let bytes = chunk.map_err(|e| format!("Failed while downloading model: {}", e))?;
-        let len = bytes.len() as u64;
-        size += len;
-        bytes_since_last_calc += len;
 
+        let len = bytes.len() as u64;
+        downloaded += len;
+        since_last_emit += len;
         hasher.update(&bytes);
-        writer
-            .write_all(&bytes)
+
+        file.write_all(&bytes)
             .await
             .map_err(|e| format!("Failed to write model file: {}", e))?;
 
-        if last_emit.elapsed().as_millis() >= 250 {
-            let elapsed_sec = speed_calc_start.elapsed().as_secs_f64();
-            let mut speed = 0.0;
-            if elapsed_sec > 0.0 {
-                speed = (bytes_since_last_calc as f64) / elapsed_sec;
-            }
-
+        // Throttle events to avoid flooding the frontend IPC channel.
+        if since_last_emit >= PROGRESS_EMIT_INTERVAL_BYTES {
+            since_last_emit = 0;
             let _ = app.emit(
-                "download-progress",
-                DownloadProgressPayload {
-                    reference: reference.to_string(),
-                    downloaded: size,
-                    total: total_size.max(size),
-                    speed,
-                },
+                "download:progress",
+                serde_json::json!({
+                    "filename": filename,
+                    "downloaded": downloaded,
+                    "total": total_bytes,
+                }),
             );
-
-            last_emit = Instant::now();
-            speed_calc_start = Instant::now();
-            bytes_since_last_calc = 0;
         }
     }
 
-    writer
-        .flush()
+    file.flush()
         .await
         .map_err(|e| format!("Failed to flush model file: {}", e))?;
+
+    // Final progress event so the frontend reaches 100 % even if the last
+    // chunk didn't cross the emit threshold.
+    let _ = app.emit(
+        "download:progress",
+        serde_json::json!({
+            "filename": filename,
+            "downloaded": downloaded,
+            "total": total_bytes,
+        }),
+    );
 
     let digest = format!("sha256:{}", hex_encode(&hasher.finalize()));
     let blob_filename = digest_to_blob_filename(&digest);
     let blob_path = blobs_dir.join(&blob_filename);
 
-    if tokio_fs::metadata(&blob_path).await.is_err() {
-        tokio_fs::rename(&tmp_path, &blob_path)
-            .await
-            .map_err(|e| format!("Failed to finalize model file: {}", e))?;
-    } else {
+    if tokio_fs::metadata(&blob_path).await.is_ok() {
+        // A previous download produced the same file — discard the duplicate.
         tokio_fs::remove_file(&tmp_path)
             .await
             .map_err(|e| format!("Failed to cleanup temp file: {}", e))?;
+    } else {
+        tokio_fs::rename(&tmp_path, &blob_path)
+            .await
+            .map_err(|e| format!("Failed to finalise model file: {}", e))?;
     }
 
-    Ok((digest, size))
+    Ok((digest, downloaded))
 }
 
+/// Download a single content-addressed blob from an Ollama-compatible registry.
+/// Skips the download when a blob of the expected size already exists locally.
+///
+/// Verifies the downloaded file size against `size` (when non-zero). SHA-256
+/// is intentionally not re-verified here because the registry delivers a
+/// content-addressed URL — the digest IS the address.
 async fn download_blob(
     app: &AppHandle,
-    reference: &str,
     client: &reqwest::Client,
     registry: &str,
     repository: &str,
@@ -382,10 +500,12 @@ async fn download_blob(
     let blob_filename = digest_to_blob_filename(digest);
     let blob_path = blobs_dir.join(&blob_filename);
 
+    // Fast path — already cached and size matches.
     if let Ok(metadata) = tokio_fs::metadata(&blob_path).await {
         if size == 0 || metadata.len() == size {
             return Ok(());
         }
+        // Size mismatch — cached blob is corrupt, re-download.
     }
 
     tokio_fs::create_dir_all(blobs_dir)
@@ -393,6 +513,7 @@ async fn download_blob(
         .map_err(|e| format!("Failed to create blobs directory: {}", e))?;
 
     let url = format!("https://{}/v2/{}/blobs/{}", registry, repository, digest);
+
     let response = client
         .get(&url)
         .send()
@@ -407,66 +528,59 @@ async fn download_blob(
         ));
     }
 
+    let total_bytes: u64 = response.content_length().unwrap_or(size);
+
+    // .partial suffix on the blob filename makes cleanup easy on restart.
     let tmp_path = blob_path.with_extension("partial");
-    let file = tokio_fs::File::create(&tmp_path)
+    let mut file = tokio_fs::File::create(&tmp_path)
         .await
         .map_err(|e| format!("Failed to create temp file: {}", e))?;
-    let mut writer = tokio::io::BufWriter::with_capacity(1024 * 1024, file);
+
+    let mut downloaded: u64 = 0;
+    let mut since_last_emit: u64 = 0;
+    let short_digest = &digest[..digest.len().min(19)];
 
     let mut stream = response.bytes_stream();
-    let mut downloaded = 0u64;
-
-    let mut last_emit = Instant::now();
-    let mut speed_calc_start = Instant::now();
-    let mut bytes_since_last_calc = 0u64;
-
     while let Some(chunk) = stream.next().await {
         let bytes =
             chunk.map_err(|e| format!("Failed while downloading blob {}: {}", digest, e))?;
+
         let len = bytes.len() as u64;
         downloaded += len;
-        bytes_since_last_calc += len;
+        since_last_emit += len;
 
-        writer
-            .write_all(&bytes)
+        file.write_all(&bytes)
             .await
             .map_err(|e| format!("Failed to write blob {}: {}", digest, e))?;
 
-        if last_emit.elapsed().as_millis() >= 250 {
-            let elapsed_sec = speed_calc_start.elapsed().as_secs_f64();
-            let mut speed = 0.0;
-            if elapsed_sec > 0.0 {
-                speed = (bytes_since_last_calc as f64) / elapsed_sec;
-            }
-
+        if since_last_emit >= PROGRESS_EMIT_INTERVAL_BYTES {
+            since_last_emit = 0;
             let _ = app.emit(
-                "download-progress",
-                DownloadProgressPayload {
-                    reference: reference.to_string(),
-                    downloaded,
-                    total: size.max(downloaded),
-                    speed,
-                },
+                "download:progress",
+                serde_json::json!({
+                    "digest": short_digest,
+                    "downloaded": downloaded,
+                    "total": total_bytes,
+                }),
             );
-
-            last_emit = Instant::now();
-            speed_calc_start = Instant::now();
-            bytes_since_last_calc = 0;
         }
     }
 
-    writer
-        .flush()
+    file.flush()
         .await
         .map_err(|e| format!("Failed to flush blob {}: {}", digest, e))?;
 
+    // Verify size only when the manifest told us what to expect.
     if size > 0 {
         let metadata = tokio_fs::metadata(&tmp_path)
             .await
-            .map_err(|e| format!("Failed to verify blob {}: {}", digest, e))?;
+            .map_err(|e| format!("Failed to stat blob {}: {}", digest, e))?;
+
         if metadata.len() != size {
+            // Remove corrupt partial file before returning so a retry starts clean.
+            let _ = tokio_fs::remove_file(&tmp_path).await;
             return Err(format!(
-                "Downloaded blob {} size mismatch (expected {}, got {})",
+                "Blob {} size mismatch (expected {}, got {})",
                 digest,
                 size,
                 metadata.len()
@@ -474,18 +588,23 @@ async fn download_blob(
         }
     }
 
+    // Overwrite any stale blob at the canonical path.
     if tokio_fs::metadata(&blob_path).await.is_ok() {
         tokio_fs::remove_file(&blob_path)
             .await
-            .map_err(|e| format!("Failed to replace existing blob: {}", e))?;
+            .map_err(|e| format!("Failed to remove stale blob: {}", e))?;
     }
 
     tokio_fs::rename(&tmp_path, &blob_path)
         .await
-        .map_err(|e| format!("Failed to finalize blob {}: {}", digest, e))?;
+        .map_err(|e| format!("Failed to finalise blob {}: {}", digest, e))?;
 
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// HuggingFace download orchestration
+// ---------------------------------------------------------------------------
 
 async fn download_model_from_hf(
     app: AppHandle,
@@ -499,7 +618,9 @@ async fn download_model_from_hf(
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
+    // Query the HF API for the file list — we need siblings to pick the GGUF.
     let api_url = format!("https://{}/api/models/{}", HF_HOST_LONG, model_ref.repo_id);
+
     let api_response = client
         .get(&api_url)
         .send()
@@ -525,7 +646,18 @@ async fn download_model_from_hf(
         .map(|s| s.rfilename)
         .collect();
 
-    let filename = choose_hf_filename(&files, model_ref.selector.as_deref())?;
+    // Resolve which GGUF to use, propagating the Ambiguous variant as a
+    // user-facing error listing the candidates.
+    let filename = match choose_hf_filename(&files, model_ref.selector.as_deref())? {
+        ChooseFileResult::Found(f) => f,
+        ChooseFileResult::Ambiguous(candidates) => {
+            return Err(format!(
+                "Multiple GGUF files found. Please specify one using the \
+                 ':selector' suffix.\n\nAvailable files:\n  {}",
+                candidates.join("\n  ")
+            ));
+        }
+    };
 
     let file_url = format!(
         "https://{}/{}/resolve/{}/{}",
@@ -533,9 +665,12 @@ async fn download_model_from_hf(
     );
 
     let blobs_dir = PathBuf::from(&models_root).join("blobs");
-    let (model_digest, model_size) =
-        download_hf_file(&app, &model_reference, &client, &file_url, &blobs_dir).await?;
 
+    let (model_digest, model_size) =
+        download_hf_file(&app, &client, &file_url, &filename, &blobs_dir).await?;
+
+    // Build a small config blob recording provenance so the UI can display
+    // "from hf.co/..." and tools can trace back to the source.
     let config_metadata = HfConfigMetadata {
         source: HF_HOST.to_string(),
         repo_id: model_ref.repo_id.clone(),
@@ -544,7 +679,8 @@ async fn download_model_from_hf(
     };
 
     let config_bytes = serde_json::to_vec(&config_metadata)
-        .map_err(|e| format!("Failed to serialize config metadata: {}", e))?;
+        .map_err(|e| format!("Failed to serialise config metadata: {}", e))?;
+
     let (config_digest, config_size) = write_blob_from_bytes(&blobs_dir, &config_bytes).await?;
 
     let manifest = ModelManifest {
@@ -562,6 +698,8 @@ async fn download_model_from_hf(
         }],
     };
 
+    // Derive library/name from the repo_id so the manifest directory mirrors
+    // the Ollama layout: manifests/{host}/{org}/{repo}/{version}/manifest.json
     let mut repo_parts = model_ref.repo_id.splitn(2, '/');
     let library = repo_parts.next().unwrap_or_default().to_string();
     let name = repo_parts.next().unwrap_or_default().to_string();
@@ -578,7 +716,8 @@ async fn download_model_from_hf(
 
     crate::utils::save_json(&manifest_path, &manifest)?;
 
-    // Tenta baixar o chat template jinja automaticamente para conveniência do usuário
+    // Best-effort: pull the Jinja chat template for automatic prompt formatting.
+    // Failure is non-fatal — the model still works without it.
     let _ = crate::services::templates::ensure_hf_chat_template(
         &app,
         &model_ref.repo_id,
@@ -588,35 +727,37 @@ async fn download_model_from_hf(
 
     let manifest_path_str = manifest_path
         .to_str()
-        .ok_or_else(|| "Failed to build manifest path".to_string())?;
+        .ok_or_else(|| "Failed to build manifest path string".to_string())?;
 
     parse_model_manifest_sync(manifest_path_str.to_string(), models_root)
 }
 
-/// Parse model path and extract provider, library, name, and version
-/// Expected format: {modelsRoot}/manifests/{provider}/{library}/{name}/{version}
-/// The format is based on Ollama Models!
+// ---------------------------------------------------------------------------
+// Path parsing utilities
+// ---------------------------------------------------------------------------
+
+/// Decompose a manifest path into its `(provider, library, name, version)` tuple.
+///
+/// Expected layout (mirrors Ollama):
+///   `{models_root}/manifests/{provider}/{library}/{name}/{version}[/manifest.json]`
 pub fn parse_model_path(model_path: &str) -> Result<(String, String, String, String), String> {
     let path = Path::new(model_path);
 
-    // Get the path components
     let components: Vec<&str> = path
         .components()
         .filter_map(|c| c.as_os_str().to_str())
         .collect();
 
-    // Find "manifests" in the path
     let manifests_idx = components
         .iter()
         .position(|&c| c == "manifests")
-        .ok_or_else(|| "Path must contain 'manifests' folder".to_string())?;
+        .ok_or_else(|| "Path must contain a 'manifests' directory".to_string())?;
 
-    // Extract provider, library, name, version after "manifests"
+    // Need at least 4 more components after "manifests".
     if components.len() < manifests_idx + 5 {
-        return Err(
-            "Invalid path structure. Expected: .../manifests/{provider}/{library}/{name}/{version}"
-                .to_string(),
-        );
+        return Err("Invalid path structure. Expected: \
+             .../manifests/{provider}/{library}/{name}/{version}"
+            .to_string());
     }
 
     let provider = components[manifests_idx + 1].to_string();
@@ -627,16 +768,18 @@ pub fn parse_model_path(model_path: &str) -> Result<(String, String, String, Str
     Ok((provider, library, name, version))
 }
 
-/// Convert digest to blob file name format
-/// sha256:60e05f2... -> sha256-60e05f2...
+/// Convert a digest string to the blob filename format used on disk.
+/// `sha256:60e05f2...` → `sha256-60e05f2...`
 pub fn digest_to_blob_filename(digest: &str) -> String {
     digest.replace(':', "-")
 }
 
-/// Find the model file blob path
+/// Resolve a digest to an absolute blob path, returning `None` if the blob
+/// has not been downloaded yet.
 pub fn find_model_blob_path(models_root: &Path, digest: &str) -> Option<String> {
-    let blob_filename = digest_to_blob_filename(digest);
-    let blob_path = models_root.join("blobs").join(&blob_filename);
+    let blob_path = models_root
+        .join("blobs")
+        .join(digest_to_blob_filename(digest));
 
     if blob_path.exists() {
         blob_path.to_str().map(|s| s.to_string())
@@ -645,42 +788,59 @@ pub fn find_model_blob_path(models_root: &Path, digest: &str) -> Option<String> 
     }
 }
 
+// ---------------------------------------------------------------------------
+// Tauri commands — manifest parsing
+// ---------------------------------------------------------------------------
+
 #[command]
 pub async fn parse_model_manifest(
     model_path: String,
     models_root: String,
 ) -> Result<ModelInfo, String> {
-    // Parse the path to extract components
-    let (provider, library, name, version) = parse_model_path(&model_path)?;
+    parse_model_manifest_sync(model_path, models_root)
+}
 
-    // Read and parse manifest file
+/// Synchronous manifest parser shared between the async command and the
+/// directory scanner (which already runs on a blocking thread pool).
+pub fn parse_model_manifest_sync(
+    model_path: String,
+    models_root: String,
+) -> Result<ModelInfo, String> {
+    let (provider, library, name, version) = parse_model_path(&model_path)?;
     let manifest: ModelManifest = crate::utils::read_json(Path::new(&model_path))?;
 
-    // Find the model file (first layer with model mediaType)
+    // The model layer carries the actual GGUF — config layers are metadata only.
     let model_layer = manifest
         .layers
         .iter()
         .find(|layer| layer.media_type.contains("ollama.image.model"))
         .ok_or_else(|| "No model layer found in manifest".to_string())?;
 
-    // Find the blob file path
     let models_root_path = Path::new(&models_root);
     let model_file_path = find_model_blob_path(models_root_path, &model_layer.digest);
 
-    // Create full identifier
+    // provider:name:version uniquely identifies a model within the library.
     let full_identifier = format!("{}:{}:{}", provider, name, version);
 
     Ok(ModelInfo {
-        provider: provider.clone(),
+        provider,
         library,
-        name: name.clone(),
-        version: version.clone(),
+        name,
+        version,
         manifest_data: manifest,
-        model_file_path,
         manifest_path: Some(model_path),
+        model_file_path,
         full_identifier,
     })
 }
+
+// ---------------------------------------------------------------------------
+// Directory scanner
+// ---------------------------------------------------------------------------
+
+// Four helpers below walk the manifests/ tree depth-first.
+// Each level delegates downward and accumulates into the same Vec to avoid
+// intermediate allocations.
 
 fn process_version_entry(
     version_entry: fs::DirEntry,
@@ -688,6 +848,8 @@ fn process_version_entry(
     models: &mut Vec<ModelInfo>,
 ) {
     let manifest_path = version_entry.path();
+
+    // Accept either a bare manifest file or a directory containing manifest.json.
     let candidate = if manifest_path.is_file() {
         Some(manifest_path)
     } else if manifest_path.is_dir() {
@@ -705,7 +867,8 @@ fn process_version_entry(
         if let Some(path_str) = path.to_str() {
             match parse_model_manifest_sync(path_str.to_string(), models_root.to_string()) {
                 Ok(model_info) => models.push(model_info),
-                Err(e) => eprintln!("Error parsing {}: {}", path_str, e),
+                // Log and continue — a single bad manifest shouldn't abort the scan.
+                Err(e) => eprintln!("[llama-desktop] Error parsing {}: {}", path_str, e),
             }
         }
     }
@@ -743,41 +906,12 @@ fn process_provider_entry(
     }
 }
 
-pub fn parse_model_manifest_sync(
-    model_path: String,
-    models_root: String,
-) -> Result<ModelInfo, String> {
-    let (provider, library, name, version) = parse_model_path(&model_path)?;
-    let manifest: ModelManifest = crate::utils::read_json(Path::new(&model_path))?;
-
-    let model_layer = manifest
-        .layers
-        .iter()
-        .find(|layer| layer.media_type.contains("ollama.image.model"))
-        .ok_or_else(|| "No model layer found in manifest".to_string())?;
-
-    let models_root_path = Path::new(&models_root);
-    let model_file_path = find_model_blob_path(models_root_path, &model_layer.digest);
-    let full_identifier = format!("{}:{}:{}", provider, name, version);
-
-    Ok(ModelInfo {
-        provider: provider.clone(),
-        library,
-        name: name.clone(),
-        version: version.clone(),
-        manifest_data: manifest,
-        model_file_path,
-        manifest_path: Some(model_path),
-        full_identifier,
-    })
-}
-
 #[command]
 pub async fn scan_models_directory(models_root: String) -> Result<Vec<ModelInfo>, String> {
     let manifests_path = Path::new(&models_root).join("manifests");
 
     if !manifests_path.exists() {
-        return Err("Manifests directory not found".to_string());
+        return Ok(Vec::new()); // Empty library is not an error — first launch is normal.
     }
 
     let mut models = Vec::new();
@@ -791,28 +925,32 @@ pub async fn scan_models_directory(models_root: String) -> Result<Vec<ModelInfo>
     Ok(models)
 }
 
+// ---------------------------------------------------------------------------
+// Tauri commands — library persistence
+// ---------------------------------------------------------------------------
+
 #[command]
 pub async fn save_model_library(
     library_path: String,
     models: Vec<ModelInfo>,
 ) -> Result<(), String> {
-    let library = ModelLibrary { models };
-
-    crate::utils::save_json(Path::new(&library_path), &library)?;
-
-    Ok(())
+    crate::utils::save_json(Path::new(&library_path), &ModelLibrary { models })
 }
 
 #[command]
 pub async fn load_model_library(library_path: String) -> Result<Vec<ModelInfo>, String> {
     if !Path::new(&library_path).exists() {
+        // Return empty list rather than an error — caller decides if that's a problem.
         return Ok(Vec::new());
     }
 
     let library: ModelLibrary = crate::utils::read_json(Path::new(&library_path))?;
-
     Ok(library.models)
 }
+
+// ---------------------------------------------------------------------------
+// Tauri command — model download entry point
+// ---------------------------------------------------------------------------
 
 #[command]
 pub async fn download_model_from_registry(
@@ -820,6 +958,7 @@ pub async fn download_model_from_registry(
     model_reference: String,
     models_root: String,
 ) -> Result<ModelInfo, String> {
+    // Route HuggingFace references through their own download path.
     if is_hf_reference(&model_reference) {
         return download_model_from_hf(app, model_reference, models_root).await;
     }
@@ -832,6 +971,7 @@ pub async fn download_model_from_registry(
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
+    // Fetch the manifest first — it describes which blobs we need to pull.
     let manifest_url = format!(
         "https://{}/v2/{}/manifests/{}",
         model_ref.registry, repository, model_ref.version
@@ -857,6 +997,8 @@ pub async fn download_model_from_registry(
         .await
         .map_err(|e| format!("Failed to parse manifest JSON: {}", e))?;
 
+    // Persist the manifest before downloading blobs so a crash during download
+    // leaves us with a restorable state on the next launch.
     let manifest_path = PathBuf::from(&models_root)
         .join("manifests")
         .join(&model_ref.registry)
@@ -869,9 +1011,10 @@ pub async fn download_model_from_registry(
 
     let blobs_dir = PathBuf::from(&models_root).join("blobs");
 
+    // Config blob is usually tiny — download it first so failure here doesn't
+    // waste time on a large model layer.
     download_blob(
         &app,
-        &model_reference,
         &client,
         &model_ref.registry,
         &repository,
@@ -884,7 +1027,6 @@ pub async fn download_model_from_registry(
     for layer in &manifest.layers {
         download_blob(
             &app,
-            &model_reference,
             &client,
             &model_ref.registry,
             &repository,
@@ -897,137 +1039,18 @@ pub async fn download_model_from_registry(
 
     let manifest_path_str = manifest_path
         .to_str()
-        .ok_or_else(|| "Failed to build manifest path".to_string())?;
+        .ok_or_else(|| "Failed to build manifest path string".to_string())?;
 
     parse_model_manifest_sync(manifest_path_str.to_string(), models_root)
 }
 
-/// Removes a model by deleting its associated blob files and the manifest file
-#[command]
-pub async fn remove_model_by_manifest_path(
-    manifest_path: String,
-    models_root: String,
-) -> Result<bool, String> {
-    use std::fs;
+// ---------------------------------------------------------------------------
+// Test utilities
+// ---------------------------------------------------------------------------
 
-    // Parse the manifest to get the layers/blob information
-    let manifest: ModelManifest = crate::utils::read_json(Path::new(&manifest_path))
-        .map_err(|e| format!("Failed to read manifest: {}", e))?;
-
-    // Get the models root path
-    let models_root_path = Path::new(&models_root);
-
-    // Remove all blob files referenced in the manifest (config + layers)
-    let mut all_removed = true;
-
-    // Remove config blob
-    let config_blob_path = find_model_blob_path(models_root_path, &manifest.config.digest);
-    if let Some(path) = config_blob_path {
-        if let Err(e) = fs::remove_file(&path) {
-            eprintln!("Warning: Failed to remove config blob {}: {}", path, e);
-            all_removed = false;
-        } else {
-            println!("Removed config blob: {}", path);
-        }
-    }
-
-    // Remove layer blobs
-    for layer in &manifest.layers {
-        let layer_blob_path = find_model_blob_path(models_root_path, &layer.digest);
-        if let Some(path) = layer_blob_path {
-            if let Err(e) = fs::remove_file(&path) {
-                eprintln!("Warning: Failed to remove layer blob {}: {}", path, e);
-                all_removed = false;
-            } else {
-                println!("Removed layer blob: {}", path);
-            }
-        }
-    }
-
-    // Remove the manifest file itself
-    if let Err(e) = fs::remove_file(&manifest_path) {
-        eprintln!(
-            "Warning: Failed to remove manifest file {}: {}",
-            manifest_path, e
-        );
-        all_removed = false;
-    } else {
-        println!("Removed manifest file: {}", manifest_path);
-    }
-
-    // Attempt to clean up empty directories after removing the files
-    cleanup_empty_dirs(Path::new(&manifest_path))?;
-
-    Ok(all_removed)
-}
-
-/// Removes a model by its full identifier (e.g., "registry.ollama.ai:llama3:latest")
-#[command]
-pub async fn remove_model_by_identifier(
-    full_identifier: String,
-    models_root: String,
-) -> Result<bool, String> {
-    let models = scan_models_directory(models_root.clone()).await?;
-    let model = models
-        .into_iter()
-        .find(|m| m.full_identifier == full_identifier)
-        .ok_or_else(|| format!("Model with identifier {} not found", full_identifier))?;
-
-    if let Some(manifest_path) = model.manifest_path {
-        return remove_model_by_manifest_path(manifest_path, models_root).await;
-    }
-
-    let manifest_path = PathBuf::from(&models_root)
-        .join("manifests")
-        .join(&model.provider)
-        .join(&model.library)
-        .join(&model.name)
-        .join(&model.version)
-        .join("manifest.json");
-
-    let manifest_path_str = manifest_path
-        .to_str()
-        .ok_or_else(|| "Failed to build manifest path".to_string())?;
-
-    remove_model_by_manifest_path(manifest_path_str.to_string(), models_root).await
-}
-
-/// Attempts to remove empty directories up to the manifest file
-fn cleanup_empty_dirs(file_path: &Path) -> Result<(), String> {
-    // Navigate up from the manifest file to clean up empty directories
-    let mut current_path = file_path.parent();
-
-    while let Some(path) = current_path {
-        // Stop cleaning up if we've reached the "manifests" directory or beyond
-        if path.file_name().map_or(false, |name| name == "manifests") {
-            break;
-        }
-
-        // Check if directory is empty before attempting to remove
-        if let Ok(entries) = fs::read_dir(path) {
-            if entries.count() == 0 {
-                if let Err(e) = fs::remove_dir(path) {
-                    eprintln!(
-                        "Warning: Could not remove empty directory {:?}: {}",
-                        path, e
-                    );
-                    // If we can't remove parent, stop going up the chain
-                    break;
-                } else {
-                    println!("Removed empty directory: {:?}", path);
-                }
-            } else {
-                // Directory is not empty, stop going up the chain
-                break;
-            }
-        }
-
-        current_path = path.parent();
-    }
-
-    Ok(())
-}
-
+// These wrappers exist so test call-sites are explicit about what they're
+// reaching into. `pub use` would require the originals to be `pub(crate)` or
+// higher; wrappers work regardless of the parent item's visibility.
 #[cfg(any(test, debug_assertions))]
 pub mod test_utils {
     use super::*;
@@ -1051,5 +1074,16 @@ pub mod test_utils {
         models_root: String,
     ) -> Result<ModelInfo, String> {
         parse_model_manifest_sync(model_path, models_root)
+    }
+
+    pub fn choose_hf_filename_for_test(
+        files: &[String],
+        selector: Option<&str>,
+    ) -> Result<ChooseFileResult, String> {
+        choose_hf_filename(files, selector)
+    }
+
+    pub fn parse_hf_reference_for_test(reference: &str) -> Result<HfModelRef, String> {
+        parse_hf_reference(reference)
     }
 }

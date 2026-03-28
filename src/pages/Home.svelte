@@ -41,6 +41,11 @@
       toast.error("Server is not running. Please select a model to start.");
       return;
     }
+    await serverStore.checkHealth();
+    if (!serverStore.isHealthy) {
+      toast.error(serverStore.error ?? "Server health check failed.");
+      return;
+    }
 
     const currentInput = userInput;
     userInput = "";
@@ -194,6 +199,8 @@
             isLoading={chatStore.isLoading}
             thinkingProcess={chatStore.thinkingProcess}
             modelThinking={chatStore.modelThinking}
+            thinkingLabel={chatStore.thinkingLabel}
+            toolContext={chatStore.toolContext}
             bind:messagesEnd
           />
 

@@ -174,6 +174,9 @@ impl Subagent {
                 SUBAGENT_MAX_TOKENS,
                 None,
                 None,
+                None,
+                None,
+                None,
             )
             .await?;
 

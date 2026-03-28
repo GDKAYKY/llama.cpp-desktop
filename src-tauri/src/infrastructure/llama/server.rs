@@ -227,6 +227,9 @@ impl LlamaServer {
                     while let Ok(Some(chunk)) = response.chunk().await {
                         let s = String::from_utf8_lossy(&chunk);
                         buffer.push_str(&s);
+                        if buffer.trim() == "data: [DONE]" {
+                            return;
+                        }
                         while let Some(idx) = buffer.find('\n') {
                             let line = buffer[..idx].trim().to_string();
                             buffer = buffer[idx + 1..].to_string();
@@ -242,20 +245,16 @@ impl LlamaServer {
                                 if let Ok(json) =
                                     serde_json::from_str::<serde_json::Value>(data_content)
                                 {
-                                    if let Some(content) =
-                                        json["choices"][0]["delta"]["content"].as_str()
-                                    {
-                                        if tx.send(content.to_string()).await.is_err() {
+                                    if let Some(content) = extract_stream_content(&json) {
+                                        if tx.send(content).await.is_err() {
                                             return;
                                         }
                                     }
                                 }
                             } else {
                                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
-                                    if let Some(content) =
-                                        json["choices"][0]["delta"]["content"].as_str()
-                                    {
-                                        if tx.send(content.to_string()).await.is_err() {
+                                    if let Some(content) = extract_stream_content(&json) {
+                                        if tx.send(content).await.is_err() {
                                             return;
                                         }
                                     }
@@ -306,4 +305,17 @@ impl LlamaServer {
     pub fn test_pipe_output(child: &mut Child) {
         Self::pipe_output(child);
     }
+}
+
+fn extract_stream_content(json: &serde_json::Value) -> Option<String> {
+    if let Some(content) = json["choices"][0]["delta"]["content"].as_str() {
+        return Some(content.to_string());
+    }
+    if let Some(content) = json["choices"][0]["message"]["content"].as_str() {
+        return Some(content.to_string());
+    }
+    if let Some(content) = json["choices"][0]["delta"]["text"].as_str() {
+        return Some(content.to_string());
+    }
+    None
 }

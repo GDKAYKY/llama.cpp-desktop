@@ -38,8 +38,13 @@ impl LlamaCppService {
         let tx_clone = tx.clone();
         let process_manager = Arc::new(LlamaProcessManager::new());
         let metrics_provider = Arc::new(SystemMetricsProvider::new());
-        let mut actor =
-            LlamaActor::new(rx, tx_clone, initial_registry, process_manager, metrics_provider);
+        let mut actor = LlamaActor::new(
+            rx,
+            tx_clone,
+            initial_registry,
+            process_manager,
+            metrics_provider,
+        );
 
         tauri::async_runtime::spawn(async move {
             actor.run().await;
@@ -114,6 +119,11 @@ impl LlamaCppService {
             top_p,
             top_k,
             max_tokens,
+            reasoning_format: None,
+            reasoning_budget: None,
+            reasoning_budget_message: None,
+            thinking_forced_open: None,
+            chat_template_kwargs: None,
             tools: None,
             tool_choice: None,
             stream: true,
@@ -156,6 +166,9 @@ impl LlamaCppService {
         top_p: f32,
         top_k: i32,
         max_tokens: i32,
+        reasoning_format: Option<String>,
+        reasoning_budget: Option<i32>,
+        chat_template_kwargs: Option<serde_json::Value>,
         tools: Option<Vec<serde_json::Value>>,
         tool_choice: Option<serde_json::Value>,
     ) -> Result<serde_json::Value, String> {
@@ -169,6 +182,11 @@ impl LlamaCppService {
             top_p,
             top_k,
             max_tokens,
+            reasoning_format,
+            reasoning_budget,
+            reasoning_budget_message: None,
+            thinking_forced_open: None,
+            chat_template_kwargs,
             tools,
             tool_choice,
             stream: false,

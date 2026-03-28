@@ -32,6 +32,34 @@ impl ChatOrchestrator {
         }
     }
 
+    pub async fn complete_chat_once(
+        &self,
+        messages: Vec<ChatMessage>,
+        temperature: f32,
+        top_p: f32,
+        top_k: i32,
+        max_tokens: i32,
+        reasoning_format: Option<String>,
+        reasoning_budget: Option<i32>,
+        chat_template_kwargs: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value, String> {
+        self.service
+            .complete_chat(
+                None,
+                messages,
+                temperature,
+                top_p,
+                top_k,
+                max_tokens,
+                reasoning_format,
+                reasoning_budget,
+                chat_template_kwargs,
+                None,
+                None,
+            )
+            .await
+    }
+
     fn try_send(on_event: &Channel<serde_json::Value>, payload: serde_json::Value) -> bool {
         on_event.send(payload).is_ok()
     }
@@ -145,6 +173,9 @@ impl ChatOrchestrator {
                     0.95,
                     40,
                     tool_max_tokens,
+                    None,
+                    None,
+                    None,
                     Some(tool_bundle.tools.clone()),
                     None,
                 )
@@ -297,6 +328,8 @@ impl ChatOrchestrator {
                 return Ok(repeat_detected);
             }
 
+            let tool_context_args = arguments.clone();
+
             let result = match self.mcp_service.connect(&server_id).await {
                 Ok(()) => {
                     self.mcp_service
@@ -306,8 +339,8 @@ impl ChatOrchestrator {
                 Err(e) => Err(e),
             };
 
-            let content = match result {
-                Ok(res) => format_tool_result(&res),
+            let (content, raw_result, error_message) = match result {
+                Ok(res) => (format_tool_result(&res), Some(res), None),
                 Err(e) => {
                     if !Self::try_send(
                         &on_event,
@@ -317,7 +350,7 @@ impl ChatOrchestrator {
                     ) {
                         return Ok(repeat_detected);
                     }
-                    serde_json::json!({ "error": e }).to_string()
+                    (serde_json::json!({ "error": e }).to_string(), None, Some(e))
                 }
             };
 
@@ -332,6 +365,25 @@ impl ChatOrchestrator {
                 },
             )
             .await;
+
+            let tool_context = serde_json::json!({
+                "server_id": server_id,
+                "tool_name": tool_name,
+                "arguments": tool_context_args,
+                "result": raw_result.unwrap_or_else(|| {
+                    serde_json::json!({ "error": error_message.unwrap_or_else(|| "Tool call failed".to_string()) })
+                }),
+                "tool_call_id": call.id,
+            });
+
+            if !Self::try_send(
+                &on_event,
+                serde_json::json!({
+                    "tool_context": tool_context
+                }),
+            ) {
+                return Ok(repeat_detected);
+            }
 
             if idx + 1 == tool_calls.len() {
                 if !Self::try_send(
@@ -387,7 +439,7 @@ impl ChatOrchestrator {
     //  PLAIN STREAMING
     // ══════════════════════════════════════════════════════════════
 
-    async fn run_streaming(
+    pub async fn run_streaming(
         &self,
         session_id: &str,
         messages: Vec<ChatMessage>,
@@ -469,6 +521,7 @@ impl ChatOrchestrator {
 
         Ok(())
     }
+
 
     // ══════════════════════════════════════════════════════════════
     //  SESSION MANAGEMENT
@@ -1103,19 +1156,19 @@ mod tests {
         let response = serde_json::json!({
             "choices": [
                 { "message": { "content": "\
-<tool_call>\n\
-<function=mcp__tavily__tavily_search>\n\
-<parameter=query>\n\
-Jeffrey Epstein\n\
-</parameter>\n\
-<parameter=search_depth>\n\
-advanced\n\
-</parameter>\n\
-<parameter=max_results>\n\
-10\n\
-</parameter>\n\
-</function>\n\
-</tool_call>" } }
+        <tool_call>\n\
+        <function=mcp__tavily__tavily_search>\n\
+        <parameter=query>\n\
+        Jeffrey Epstein\n\
+        </parameter>\n\
+        <parameter=search_depth>\n\
+        advanced\n\
+        </parameter>\n\
+        <parameter=max_results>\n\
+        10\n\
+        </parameter>\n\
+        </function>\n\
+        </tool_call>" } }
             ]
         });
 

@@ -123,10 +123,15 @@ class ServerStore {
                 this.error = null;
                 return;
             }
-            const healthy = await invokeCommand('check_server_health');
-            this.isHealthy = healthy as boolean;
+            const detail = await invokeCommand('check_server_health_detail');
+            const healthy = Boolean((detail as any)?.healthy);
+            this.isHealthy = healthy;
             if (!healthy) {
-                this.error = 'Server health check failed';
+                const error = (detail as any)?.error;
+                const url = (detail as any)?.url;
+                this.error = error
+                    ? `Healthcheck failed (${url ?? 'unknown'}): ${error}`
+                    : 'Server health check failed';
             } else {
                 this.error = null;
             }

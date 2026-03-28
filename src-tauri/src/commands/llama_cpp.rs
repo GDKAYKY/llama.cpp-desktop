@@ -1,6 +1,7 @@
 use crate::models::{LlamaCppConfig, ServerMetrics};
 use crate::services::llama::LlamaCppService;
 use crate::state::AppState;
+use serde::Serialize;
 use tauri::command;
 use tauri::AppHandle;
 use tauri::State;
@@ -59,6 +60,20 @@ pub async fn is_server_running(state: State<'_, AppState>) -> Result<bool, Strin
 #[command]
 pub async fn check_server_health(state: State<'_, AppState>) -> Result<bool, String> {
     check_server_health_with_service(&state.llama_service).await
+}
+
+#[derive(Serialize)]
+pub struct HealthCheckDetail {
+    pub healthy: bool,
+    pub url: String,
+    pub error: Option<String>,
+}
+
+#[command]
+pub async fn check_server_health_detail(
+    state: State<'_, AppState>,
+) -> Result<HealthCheckDetail, String> {
+    check_server_health_detail_with_service(&state.llama_service).await
 }
 
 #[command]
@@ -127,6 +142,47 @@ pub async fn check_server_health_with_service(service: &LlamaCppService) -> Resu
     match response {
         Ok(res) => Ok(res.status().is_success()),
         Err(_) => Ok(false),
+    }
+}
+
+pub async fn check_server_health_detail_with_service(
+    service: &LlamaCppService,
+) -> Result<HealthCheckDetail, String> {
+    if !service.is_running().await {
+        return Ok(HealthCheckDetail {
+            healthy: false,
+            url: "http://localhost/health".to_string(),
+            error: Some("Server is not running".to_string()),
+        });
+    }
+
+    let config = service
+        .get_config()
+        .await
+        .ok_or_else(|| "No config".to_string())?;
+    let url = format!("http://localhost:{}/health", config.port);
+
+    let client = reqwest::Client::new();
+    let response = client.get(&url).send().await;
+
+    match response {
+        Ok(res) => {
+            let healthy = res.status().is_success();
+            Ok(HealthCheckDetail {
+                healthy,
+                url,
+                error: if healthy {
+                    None
+                } else {
+                    Some(format!("Healthcheck status: {}", res.status()))
+                },
+            })
+        }
+        Err(e) => Ok(HealthCheckDetail {
+            healthy: false,
+            url,
+            error: Some(format!("Healthcheck request failed: {}", e)),
+        }),
     }
 }
 

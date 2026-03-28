@@ -1,14 +1,14 @@
 import { invokeCommand } from '$infrastructure/ipc';
 import { Channel } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
+import { readTextFile } from '@tauri-apps/plugin-fs';
 import { settingsStore } from '$lib/stores/settings.svelte';
 import { modelsStore } from '$lib/stores/models.svelte';
 import { serverStore } from '$lib/stores/server.svelte';
-import { 
-  db, 
-  saveMessage, 
-  createConversation, 
-  getConversationHistory, 
+import {
+  saveMessage,
+  createConversation,
+  getConversationHistory,
   getRecentConversations,
   updateConversationTitle,
   deleteConversation,
@@ -20,32 +20,45 @@ export interface Message {
   content: string;
   timestamp: number;
   model?: string;
+  thinkingProcess?: string[];
+  modelThinking?: string;
+  toolContext?: ToolContext[];
+}
+
+export interface ToolContext {
+  serverId?: string;
+  toolName?: string;
+  arguments?: unknown;
+  result?: unknown;
+  toolCallId?: string;
 }
 
 class ChatStore {
   messages = $state<Message[]>([]);
   thinkingProcess = $state<string[]>([]);
   modelThinking = $state('');
+  thinkingLabel = $state('Thinking');
+  toolContext = $state<ToolContext[]>([]);
   isLoading = $state(false);
   error = $state<string | null>(null);
   modelLoaded = $state(true);
 
   // DB IDs
   activeConversationId = $state<number | null>(null);
-  history = $state<Conversation[]>([]); 
+  history = $state<Conversation[]>([]);
 
   sessionId = $state<string>('');
 
   unlisten: UnlistenFn | null = null;
-  
+
   // To accumulate assistant response before saving
   currentAssistantResponse = '';
-
+  private lastTemplateKey: string | null = null;
 
   async initialize() {
     this.error = null;
-    
-    // 1. Create a session ID for the backend (ChatOrchestrator) if not exists
+
+    // Backend session: stable while the app is open.
     const savedSession = localStorage.getItem('llama_chat_session_id');
     if (savedSession) {
       this.sessionId = savedSession;
@@ -54,78 +67,73 @@ class ChatStore {
       localStorage.setItem('llama_chat_session_id', this.sessionId);
     }
 
-    // 2. Load last conversation from DB or create new
     try {
-        await this.loadRecentConversations();
-        
-        // If we have history, load the most recent one (first after reverse sort)
-        if (this.history.length > 0) {
-             // Instead of just taking the last ID, let's take the first from our sorted list
-             const lastActive = this.history[0];
-             if (lastActive && lastActive.id) {
-                 this.activeConversationId = lastActive.id;
-                 await this.loadConversation(lastActive.id);
-             }
-        } else {
-            // No conversations yet, start fresh
-            this.activeConversationId = await createConversation("New Chat");
-            await this.loadRecentConversations();
+      await this.loadRecentConversations();
+
+      if (this.history.length > 0) {
+        const lastActive = this.history[0];
+        if (lastActive?.id) {
+          this.activeConversationId = lastActive.id;
+          await this.loadConversation(lastActive.id);
         }
+      } else {
+        this.activeConversationId = await createConversation('New Chat');
+        await this.loadRecentConversations();
+      }
     } catch (err) {
-        console.error("Failed to load history:", err);
+      console.error('Failed to load history:', err);
     }
   }
 
   async loadRecentConversations() {
-      this.history = await getRecentConversations();
+    this.history = await getRecentConversations();
   }
 
   async loadConversation(id: number) {
-      const history = await getConversationHistory(id);
-      this.messages = history.map(h => ({
-          role: h.role,
-          content: h.content,
-          timestamp: h.timestamp,
-          model: h.model
+    const history = await getConversationHistory(id);
+
+    this.messages = history.map((h) => ({
+      role: h.role,
+      content: h.content,
+      timestamp: h.timestamp,
+      model: h.model
+    }));
+
+    this.activeConversationId = id;
+
+    // IMPORTANT:
+    // Do NOT regenerate sessionId here.
+    // The backend session should stay stable; otherwise context hydration and
+    // title generation can drift into different sessions like an amateur magician.
+
+    try {
+      const contextPayload = history.map((h) => ({
+        role: h.role,
+        content: h.content
       }));
-      this.activeConversationId = id;
-      
-      // Update session ID if needed? 
-      // Actually backend session ID is just for the current "run", 
-      // but conceptually we might want to reset it on fresh load to avoid state pollution in backend orchestrator.
-      this.sessionId = crypto.randomUUID(); 
-      localStorage.setItem('llama_chat_session_id', this.sessionId);
-      
-      // Hydrate Backend Context
-      try {
-          const contextPayload = history.map(h => ({
-              role: h.role,
-              content: h.content
-          }));
-          
-          await invokeCommand('load_history_context', {
-              sessionId: this.sessionId,
-              messages: contextPayload
-          });
-          console.log("Backend context hydrated for session:", this.sessionId);
-      } catch (err) {
-          console.warn("Failed to hydrate backend context:", err);
-      }
+
+      await invokeCommand('load_history_context', {
+        sessionId: this.sessionId,
+        messages: contextPayload
+      });
+
+      console.log('Backend context hydrated for session:', this.sessionId);
+    } catch (err) {
+      console.warn('Failed to hydrate backend context:', err);
+    }
   }
 
   appendChunk(chunk: string) {
     if (this.messages.length === 0) return;
+
     const lastIndex = this.messages.length - 1;
     const lastMsg = this.messages[lastIndex];
+
     if (lastMsg.role === 'assistant') {
       const updated = { ...lastMsg, content: lastMsg.content + chunk };
-      this.messages = [
-        ...this.messages.slice(0, lastIndex),
-        updated
-      ];
+      this.messages = [...this.messages.slice(0, lastIndex), updated];
       this.currentAssistantResponse += chunk;
     } else {
-      // First chunk of assistant response
       this.messages = [
         ...this.messages,
         {
@@ -140,10 +148,9 @@ class ChatStore {
 
   async send(content: string) {
     if (!this.activeConversationId) {
-        this.activeConversationId = await createConversation(content.slice(0, 30));
+      this.activeConversationId = await createConversation(content.slice(0, 30));
     }
-    
-    // Ensure sessionId exists
+
     if (!this.sessionId) {
       this.sessionId = crypto.randomUUID();
       localStorage.setItem('llama_chat_session_id', this.sessionId);
@@ -154,24 +161,22 @@ class ChatStore {
       content,
       timestamp: Date.now()
     };
-    
-    // 1. Update UI immediately
+
     this.messages.push(userMessage);
-    
-    // 2. Save User Message to DB
     await saveMessage(this.activeConversationId, 'user', content);
-    
-    // Add placeholder for assistant
+
     this.messages.push({
-        role: 'assistant',
-        content: '',
-        timestamp: Date.now()
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now()
     });
 
     this.isLoading = true;
     this.error = null;
+    await this.refreshThinkingLabel();
     this.thinkingProcess = [];
     this.modelThinking = '';
+    this.toolContext = [];
     this.currentAssistantResponse = '';
 
     const onEvent = new Channel<any>();
@@ -179,36 +184,74 @@ class ChatStore {
       if (payload.thinking) {
         this.thinkingProcess = [...this.thinkingProcess, String(payload.thinking)];
       }
+
       if (payload.thinking_chunk) {
         this.modelThinking += payload.thinking_chunk;
       }
+
+      if (payload.tool_context) {
+        const ctx = payload.tool_context;
+        this.toolContext = [
+          ...this.toolContext,
+          {
+            serverId: ctx.server_id ? String(ctx.server_id) : undefined,
+            toolName: ctx.tool_name ? String(ctx.tool_name) : undefined,
+            arguments: ctx.arguments,
+            result: ctx.result,
+            toolCallId: ctx.tool_call_id ? String(ctx.tool_call_id) : undefined
+          }
+        ];
+      }
+
       if (payload.chunk) {
         this.appendChunk(payload.chunk);
       }
+
       if (payload.status === 'done') {
         console.log('Stream finished');
-        if (this.activeConversationId && this.currentAssistantResponse) {
-            const runningModelPath = serverStore.currentConfig?.model_path;
-            const modelInLibrary = modelsStore.models.find(m => m.model_file_path === runningModelPath);
-            const modelName = modelInLibrary?.name || "Unknown Model";
 
-            await saveMessage(this.activeConversationId, 'assistant', this.currentAssistantResponse, modelName);
-            
-            if (this.messages.length > 0) {
-                const lastMsg = this.messages[this.messages.length - 1];
-                if (lastMsg.role === 'assistant') {
-                    lastMsg.model = modelName;
-                }
+        if (this.activeConversationId && this.currentAssistantResponse) {
+          const conversationId = this.activeConversationId;
+
+          const runningModelPath = serverStore.currentConfig?.model_path;
+          const modelInLibrary = modelsStore.models.find(
+            (m) => m.model_file_path === runningModelPath
+          );
+          const modelName = modelInLibrary?.name || 'Unknown Model';
+
+          await saveMessage(
+            conversationId,
+            'assistant',
+            this.currentAssistantResponse,
+            modelName
+          );
+
+          if (this.messages.length > 0) {
+            const lastMsg = this.messages[this.messages.length - 1];
+            if (lastMsg.role === 'assistant') {
+              lastMsg.model = modelName;
             }
-            
-            if (this.messages.length === 2 && this.activeConversationId) {
-                 this.generateTitle(this.activeConversationId, this.messages[0].content, this.currentAssistantResponse);
-            }
-            
-            await this.loadRecentConversations();
+          }
+
+          const userMessages = this.messages.filter((m) => m.role === 'user');
+          const assistantMessages = this.messages.filter((m) => m.role === 'assistant');
+          if (userMessages.length === 1 && assistantMessages.length === 1 && this.currentAssistantResponse) {
+            this.generateTitle(
+              conversationId, 
+              userMessages[0].content, 
+              this.currentAssistantResponse
+            ).catch(err => {
+              console.warn('Background title generation error:', err);
+            });
+          }
+
+          await this.loadRecentConversations();
         }
+
+        this.attachDebugToLastAssistant();
         this.thinkingProcess = [];
         this.modelThinking = '';
+        this.toolContext = [];
       }
     };
 
@@ -222,10 +265,11 @@ class ChatStore {
       });
     } catch (err) {
       this.error = err instanceof Error ? err.message : String(err);
-      console.error("ERRO NO CHAT:", err);
+      console.error('ERRO NO CHAT:', err);
     } finally {
       this.isLoading = false;
       this.thinkingProcess = [];
+      this.toolContext = [];
     }
   }
 
@@ -272,16 +316,34 @@ class ChatStore {
     const onEvent = new Channel<any>();
     let buffer = '';
 
+    await this.refreshThinkingLabel();
     this.thinkingProcess = [];
     this.modelThinking = '';
+    this.toolContext = [];
 
     onEvent.onmessage = (payload) => {
       if (payload.thinking) {
         this.thinkingProcess = [...this.thinkingProcess, String(payload.thinking)];
       }
+
       if (payload.thinking_chunk) {
         this.modelThinking += payload.thinking_chunk;
       }
+
+      if (payload.tool_context) {
+        const ctx = payload.tool_context;
+        this.toolContext = [
+          ...this.toolContext,
+          {
+            serverId: ctx.server_id ? String(ctx.server_id) : undefined,
+            toolName: ctx.tool_name ? String(ctx.tool_name) : undefined,
+            arguments: ctx.arguments,
+            result: ctx.result,
+            toolCallId: ctx.tool_call_id ? String(ctx.tool_call_id) : undefined
+          }
+        ];
+      }
+
       if (payload.chunk) {
         buffer += payload.chunk;
         const msg = this.messages[messageIndex];
@@ -298,16 +360,19 @@ class ChatStore {
       if (payload.status === 'done') {
         const runningModelPath = serverStore.currentConfig?.model_path;
         const modelInLibrary = modelsStore.models.find(
-          m => m.model_file_path === runningModelPath
+          (m) => m.model_file_path === runningModelPath
         );
-        const modelName = modelInLibrary?.name || "Unknown Model";
+        const modelName = modelInLibrary?.name || 'Unknown Model';
 
         const msg = this.messages[messageIndex];
         if (msg && msg.role === 'assistant') {
           msg.model = modelName;
         }
+
+        this.attachDebugToLastAssistant();
         this.thinkingProcess = [];
         this.modelThinking = '';
+        this.toolContext = [];
       }
     };
 
@@ -328,95 +393,99 @@ class ChatStore {
   }
 
   async editMessage(index: number, content: string) {
-    // Basic implementation: Just truncate and resend.
-    // DB implication: We effectively branch or just ignore the old tail.
-    // For now: Truncate store, resend. DB will just append new messages.
-    // Ideally, we should delete from DB, but "History" implies potentially keeping everything.
-    // Let's just keep appending for now to avoid data loss.
-    
     if (this.isLoading) return;
-    
-    // Remove all messages from this index onwards
+
     this.messages = this.messages.slice(0, index);
-    
-    // Send the new version
     await this.send(content);
+  }
+
+  private attachDebugToLastAssistant() {
+    if (this.messages.length === 0) return;
+
+    const lastIndex = this.messages.length - 1;
+    const lastMsg = this.messages[lastIndex];
+    if (!lastMsg || lastMsg.role !== 'assistant') return;
+
+    const updated: Message = {
+      ...lastMsg,
+      thinkingProcess: this.thinkingProcess.length ? [...this.thinkingProcess] : undefined,
+      modelThinking: this.modelThinking ? this.modelThinking : undefined,
+      toolContext: this.toolContext.length ? [...this.toolContext] : undefined
+    };
+
+    this.messages = [
+      ...this.messages.slice(0, lastIndex),
+      updated,
+      ...this.messages.slice(lastIndex + 1)
+    ];
   }
 
   async clear() {
     try {
       await invokeCommand('clear_chat', { sessionId: this.sessionId });
     } catch (err) {
-      console.warn("Failed to clear backend chat session:", err);
+      console.warn('Failed to clear backend chat session:', err);
     }
+
     this.messages = [];
     this.error = null;
-    
-    // Create NEW conversation in DB
+
     this.sessionId = crypto.randomUUID();
     localStorage.setItem('llama_chat_session_id', this.sessionId);
+
     this.activeConversationId = await createConversation('New Chat');
     await this.loadRecentConversations();
   }
 
   async deleteChat(id: number) {
-      await deleteConversation(id);
-      await this.loadRecentConversations();
-      
-      if (this.activeConversationId === id) {
-          if (this.history.length > 0) {
-              const nextChat = this.history[0];
-              if (nextChat && nextChat.id) {
-                  await this.loadConversation(nextChat.id);
-              }
-          } else {
-              await this.clear();
-          }
-      }
-  }
+    await deleteConversation(id);
+    await this.loadRecentConversations();
 
-  async generateTitle(conversationId: number, userFirstMsg: string, aiFirstMsg: string) {
-      console.log("Generating title...");
-      const summarySessionId = `summary-${crypto.randomUUID()}`;
-      const prompt = `Generate a short, concise title (max 5 words) for this chat conversation. Do not use quotes.
-      
-      User: ${userFirstMsg.slice(0, 200)}
-      AI: ${aiFirstMsg.slice(0, 200)}
-      
-      Title:`;
-      
-      let titleBuffer = "";
-      
-      const onEvent = new Channel<any>();
-      onEvent.onmessage = (payload) => {
-          if (payload.chunk) {
-              titleBuffer += payload.chunk;
-          }
-      };
-      
-      try {
-          // Use a clean session for summary
-          await invokeCommand('send_message', {
-              message: prompt,
-              sessionId: summarySessionId,
-              temperature: 0.7,
-              maxTokens: 50,
-              onEvent
-          });
-          
-          let finalTitle = titleBuffer.trim().replace(/^["']|["']$/g, ''); // Remove quotes if any
-          if (finalTitle) {
-              console.log("Generated Title:", finalTitle);
-              await updateConversationTitle(conversationId, finalTitle);
-              await this.loadRecentConversations(); // Refresh UI
-          }
-          
-          // Cleanup summary session
-          await invokeCommand('clear_chat', { sessionId: summarySessionId });
-          
-      } catch (err) {
-          console.warn("Title generation failed:", err);
+    if (this.activeConversationId === id) {
+      if (this.history.length > 0) {
+        const nextChat = this.history[0];
+        if (nextChat?.id) {
+          await this.loadConversation(nextChat.id);
+        }
+      } else {
+        await this.clear();
       }
+    }
+  }
+  async generateTitle(conversationId: number, userFirstMsg: string, assistantFirstMsg: string) {
+    console.log('=== Generating title for conversation', conversationId);
+
+    try {
+      const result = await invokeCommand('generate_chat_title', { 
+        firstUserMessage: userFirstMsg.slice(0, 500),
+        firstAssistantMessage: assistantFirstMsg.slice(0, 500)
+      });
+
+      console.log('generate_chat_title raw result:', JSON.stringify(result));
+
+      const rawTitle = typeof result === 'string' ? result : '';
+
+      console.log('rawTitle:', JSON.stringify(rawTitle));
+
+      const finalTitle = rawTitle
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .replace(/^Title:\s*/i, '')
+        .split('\n')[0]
+        .slice(0, 50);
+
+      console.log('finalTitle after cleanup:', JSON.stringify(finalTitle));
+
+      if (finalTitle) {
+        console.log('Generated title:', finalTitle);
+        await updateConversationTitle(conversationId, finalTitle);
+        await this.loadRecentConversations();
+      } else {
+        console.warn('finalTitle was empty — skipping update');
+      }
+    } catch (err) {
+      console.warn('Title generation failed:', err);
+    }
   }
 
   async destroy() {
@@ -424,9 +493,63 @@ class ChatStore {
       this.unlisten();
       this.unlisten = null;
     }
+
     this.messages = [];
     this.error = null;
+  }
+
+  private async refreshThinkingLabel() {
+    const config = serverStore.currentConfig;
+    const inlineTemplate = config?.chat_template ?? null;
+    const templatePath = config?.chat_template_file ?? null;
+
+    const templateKey = inlineTemplate
+      ? `inline:${inlineTemplate.length}`
+      : templatePath
+        ? `file:${templatePath}`
+        : null;
+
+    if (!templateKey) {
+      this.thinkingLabel = 'Thinking';
+      this.lastTemplateKey = null;
+      return;
+    }
+
+    if (this.lastTemplateKey === templateKey) {
+      return;
+    }
+
+    let templateText: string | null = inlineTemplate;
+
+    if (!templateText && templatePath) {
+      try {
+        templateText = await readTextFile(templatePath);
+      } catch (err) {
+        console.warn('Failed to read chat template file:', err);
+      }
+    }
+
+    this.thinkingLabel = deriveThinkingLabelFromTemplate(templateText);
+    this.lastTemplateKey = templateKey;
   }
 }
 
 export const chatStore = new ChatStore();
+
+function deriveThinkingLabelFromTemplate(template: string | null): string {
+  if (!template) return 'Thinking';
+
+  const lower = template.toLowerCase();
+  if (lower.includes('<analysis>') || lower.includes('</analysis>')) {
+    return 'Analysis';
+  }
+  if (lower.includes('<reasoning>') || lower.includes('</reasoning>')) {
+    return 'Reasoning';
+  }
+  if (lower.includes('<think>') || lower.includes('</think>')) {
+    return 'Thinking';
+  }
+
+  return 'Thinking';
+}
+

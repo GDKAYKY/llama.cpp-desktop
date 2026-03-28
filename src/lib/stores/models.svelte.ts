@@ -1,16 +1,7 @@
 import { scanModelsDirectory, loadModelLibrary, saveModelLibrary, selectModelsDirectory } from '$lib/services/models';
-import { removeModelByIdentifier, removeModelByManifestPath } from '$lib/services/models_delete';
 import { downloadModelFromRegistry } from '$lib/services/model_downloads';
 import { settingsStore } from './settings.svelte';
 import type { Model } from '$lib/types/models';
-import { listen } from '@tauri-apps/api/event';
-
-export interface DownloadProgress {
-  reference: string;
-  downloaded: number;
-  total: number;
-  speed: number;
-}
 
 class ModelsStore {
   models = $state<Model[]>([]);
@@ -19,21 +10,6 @@ class ModelsStore {
   isDownloading = $state(false);
   error = $state<string | null>(null);
   successMessage = $state('');
-  downloads = $state<Record<string, DownloadProgress>>({});
-
-  constructor() {
-    this.setupListeners();
-  }
-
-  async setupListeners() {
-    try {
-      await listen<DownloadProgress>('download-progress', (event) => {
-        this.downloads[event.payload.reference] = event.payload;
-      });
-    } catch (err) {
-      console.error('Failed to setup download listeners:', err);
-    }
-  }
 
   get modelsRoot() {
     return settingsStore.settings.modelsDirectory;
@@ -116,74 +92,21 @@ class ModelsStore {
       this.error = null;
       this.successMessage = '';
 
-      this.downloads[trimmed] = {
-        reference: trimmed,
-        downloaded: 0,
-        total: 100,
-        speed: 0
-      };
+      const model = await downloadModelFromRegistry(this.modelsRoot, trimmed);
+      const existingIndex = this.models.findIndex((m) => m.full_identifier === model.full_identifier);
 
-      downloadModelFromRegistry(this.modelsRoot, trimmed).then(async (model) => {
-        const existingIndex = this.models.findIndex((m) => m.full_identifier === model.full_identifier);
-
-        if (existingIndex >= 0) {
-          this.models[existingIndex] = model;
-        } else {
-          this.models = [model, ...this.models];
-        }
-
-        await saveModelLibrary(this.libraryPath, this.models);
-        this.successMessage = `Downloaded ${model.full_identifier}`;
-        this.isDownloading = false;
-
-        setTimeout(() => {
-          const newDownloads = { ...this.downloads };
-          delete newDownloads[trimmed];
-          this.downloads = newDownloads;
-        }, 2000);
-      }).catch(err => {
-        this.error = `Failed to download model: ${err instanceof Error ? err.message : String(err)}`;
-        this.isDownloading = false;
-
-        setTimeout(() => {
-          const newDownloads = { ...this.downloads };
-          delete newDownloads[trimmed];
-          this.downloads = newDownloads;
-        }, 2000);
-      });
-    } catch (err) {
-      this.error = `Failed to initiate download: ${err instanceof Error ? err.message : String(err)}`;
-      this.isDownloading = false;
-    }
-  }
-
-  async remove(model: Model) {
-    if (!this.modelsRoot) {
-      this.error = 'Please select a models directory first';
-      return;
-    }
-
-    try {
-      this.isLoading = true;
-      this.error = null;
-      this.successMessage = '';
-
-      const success = model.manifest_path
-        ? await removeModelByManifestPath(model.manifest_path, this.modelsRoot)
-        : await removeModelByIdentifier(model.full_identifier, this.modelsRoot);
-
-      if (success) {
-        // Remove the model from the store
-        this.models = this.models.filter(m => m.full_identifier !== model.full_identifier);
-        await saveModelLibrary(this.libraryPath, this.models);
-        this.successMessage = `Successfully removed model: ${model.full_identifier}`;
+      if (existingIndex >= 0) {
+        this.models[existingIndex] = model;
       } else {
-        this.error = `Failed to fully remove model: ${model.full_identifier}. Some files may remain.`;
+        this.models = [model, ...this.models];
       }
+
+      await saveModelLibrary(this.libraryPath, this.models);
+      this.successMessage = `Downloaded ${model.full_identifier}`;
     } catch (err) {
-      this.error = `Failed to remove model: ${err instanceof Error ? err.message : String(err)}`;
+      this.error = `Failed to download model: ${err instanceof Error ? err.message : String(err)}`;
     } finally {
-      this.isLoading = false;
+      this.isDownloading = false;
     }
   }
 

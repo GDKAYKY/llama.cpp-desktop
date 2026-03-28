@@ -3,12 +3,14 @@
   import MessageAvatar from "$components/ui/MessageAvatar.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
 
-  /** @type {{ messages: Array<{role: string, content: string}>, isLoading: boolean, messagesEnd: HTMLElement, thinkingProcess?: string[], modelThinking?: string, pill?: boolean }} */
+  /** @type {{ messages: Array<{role: string, content: string, thinkingProcess?: string[], modelThinking?: string, toolContext?: any[]}>, isLoading: boolean, messagesEnd: HTMLElement, thinkingProcess?: string[], modelThinking?: string, thinkingLabel?: string, toolContext?: any[], pill?: boolean }} */
   let {
     messages,
     isLoading,
     thinkingProcess = [],
     modelThinking = "",
+    thinkingLabel = "Thinking",
+    toolContext = [],
     messagesEnd = $bindable(),
     pill = true,
   } = $props();
@@ -23,10 +25,14 @@
         isStreaming={isLoading && i === messages.length - 1}
         thinkingProcess={isLoading && i === messages.length - 1
           ? thinkingProcess
-          : []}
+          : msg.thinkingProcess ?? []}
         modelThinking={isLoading && i === messages.length - 1
           ? modelThinking
-          : ""}
+          : msg.modelThinking ?? ""}
+        thinkingLabel={thinkingLabel}
+        toolContext={isLoading && i === messages.length - 1
+          ? toolContext
+          : msg.toolContext ?? []}
         {pill}
       />
     {/each}

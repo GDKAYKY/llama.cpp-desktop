@@ -22,6 +22,16 @@ pub struct ChatRequest {
     pub top_k: i32,
     pub max_tokens: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_budget: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_budget_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_forced_open: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chat_template_kwargs: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<serde_json::Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<serde_json::Value>,
