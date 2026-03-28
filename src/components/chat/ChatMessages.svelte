@@ -3,13 +3,14 @@
   import MessageAvatar from "$components/ui/MessageAvatar.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
 
-  /** @type {{ messages: Array<{role: string, content: string, thinkingProcess?: string[], modelThinking?: string, toolContext?: any[]}>, isLoading: boolean, messagesEnd: HTMLElement, thinkingProcess?: string[], modelThinking?: string, thinkingLabel?: string, toolContext?: any[], pill?: boolean }} */
+  /** @type {{ messages: Array<{role: string, content: string, thinkingProcess?: string[], modelThinking?: string, toolContext?: any[]}>, isLoading: boolean, messagesEnd: HTMLElement, thinkingProcess?: string[], modelThinking?: string, thinkingLabel?: string, thinkingTags?: string[], toolContext?: any[], pill?: boolean }} */
   let {
     messages,
     isLoading,
     thinkingProcess = [],
     modelThinking = "",
     thinkingLabel = "Thinking",
+    thinkingTags = [],
     toolContext = [],
     messagesEnd = $bindable(),
     pill = true,
@@ -30,6 +31,7 @@
           ? modelThinking
           : msg.modelThinking ?? ""}
         thinkingLabel={thinkingLabel}
+        thinkingTags={thinkingTags}
         toolContext={isLoading && i === messages.length - 1
           ? toolContext
           : msg.toolContext ?? []}

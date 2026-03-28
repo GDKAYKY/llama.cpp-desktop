@@ -35,10 +35,7 @@ fn parse_model_path_errors_when_too_short() {
 
 #[test]
 fn digest_to_blob_filename_rewrites_prefix() {
-    assert_eq!(
-        digest_to_blob_filename("sha256:60e05f2"),
-        "sha256-60e05f2"
-    );
+    assert_eq!(digest_to_blob_filename("sha256:60e05f2"), "sha256-60e05f2");
 }
 
 #[test]
@@ -62,9 +59,7 @@ fn find_model_blob_path_returns_none_when_missing() {
 #[test]
 fn parse_model_manifest_sync_errors_without_model_layer() {
     let dir = tempdir().expect("tempdir");
-    let manifest_dir = dir
-        .path()
-        .join("manifests/provider/lib/name/version");
+    let manifest_dir = dir.path().join("manifests/provider/lib/name/version");
     std::fs::create_dir_all(&manifest_dir).expect("create manifests");
     let manifest_path = manifest_dir.join("manifest.json");
 
@@ -72,9 +67,11 @@ fn parse_model_manifest_sync_errors_without_model_layer() {
     manifest.layers[0].media_type = "application/vnd.ollama.image.other".to_string();
     llama_desktop_lib::utils::save_json(&manifest_path, &manifest).expect("save manifest");
 
+    let metadata_root = dir.path().to_string_lossy().to_string();
     let err = parse_model_manifest_sync(
         manifest_path.to_string_lossy().to_string(),
         dir.path().to_string_lossy().to_string(),
+        &metadata_root,
     )
     .expect_err("expected error");
     assert!(err.contains("No model layer"));

@@ -1,7 +1,6 @@
 import { invokeCommand } from '$infrastructure/ipc';
 import { Channel } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import { readTextFile } from '@tauri-apps/plugin-fs';
 import { settingsStore } from '$lib/stores/settings.svelte';
 import { modelsStore } from '$lib/stores/models.svelte';
 import { serverStore } from '$lib/stores/server.svelte';
@@ -38,6 +37,7 @@ class ChatStore {
   thinkingProcess = $state<string[]>([]);
   modelThinking = $state('');
   thinkingLabel = $state('Thinking');
+  thinkingTags = $state<string[]>([]);
   toolContext = $state<ToolContext[]>([]);
   isLoading = $state(false);
   error = $state<string | null>(null);
@@ -54,6 +54,7 @@ class ChatStore {
   // To accumulate assistant response before saving
   currentAssistantResponse = '';
   private lastTemplateKey: string | null = null;
+  private thinkingLineBuffer = '';
 
   async initialize() {
     this.error = null;
@@ -177,6 +178,7 @@ class ChatStore {
     this.thinkingProcess = [];
     this.modelThinking = '';
     this.toolContext = [];
+    this.thinkingLineBuffer = '';
     this.currentAssistantResponse = '';
 
     const onEvent = new Channel<any>();
@@ -186,7 +188,7 @@ class ChatStore {
       }
 
       if (payload.thinking_chunk) {
-        this.modelThinking += payload.thinking_chunk;
+        this.appendThinkingChunk(String(payload.thinking_chunk));
       }
 
       if (payload.tool_context) {
@@ -210,8 +212,17 @@ class ChatStore {
       if (payload.status === 'done') {
         console.log('Stream finished');
 
-        if (this.activeConversationId && this.currentAssistantResponse) {
+        this.flushThinkingBuffer();
+
+        const lastMsg = this.messages[this.messages.length - 1];
+        const assistantContent =
+          this.currentAssistantResponse ||
+          (lastMsg?.role === 'assistant' ? lastMsg.content : '');
+        const trimmedContent = assistantContent.trim();
+
+        if (this.activeConversationId && trimmedContent) {
           const conversationId = this.activeConversationId;
+          this.currentAssistantResponse = assistantContent;
 
           const runningModelPath = serverStore.currentConfig?.model_path;
           const modelInLibrary = modelsStore.models.find(
@@ -222,7 +233,7 @@ class ChatStore {
           await saveMessage(
             conversationId,
             'assistant',
-            this.currentAssistantResponse,
+            assistantContent,
             modelName
           );
 
@@ -252,7 +263,10 @@ class ChatStore {
         this.thinkingProcess = [];
         this.modelThinking = '';
         this.toolContext = [];
+        this.thinkingLineBuffer = '';
       }
+      console.log("stream event", payload);
+
     };
 
     try {
@@ -268,8 +282,6 @@ class ChatStore {
       console.error('ERRO NO CHAT:', err);
     } finally {
       this.isLoading = false;
-      this.thinkingProcess = [];
-      this.toolContext = [];
     }
   }
 
@@ -320,6 +332,7 @@ class ChatStore {
     this.thinkingProcess = [];
     this.modelThinking = '';
     this.toolContext = [];
+    this.thinkingLineBuffer = '';
 
     onEvent.onmessage = (payload) => {
       if (payload.thinking) {
@@ -327,7 +340,7 @@ class ChatStore {
       }
 
       if (payload.thinking_chunk) {
-        this.modelThinking += payload.thinking_chunk;
+        this.appendThinkingChunk(String(payload.thinking_chunk));
       }
 
       if (payload.tool_context) {
@@ -358,6 +371,8 @@ class ChatStore {
       }
 
       if (payload.status === 'done') {
+        this.flushThinkingBuffer();
+
         const runningModelPath = serverStore.currentConfig?.model_path;
         const modelInLibrary = modelsStore.models.find(
           (m) => m.model_file_path === runningModelPath
@@ -373,6 +388,7 @@ class ChatStore {
         this.thinkingProcess = [];
         this.modelThinking = '';
         this.toolContext = [];
+        this.thinkingLineBuffer = '';
       }
     };
 
@@ -501,16 +517,24 @@ class ChatStore {
   private async refreshThinkingLabel() {
     const config = serverStore.currentConfig;
     const inlineTemplate = config?.chat_template ?? null;
-    const templatePath = config?.chat_template_file ?? null;
+    const runningModelPath = config?.model_path;
+    const modelInLibrary = runningModelPath
+      ? modelsStore.models.find((m) => m.model_file_path === runningModelPath)
+      : null;
+    const metadataTemplate =
+      typeof modelInLibrary?.tokenizer_metadata?.["tokenizer.chat_template"] === 'string'
+        ? modelInLibrary.tokenizer_metadata["tokenizer.chat_template"]
+        : null;
 
     const templateKey = inlineTemplate
       ? `inline:${inlineTemplate.length}`
-      : templatePath
-        ? `file:${templatePath}`
+      : metadataTemplate
+        ? `metadata:${metadataTemplate.length}`
         : null;
 
     if (!templateKey) {
       this.thinkingLabel = 'Thinking';
+      this.thinkingTags = [];
       this.lastTemplateKey = null;
       return;
     }
@@ -519,18 +543,34 @@ class ChatStore {
       return;
     }
 
-    let templateText: string | null = inlineTemplate;
-
-    if (!templateText && templatePath) {
-      try {
-        templateText = await readTextFile(templatePath);
-      } catch (err) {
-        console.warn('Failed to read chat template file:', err);
-      }
-    }
+    const templateText: string | null = inlineTemplate ?? metadataTemplate;
 
     this.thinkingLabel = deriveThinkingLabelFromTemplate(templateText);
+    this.thinkingTags = deriveThinkingTagsFromTemplate(templateText);
     this.lastTemplateKey = templateKey;
+  }
+
+  private appendThinkingChunk(chunk: string) {
+    if (!chunk) return;
+
+    this.modelThinking += chunk;
+
+    const combined = `${this.thinkingLineBuffer}${chunk}`;
+    const lines = combined.split(/\r?\n/);
+    this.thinkingLineBuffer = lines.pop() ?? '';
+
+    const cleaned = lines.map((line) => line.trim()).filter(Boolean);
+    if (cleaned.length > 0) {
+      this.thinkingProcess = [...this.thinkingProcess, ...cleaned];
+    }
+  }
+
+  private flushThinkingBuffer() {
+    const remaining = this.thinkingLineBuffer.trim();
+    if (remaining) {
+      this.thinkingProcess = [...this.thinkingProcess, remaining];
+    }
+    this.thinkingLineBuffer = '';
   }
 }
 
@@ -551,5 +591,22 @@ function deriveThinkingLabelFromTemplate(template: string | null): string {
   }
 
   return 'Thinking';
+}
+
+function deriveThinkingTagsFromTemplate(template: string | null): string[] {
+  if (!template) return [];
+  const tags = new Set<string>();
+  const tagRegex = /<([a-zA-Z][a-zA-Z0-9_-]{0,32})>/g;
+  const lower = template.toLowerCase();
+  const blocked = new Set(['assistant', 'user', 'system', 'tool']);
+  let match = tagRegex.exec(lower);
+  while (match) {
+    const tag = match[1];
+    if (!blocked.has(tag) && lower.includes(`</${tag}>`)) {
+      tags.add(tag);
+    }
+    match = tagRegex.exec(lower);
+  }
+  return [...tags];
 }
 

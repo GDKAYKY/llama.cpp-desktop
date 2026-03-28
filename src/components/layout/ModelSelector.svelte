@@ -116,11 +116,19 @@
       return;
     }
 
+    const chatTemplate =
+      typeof model?.tokenizer_metadata?.["tokenizer.chat_template"] === "string"
+        ? model.tokenizer_metadata["tokenizer.chat_template"]
+        : null;
+
     await serverStore.startServer(
       llamaDirectory,
       model.model_file_path,
       settingsStore.settings.serverPort,
       settingsStore.settings.contextSize,
+      undefined,
+      undefined,
+      chatTemplate,
     );
   }
 </script>
@@ -248,7 +256,7 @@
     </div>
   {/if}
 
-  {#if Object.keys(modelsStore.downloads).length > 0}
+  {#if Object.keys(modelsStore.downloads ?? {}).length > 0}
     <div class="mb-6 space-y-3">
       <h3 class="flex items-center gap-2 text-sm font-medium text-muted-foreground uppercase tracking-wider">
         Active Downloads

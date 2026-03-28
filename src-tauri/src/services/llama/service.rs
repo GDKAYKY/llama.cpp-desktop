@@ -111,6 +111,14 @@ impl LlamaCppService {
     ) -> Result<mpsc::Receiver<String>, String> {
         let config = self.get_config().await.ok_or("No model running")?;
         let id = ModelId(config.model_path);
+        let chat_template_kwargs = if config.chat_template.is_some() || config.chat_template_file.is_some() {
+            Some(serde_json::json!({
+                "enable_thinking": true,
+                "add_generation_prompt": true
+            }))
+        } else {
+            None
+        };
         let request = ChatRequest {
             model: "unknown".to_string(),
             session_id,
@@ -123,7 +131,7 @@ impl LlamaCppService {
             reasoning_budget: None,
             reasoning_budget_message: None,
             thinking_forced_open: None,
-            chat_template_kwargs: None,
+            chat_template_kwargs,
             tools: None,
             tool_choice: None,
             stream: true,
@@ -174,6 +182,16 @@ impl LlamaCppService {
     ) -> Result<serde_json::Value, String> {
         let config = self.get_config().await.ok_or("No model running")?;
         let id = ModelId(config.model_path);
+        let template_kwargs = if chat_template_kwargs.is_some() {
+            chat_template_kwargs
+        } else if config.chat_template.is_some() || config.chat_template_file.is_some() {
+            Some(serde_json::json!({
+                "enable_thinking": true,
+                "add_generation_prompt": true
+            }))
+        } else {
+            None
+        };
         let request = ChatRequest {
             model: "unknown".to_string(),
             session_id,
@@ -186,7 +204,7 @@ impl LlamaCppService {
             reasoning_budget,
             reasoning_budget_message: None,
             thinking_forced_open: None,
-            chat_template_kwargs,
+            chat_template_kwargs: template_kwargs,
             tools,
             tool_choice,
             stream: false,

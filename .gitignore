@@ -141,3 +141,4 @@ vite.config.ts.timestamp-*
 /src-tauri/target
 /llamacppserverfiles
 /build
+/update_icons.py

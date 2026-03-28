@@ -1,6 +1,6 @@
 [package]
 name = "llama-desktop"
-version = "1.1.1"
+version = "1.2.0"
 description = "Llama.cpp Desktop Client"
 authors = ["Llama Desktop Team"]
 edition = "2021"
@@ -31,9 +31,10 @@ uuid = { version = "1", features = ["v4", "serde"] }
 once_cell = "1.19"
 futures = "0.3.31"
 sysinfo = "0.38.0"
-sha2 = "0.10"
+sha2 = "0.11.0"
 
 [dev-dependencies]
 async-stream = "0.3.6"
 tempfile = "3.24.0"
-warp = "0.3.7"
+warp = { version = "0.4.2", features = ["server"] }
+tauri = { version = "2", features = ["test"] }

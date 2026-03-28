@@ -5,9 +5,11 @@
 /// (e.g. `<thi` in one chunk, `nk>` in the next) by buffering potential
 /// partial tags.
 
-const OPEN_TAG: &str = "<think>";
-const CLOSE_TAG: &str = "</think>";
-const MAX_TAG_LEN: usize = 9; // length of "</think>" + safety margin
+const TAGS: [(&str, &str); 3] = [
+    ("<think>", "</think>"),
+    ("<analysis>", "</analysis>"),
+    ("<reasoning>", "</reasoning>"),
+];
 
 /// Emitted events from the parser on each `push` call.
 #[derive(Debug, Clone, PartialEq)]
@@ -21,6 +23,7 @@ pub enum ParsedChunk {
 pub struct ThinkingStreamParser {
     in_think: bool,
     buffer: String,
+    current_close_tag: Option<&'static str>,
 }
 
 impl ThinkingStreamParser {
@@ -28,6 +31,7 @@ impl ThinkingStreamParser {
         Self {
             in_think: false,
             buffer: String::new(),
+            current_close_tag: None,
         }
     }
 
@@ -39,18 +43,20 @@ impl ThinkingStreamParser {
 
         loop {
             if self.in_think {
-                match self.buffer.find(CLOSE_TAG) {
+                let close_tag = self.current_close_tag.unwrap_or("</think>");
+                match self.buffer.find(close_tag) {
                     Some(pos) => {
                         let thinking_text = self.buffer[..pos].to_string();
-                        self.buffer = self.buffer[pos + CLOSE_TAG.len()..].to_string();
+                        self.buffer = self.buffer[pos + close_tag.len()..].to_string();
                         self.in_think = false;
+                        self.current_close_tag = None;
                         if !thinking_text.is_empty() {
                             results.push(ParsedChunk::Thinking(thinking_text));
                         }
                     }
                     None => {
                         // Check if buffer ends with a partial close tag
-                        if self.could_be_partial_tag(&self.buffer.clone(), CLOSE_TAG) {
+                        if self.could_be_partial_tag(&self.buffer.clone(), close_tag) {
                             break; // Wait for more data
                         }
                         // Safe to emit everything as thinking
@@ -62,18 +68,22 @@ impl ThinkingStreamParser {
                     }
                 }
             } else {
-                match self.buffer.find(OPEN_TAG) {
-                    Some(pos) => {
+                match self.find_next_open_tag(&self.buffer) {
+                    Some((pos, open_len, close_tag)) => {
                         let content_text = self.buffer[..pos].to_string();
-                        self.buffer = self.buffer[pos + OPEN_TAG.len()..].to_string();
+                        self.buffer = self.buffer[pos + open_len..].to_string();
                         self.in_think = true;
+                        self.current_close_tag = Some(close_tag);
                         if !content_text.is_empty() {
                             results.push(ParsedChunk::Content(content_text));
                         }
                     }
                     None => {
                         // Check if buffer ends with a partial open tag
-                        if self.could_be_partial_tag(&self.buffer.clone(), OPEN_TAG) {
+                        if TAGS
+                            .iter()
+                            .any(|(open, _)| self.could_be_partial_tag(&self.buffer.clone(), open))
+                        {
                             break; // Wait for more data
                         }
                         // Safe to emit everything as content
@@ -119,6 +129,19 @@ impl ThinkingStreamParser {
             }
         }
         false
+    }
+
+    fn find_next_open_tag(&self, text: &str) -> Option<(usize, usize, &'static str)> {
+        let mut best: Option<(usize, usize, &'static str)> = None;
+        for (open, close) in TAGS.iter() {
+            if let Some(pos) = text.find(open) {
+                match best {
+                    Some((best_pos, _, _)) if pos >= best_pos => {}
+                    _ => best = Some((pos, open.len(), *close)),
+                }
+            }
+        }
+        best
     }
 }
 

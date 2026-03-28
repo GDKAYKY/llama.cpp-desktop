@@ -72,11 +72,16 @@ fn write_dummy_llama_server(dir: &std::path::Path) -> PathBuf {
 async fn start_health_server() -> (std::net::SocketAddr, oneshot::Sender<()>) {
     let route = warp::path("health").map(|| "ok");
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
-    let (addr, server) =
-        warp::serve(route).bind_with_graceful_shutdown(([127, 0, 0, 1], 0), async move {
+    let listener = tokio::net::TcpListener::bind(([127, 0, 0, 1], 0))
+        .await
+        .expect("bind health");
+    let addr = listener.local_addr().expect("health addr");
+    let server = warp::serve(route)
+        .incoming(listener)
+        .graceful(async move {
             let _ = shutdown_rx.await;
         });
-    tokio::spawn(server);
+    tokio::spawn(server.run());
     (addr, shutdown_tx)
 }
 
@@ -102,6 +107,7 @@ fn sample_manifest(model_path: String) -> ModelInfo {
         name: "name".to_string(),
         version: "v1".to_string(),
         manifest_data: manifest,
+        tokenizer_metadata: None,
         model_file_path: Some(model_path),
         manifest_path: Some("manifests/provider/lib/name/v1/manifest.json".to_string()),
         full_identifier: "provider:name:v1".to_string(),
@@ -205,6 +211,11 @@ async fn handle_chat_returns_error_when_not_running() {
         top_p: 1.0,
         top_k: 1,
         max_tokens: 1,
+        reasoning_format: None,
+        reasoning_budget: None,
+        reasoning_budget_message: None,
+        thinking_forced_open: None,
+        chat_template_kwargs: None,
         tools: None,
         tool_choice: None,
         stream: true,
@@ -571,13 +582,18 @@ async fn send_chat_streams_chunks() {
         .and(warp::path("completions"))
         .and(warp::post())
         .map(|| {
-            let body = warp::hyper::Body::from(
+            warp::reply::with_header(
                 "data: {\"choices\":[{\"delta\":{\"content\":\"A\"}}]}\n\ndata: [DONE]\n",
-            );
-            warp::reply::Response::new(body)
+                "content-type",
+                "text/event-stream",
+            )
         });
-    let (addr, server) = warp::serve(route).bind_ephemeral(([127, 0, 0, 1], 0));
-    tokio::spawn(server);
+    let listener = tokio::net::TcpListener::bind(([127, 0, 0, 1], 0))
+        .await
+        .expect("bind chat");
+    let addr = listener.local_addr().expect("chat addr");
+    let server = warp::serve(route).incoming(listener);
+    tokio::spawn(server.run());
 
     let (tx, rx) = mpsc::channel(8);
     let mut actor = LlamaActor::new(
@@ -614,6 +630,11 @@ async fn send_chat_streams_chunks() {
         top_p: 1.0,
         top_k: 1,
         max_tokens: 1,
+        reasoning_format: None,
+        reasoning_budget: None,
+        reasoning_budget_message: None,
+        thinking_forced_open: None,
+        chat_template_kwargs: None,
         tools: None,
         tool_choice: None,
         stream: true,

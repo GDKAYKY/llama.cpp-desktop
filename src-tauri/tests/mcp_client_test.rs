@@ -40,8 +40,12 @@ async fn http_client_request_success() {
             "result": { "ok": true }
         }))
     });
-    let (addr, server) = warp::serve(route).bind_ephemeral(([127, 0, 0, 1], 0));
-    tokio::spawn(server);
+    let listener = tokio::net::TcpListener::bind(([127, 0, 0, 1], 0))
+        .await
+        .expect("bind http");
+    let addr = listener.local_addr().expect("http addr");
+    let server = warp::serve(route).incoming(listener);
+    tokio::spawn(server.run());
 
     let mut headers = HashMap::new();
     headers.insert("X-Test".to_string(), "1".to_string());
@@ -63,8 +67,12 @@ async fn http_client_request_error() {
             "error": { "code": -10, "message": "bad" }
         }))
     });
-    let (addr, server) = warp::serve(route).bind_ephemeral(([127, 0, 0, 1], 0));
-    tokio::spawn(server);
+    let listener = tokio::net::TcpListener::bind(([127, 0, 0, 1], 0))
+        .await
+        .expect("bind http err");
+    let addr = listener.local_addr().expect("http err addr");
+    let server = warp::serve(route).incoming(listener);
+    tokio::spawn(server.run());
 
     let client = HttpClient::new(format!("http://{}", addr), None).expect("client");
     let err = client.request("anything", None).await.expect_err("error");

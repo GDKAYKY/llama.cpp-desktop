@@ -230,32 +230,35 @@ impl LlamaServer {
                         if buffer.trim() == "data: [DONE]" {
                             return;
                         }
-                        while let Some(idx) = buffer.find('\n') {
-                            let line = buffer[..idx].trim().to_string();
-                            buffer = buffer[idx + 1..].to_string();
-                            if line.is_empty() || line.starts_with(':') {
-                                continue;
-                            }
 
-                            if line.starts_with("data:") {
-                                let data_content = line["data:".len()..].trim();
-                                if data_content == "[DONE]" {
+                        while let Some(idx) = buffer.find("\n\n") {
+                            let block = buffer[..idx].to_string();
+                            buffer = buffer[idx + 2..].to_string();
+
+                            for raw_line in block.lines() {
+                                let line = raw_line.trim();
+                                if line.is_empty() || line.starts_with(':') {
+                                    continue;
+                                }
+                                let payload = if line.starts_with("data:") {
+                                    line["data:".len()..].trim()
+                                } else {
+                                    line
+                                };
+
+                                if payload == "[DONE]" {
                                     return;
                                 }
+
                                 if let Ok(json) =
-                                    serde_json::from_str::<serde_json::Value>(data_content)
+                                    serde_json::from_str::<serde_json::Value>(payload)
                                 {
-                                    if let Some(content) = extract_stream_content(&json) {
-                                        if tx.send(content).await.is_err() {
-                                            return;
-                                        }
-                                    }
-                                }
-                            } else {
-                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
-                                    if let Some(content) = extract_stream_content(&json) {
-                                        if tx.send(content).await.is_err() {
-                                            return;
+                                    let chunks = extract_stream_chunks(&json);
+                                    if !chunks.is_empty() {
+                                        for chunk in chunks {
+                                            if tx.send(chunk).await.is_err() {
+                                                return;
+                                            }
                                         }
                                     }
                                 }
@@ -307,15 +310,38 @@ impl LlamaServer {
     }
 }
 
-fn extract_stream_content(json: &serde_json::Value) -> Option<String> {
+fn extract_stream_chunks(json: &serde_json::Value) -> Vec<String> {
+    let mut chunks = Vec::new();
+
+    if let Some(reasoning) = json["choices"][0]["delta"]["reasoning_content"].as_str() {
+        if !reasoning.is_empty() {
+            chunks.push(format!("<think>{}</think>", reasoning));
+        }
+    }
+
+    if let Some(reasoning) = json["choices"][0]["message"]["reasoning_content"].as_str() {
+        if !reasoning.is_empty() {
+            chunks.push(format!("<think>{}</think>", reasoning));
+        }
+    }
+
     if let Some(content) = json["choices"][0]["delta"]["content"].as_str() {
-        return Some(content.to_string());
+        if !content.is_empty() {
+            chunks.push(content.to_string());
+        }
     }
+
     if let Some(content) = json["choices"][0]["message"]["content"].as_str() {
-        return Some(content.to_string());
+        if !content.is_empty() {
+            chunks.push(content.to_string());
+        }
     }
+
     if let Some(content) = json["choices"][0]["delta"]["text"].as_str() {
-        return Some(content.to_string());
+        if !content.is_empty() {
+            chunks.push(content.to_string());
+        }
     }
-    None
+
+    chunks
 }

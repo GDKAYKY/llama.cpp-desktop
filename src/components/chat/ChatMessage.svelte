@@ -11,18 +11,30 @@
     RotateCcw,
     Share2,
     MoreHorizontal,
-    ChevronRight,
+    ChevronDown,
   } from "lucide-svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
   import { toast } from "svelte-sonner";
 
-  /** @type {{ message: { role: string, content: string }, index: number, thinkingProcess?: string[], modelThinking?: string, thinkingLabel?: string, toolContext?: any[] }} */
-  let { message, index, thinkingProcess = [], modelThinking = "", thinkingLabel = "Thinking", toolContext = [] } = $props();
+  /** @type {{ message: { role: string, content: string }, index: number, isStreaming?: boolean, thinkingProcess?: string[], modelThinking?: string, thinkingLabel?: string, thinkingTags?: string[], toolContext?: any[] }} */
+  let {
+    message,
+    index,
+    isStreaming = false,
+    thinkingProcess = [],
+    modelThinking = "",
+    thinkingLabel = "Thinking",
+    thinkingTags = [],
+    toolContext = [],
+  } = $props();
 
   let isEditing = $state(false);
   let editText = $state("");
   let thinkingOpen = $state(false);
+  let thinkingStartedAt = $state(null);
+  let thinkingElapsed = $state(0);
+  let thinkingForMessage = $state(null);
 
   function startEditing() {
     editText = message.content;
@@ -121,7 +133,14 @@
     toast.message("Mais ações em breve");
   }
 
-  function summarizeThinking(entries, toolCount, labelFromTemplate) {
+  function summarizeThinking(
+    entries,
+    modelThinkingText,
+    toolContextItems,
+    labelFromTemplate,
+    messageContent,
+    tagCandidates,
+  ) {
     const ignoredPatterns = [
       "tool loop",
       "no tool calls",
@@ -129,7 +148,17 @@
       "exceeded max iterations",
       "iteration",
     ];
-    const cleaned = entries
+    const detectedTags = resolveThinkingTags(
+      tagCandidates,
+      modelThinkingText,
+      messageContent,
+    );
+    let cleaned = extractThinkingSteps(
+      entries,
+      modelThinkingText,
+      messageContent,
+      detectedTags,
+    )
       .map((entry) => String(entry || "").trim())
       .filter(Boolean)
       .filter((entry) => {
@@ -138,20 +167,189 @@
       });
 
     let label = labelFromTemplate || "Thinking";
-    if (toolCount > 0) {
-      label = "Tool context";
+    if (toolContextItems.length > 0) {
+      label = "Listed MCP tools";
     } else {
-      const lowered = cleaned.map((entry) => entry.toLowerCase());
-      if (lowered.some((text) => text.includes("listing mcp"))) {
-        label = "Listing MCP tools";
-      } else if (lowered.some((text) => text.includes("calling mcp tool"))) {
-        label = "Calling MCP tool";
-      } else if (lowered.some((text) => text.includes("calling tool"))) {
-        label = "Calling tool";
+      const tagLabel = detectTagLabel(
+        modelThinkingText,
+        messageContent,
+        detectedTags,
+      );
+      if (tagLabel) {
+        label = tagLabel;
+      } else {
+        const lowered = cleaned.map((entry) => entry.toLowerCase());
+        if (lowered.some((text) => text.includes("listing mcp"))) {
+          label = "List MCP tools";
+        } else if (lowered.some((text) => text.includes("calling mcp tool"))) {
+          label = "Listed MCP tools";
+        } else if (lowered.some((text) => text.includes("calling tool"))) {
+          label = "Calling tool";
+        }
       }
     }
 
+    if (cleaned.length === 0 && toolContextItems.length > 0) {
+      cleaned = toolContextItems.map((ctx) => formatToolStep(ctx?.toolName));
+    }
+
     return { label, steps: cleaned };
+  }
+
+  function extractThinkingSteps(
+    entries,
+    modelThinkingText,
+    messageContent,
+    tags,
+  ) {
+    const steps = Array.isArray(entries) ? [...entries] : [];
+    const raw = String(modelThinkingText || "");
+    const contentRaw = String(messageContent || "");
+
+    const quotedThinking = extractQuotedSteps(raw);
+    const quotedContent = extractQuotedSteps(contentRaw);
+    const taggedThinking = extractTaggedBlocks(raw, tags);
+    const taggedContent = extractTaggedBlocks(contentRaw, tags);
+    const normalized = replaceThinkingTags(raw, tags)
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    let parsed = [];
+    if (quotedThinking.length > 0) {
+      parsed = quotedThinking;
+    } else if (taggedThinking.length > 0) {
+      parsed = taggedThinking;
+    } else if (normalized.length > 0) {
+      parsed = normalized;
+    } else if (taggedContent.length > 0) {
+      parsed = taggedContent;
+    } else if (quotedContent.length > 0) {
+      parsed = quotedContent;
+    }
+
+    if (parsed.length === 0) return steps;
+    return mergeUniqueSteps(steps, parsed);
+  }
+
+  function extractQuotedSteps(text) {
+    const raw = String(text || "");
+    if (!raw.trim()) return [];
+    return [...raw.matchAll(/^\s*>\s*(.+)$/gm)].map((match) => match[1].trim());
+  }
+
+  function resolveThinkingTags(
+    tagCandidates,
+    modelThinkingText,
+    messageContent,
+  ) {
+    const provided = normalizeTagList(tagCandidates);
+    if (provided.length > 0) return provided;
+    const detected = detectTagsFromText(
+      `${modelThinkingText}\n${messageContent}`,
+    );
+    if (detected.length > 0) return detected;
+    return ["think", "analysis", "reasoning"];
+  }
+
+  function normalizeTagList(tags) {
+    if (!Array.isArray(tags)) return [];
+    return tags
+      .map((tag) =>
+        String(tag || "")
+          .toLowerCase()
+          .trim(),
+      )
+      .filter(Boolean);
+  }
+
+  function detectTagsFromText(text) {
+    const raw = String(text || "");
+    if (!raw.trim()) return [];
+    const tags = new Set();
+    const regex = /<\/?([a-zA-Z][a-zA-Z0-9_-]{0,32})>/g;
+    let match = regex.exec(raw);
+    while (match) {
+      tags.add(match[1].toLowerCase());
+      match = regex.exec(raw);
+    }
+    return [...tags];
+  }
+
+  function replaceThinkingTags(text, tags) {
+    let result = String(text || "");
+    const list = normalizeTagList(tags);
+    for (const tag of list) {
+      const safe = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const open = new RegExp(`<${safe}>`, "gi");
+      const close = new RegExp(`</${safe}>`, "gi");
+      result = result.replace(close, "\n").replace(open, "");
+    }
+    return result;
+  }
+
+  function extractTaggedBlocks(text, tags) {
+    const raw = String(text || "");
+    if (!raw.trim()) return [];
+    const list = normalizeTagList(tags);
+    const blocks = [];
+    for (const tag of list) {
+      const safe = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`<${safe}>([\\s\\S]*?)</${safe}>`, "gi");
+      let match = regex.exec(raw);
+      while (match) {
+        const chunk = String(match[1] || "")
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+        blocks.push(...chunk);
+        match = regex.exec(raw);
+      }
+    }
+    return blocks;
+  }
+
+  function mergeUniqueSteps(base, extra) {
+    const result = [...base];
+    for (const item of extra) {
+      const trimmed = String(item || "").trim();
+      if (!trimmed) continue;
+      if (result[result.length - 1] === trimmed) continue;
+      result.push(trimmed);
+    }
+    return result;
+  }
+
+  function detectTagLabel(modelThinkingText, messageContent, tags) {
+    const raw =
+      `${modelThinkingText || ""}\n${messageContent || ""}`.toLowerCase();
+    for (const tag of normalizeTagList(tags)) {
+      if (raw.includes(`<${tag}>`) || raw.includes(`</${tag}>`)) {
+        return formatTagLabel(tag);
+      }
+    }
+    return "";
+  }
+
+  function formatTagLabel(tag) {
+    const normalized = String(tag || "")
+      .replace(/[_-]+/g, " ")
+      .trim();
+    if (!normalized) return "Thinking";
+    return normalized.replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function formatToolStep(toolName) {
+    const raw = String(toolName || "").trim();
+    if (!raw) return "Called tool";
+    const normalized = raw.replace(/[_-]+/g, " ").trim();
+    const lower = normalized.toLowerCase();
+    if (lower.startsWith("list ")) return `Listed ${normalized.slice(5)}`;
+    if (lower.startsWith("get ")) return `Got ${normalized.slice(4)}`;
+    if (lower.startsWith("search ")) return `Searched ${normalized.slice(7)}`;
+    if (lower.startsWith("find ")) return `Found ${normalized.slice(5)}`;
+    if (lower.startsWith("read ")) return `Read ${normalized.slice(5)}`;
+    return `Ran ${normalized}`;
   }
 
   function formatValue(value) {
@@ -181,6 +379,36 @@
     ) {
       thinkingOpen = true;
     }
+  });
+
+  function formatThinkingDuration(totalSeconds) {
+    const seconds = Number.isFinite(totalSeconds) ? Math.max(0, totalSeconds) : 0;
+    const minutes = Math.floor(seconds / 60);
+    const remaining = seconds % 60;
+    if (minutes <= 0) return `${remaining}s`;
+    return `${minutes}m ${remaining}s`;
+  }
+
+  $effect(() => {
+    let intervalId;
+    if (isStreaming) {
+      if (thinkingForMessage !== message.timestamp) {
+        thinkingForMessage = message.timestamp;
+        thinkingStartedAt = Date.now();
+        thinkingElapsed = 0;
+      } else if (!thinkingStartedAt) {
+        thinkingStartedAt = Date.now();
+      }
+      intervalId = setInterval(() => {
+        thinkingElapsed = Math.max(
+          0,
+          Math.floor((Date.now() - (thinkingStartedAt || Date.now())) / 1000),
+        );
+      }, 1000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   });
 </script>
 
@@ -306,67 +534,96 @@
             </div>
           {/if}
           {#if message.role === "assistant" && (thinkingProcess.length > 0 || modelThinking || toolContext.length > 0)}
-            {@const summary = summarizeThinking(thinkingProcess, toolContext.length, thinkingLabel)}
+            {@const summary = summarizeThinking(
+              thinkingProcess,
+              modelThinking,
+              toolContext,
+              thinkingLabel,
+              message.content,
+              thinkingTags,
+            )}
             <div class="w-full">
               <div class="relative">
                 <button
-                  class="flex w-full items-center gap-0.5 text-left"
+                  class="flex w-full items-center gap-2 text-left text-[12px] text-muted-foreground/70 hover:text-muted-foreground transition-colors"
                   onclick={() => (thinkingOpen = !thinkingOpen)}
                   aria-expanded={thinkingOpen}
                   type="button"
                 >
-                  <ChevronRight
+                  <ChevronDown
                     size={14}
                     class={cn(
-                      "transition-transform text-muted-foreground/80",
-                      thinkingOpen ? "rotate-90" : "rotate-0",
+                      "transition-transform text-muted-foreground/70",
+                      thinkingOpen ? "rotate-0" : "-rotate-90",
                     )}
                   />
-                  <TextShimmer
-                    class="min-w-0 flex-1 truncate rounded-lg text-[12px] hover:text-foreground transition-colors"
-                    duration={1.5}
-                  >
-                    {summary.label}
-                  </TextShimmer>
+                  {#if isStreaming}
+                    <TextShimmer class="min-w-0 flex-1 truncate" duration={1.5}>
+                      {`Thinked for ${formatThinkingDuration(thinkingElapsed)}`}
+                    </TextShimmer>
+                  {:else}
+                    <span class="min-w-0 flex-1 truncate">
+                      {`Thinked for ${formatThinkingDuration(thinkingElapsed)}`}
+                    </span>
+                  {/if}
                 </button>
 
                 {#if thinkingOpen}
-                  <div class="rounded-lg bg-background px-3 py-2">
+                  <div class="pl-5">
                     <div
-                      class="max-h-56 overflow-auto text-[12px] text-muted-foreground/80"
+                      class="thinking-scroll max-h-56 overflow-y-auto text-[12px] text-muted-foreground/60"
                     >
                       <div class="flex flex-col gap-1">
                         {#if summary.steps.length > 0}
                           {#each summary.steps as step}
-                            <div class="truncate">{step}</div>
+                            <div class="whitespace-pre-wrap break-words">
+                              {#if isStreaming}
+                                <TextShimmer duration={1.5}>{step}</TextShimmer>
+                              {:else}
+                                {step}
+                              {/if}
+                            </div>
                           {/each}
                         {/if}
                         {#if toolContext.length > 0}
-                          <div class="mt-2 text-[11px] text-muted-foreground/70">
+                          <div
+                            class="mt-2 text-[11px] text-muted-foreground/60"
+                          >
                             <div class="mb-1 uppercase tracking-wider">
                               Tool context
                             </div>
                             <div class="flex flex-col gap-2">
                               {#each toolContext as ctx}
-                                <div class="rounded-md border border-border/60 bg-secondary/40 px-2 py-2">
-                                  <div class="text-[12px] text-foreground/90">
-                                    {ctx.serverId || "unknown"}::{ctx.toolName || "tool"}
+                                <div
+                                  class="rounded-md border border-border/50 bg-secondary/20 px-2 py-2"
+                                >
+                                  <div class="text-[12px] text-foreground/80">
+                                    {ctx.serverId ||
+                                      "unknown"}::{ctx.toolName || "tool"}
                                   </div>
                                   {#if ctx.toolCallId}
-                                    <div class="text-[10px] text-muted-foreground/70">
+                                    <div
+                                      class="text-[10px] text-muted-foreground/60"
+                                    >
                                       {ctx.toolCallId}
                                     </div>
                                   {/if}
-                                  <div class="mt-2 text-[11px] text-muted-foreground/70">
+                                  <div
+                                    class="mt-2 text-[11px] text-muted-foreground/60"
+                                  >
                                     Arguments
                                   </div>
-                                  <pre class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/60 px-2 py-1 text-[11px] text-muted-foreground/80">
+                                  <pre
+                                    class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/40 px-2 py-1 text-[11px] text-muted-foreground/70">
 {formatValue(ctx.arguments)}
                                   </pre>
-                                  <div class="mt-2 text-[11px] text-muted-foreground/70">
+                                  <div
+                                    class="mt-2 text-[11px] text-muted-foreground/60"
+                                  >
                                     Result
                                   </div>
-                                  <pre class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/60 px-2 py-1 text-[11px] text-muted-foreground/80">
+                                  <pre
+                                    class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/40 px-2 py-1 text-[11px] text-muted-foreground/70">
 {formatValue(ctx.result)}
                                   </pre>
                                 </div>
@@ -376,13 +633,13 @@
                         {/if}
                         {#if modelThinking}
                           <div
-                            class="mt-2 text-[11px] text-muted-foreground/70"
+                            class="mt-2 text-[11px] text-muted-foreground/60"
                           >
                             <div class="mb-1 uppercase tracking-wider">
                               Model thinking
                             </div>
                             <div
-                              class="whitespace-pre-wrap break-words text-[12px] text-muted-foreground/80"
+                              class="whitespace-pre-wrap break-words text-[12px] text-muted-foreground/70"
                             >
                               {modelThinking}
                             </div>
@@ -453,4 +710,23 @@
 </div>
 
 <style>
+  .thinking-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+
+  .thinking-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .thinking-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .thinking-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
 </style>

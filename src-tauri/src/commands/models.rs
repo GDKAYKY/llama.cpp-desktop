@@ -2,13 +2,16 @@ use std::fs;
 use std::path::Path;
 use tauri::command;
 use tauri::AppHandle;
-use tauri::Emitter; // required to call .emit() on AppHandle
+use tauri::Emitter;
+use tauri::Manager; // required to call .emit() on AppHandle
 
 use crate::models::{ModelInfo, ModelLibrary, ModelManifest};
 use futures::StreamExt;
 use reqwest::header::{ACCEPT, USER_AGENT};
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
+use std::io::{BufReader, Read};
 use std::path::PathBuf;
 use tokio::fs as tokio_fs;
 use tokio::io::AsyncWriteExt;
@@ -729,7 +732,8 @@ async fn download_model_from_hf(
         .to_str()
         .ok_or_else(|| "Failed to build manifest path string".to_string())?;
 
-    parse_model_manifest_sync(manifest_path_str.to_string(), models_root)
+    let metadata_root = get_metadata_root(&app)?;
+    parse_model_manifest_sync(manifest_path_str.to_string(), models_root, &metadata_root)
 }
 
 // ---------------------------------------------------------------------------
@@ -794,10 +798,12 @@ pub fn find_model_blob_path(models_root: &Path, digest: &str) -> Option<String> 
 
 #[command]
 pub async fn parse_model_manifest(
+    app: AppHandle,
     model_path: String,
     models_root: String,
 ) -> Result<ModelInfo, String> {
-    parse_model_manifest_sync(model_path, models_root)
+    let metadata_root = get_metadata_root(&app)?;
+    parse_model_manifest_sync(model_path, models_root, &metadata_root)
 }
 
 /// Synchronous manifest parser shared between the async command and the
@@ -805,6 +811,7 @@ pub async fn parse_model_manifest(
 pub fn parse_model_manifest_sync(
     model_path: String,
     models_root: String,
+    metadata_root: &str,
 ) -> Result<ModelInfo, String> {
     let (provider, library, name, version) = parse_model_path(&model_path)?;
     let manifest: ModelManifest = crate::utils::read_json(Path::new(&model_path))?;
@@ -822,16 +829,272 @@ pub fn parse_model_manifest_sync(
     // provider:name:version uniquely identifies a model within the library.
     let full_identifier = format!("{}:{}:{}", provider, name, version);
 
+    let tokenizer_metadata = model_file_path.as_ref().and_then(|path| {
+        match get_or_extract_tokenizer_metadata(metadata_root, &full_identifier, path) {
+            Ok(value) => value,
+            Err(err) => {
+                eprintln!("[llama-desktop] Failed to read GGUF metadata: {}", err);
+                None
+            }
+        }
+    });
+
     Ok(ModelInfo {
         provider,
         library,
         name,
         version,
         manifest_data: manifest,
+        tokenizer_metadata,
         manifest_path: Some(model_path),
         model_file_path,
         full_identifier,
     })
+}
+
+// ---------------------------------------------------------------------------
+// GGUF metadata cache
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct ModelsMetadataCache {
+    models: std::collections::HashMap<String, Value>,
+}
+
+fn get_metadata_root(app: &AppHandle) -> Result<String, String> {
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data directory: {}", e))?;
+    Ok(root.to_string_lossy().to_string())
+}
+
+fn models_metadata_path(metadata_root: &str) -> PathBuf {
+    Path::new(metadata_root).join("models.json")
+}
+
+fn load_models_metadata_cache(metadata_root: &str) -> Result<ModelsMetadataCache, String> {
+    let path = models_metadata_path(metadata_root);
+    if !path.exists() {
+        return Ok(ModelsMetadataCache::default());
+    }
+    crate::utils::read_json(&path)
+}
+
+fn save_models_metadata_cache(
+    metadata_root: &str,
+    cache: &ModelsMetadataCache,
+) -> Result<(), String> {
+    let path = models_metadata_path(metadata_root);
+    crate::utils::save_json(&path, cache)
+}
+
+fn get_or_extract_tokenizer_metadata(
+    metadata_root: &str,
+    full_identifier: &str,
+    model_file_path: &str,
+) -> Result<Option<Value>, String> {
+    let mut cache = load_models_metadata_cache(metadata_root)?;
+    if let Some(found) = cache.models.get(full_identifier) {
+        return Ok(Some(found.clone()));
+    }
+
+    let metadata = read_gguf_tokenizer_metadata(model_file_path)?;
+    if metadata.is_empty() {
+        return Ok(None);
+    }
+
+    let value = Value::Object(metadata);
+    cache
+        .models
+        .insert(full_identifier.to_string(), value.clone());
+    save_models_metadata_cache(metadata_root, &cache)?;
+    Ok(Some(value))
+}
+
+// ---------------------------------------------------------------------------
+// GGUF metadata reader (tokenizer.* keys)
+// ---------------------------------------------------------------------------
+
+const GGUF_MAGIC: &[u8; 4] = b"GGUF";
+
+const GGUF_VALUE_TYPE_UINT8: u32 = 0;
+const GGUF_VALUE_TYPE_INT8: u32 = 1;
+const GGUF_VALUE_TYPE_UINT16: u32 = 2;
+const GGUF_VALUE_TYPE_INT16: u32 = 3;
+const GGUF_VALUE_TYPE_UINT32: u32 = 4;
+const GGUF_VALUE_TYPE_INT32: u32 = 5;
+const GGUF_VALUE_TYPE_FLOAT32: u32 = 6;
+const GGUF_VALUE_TYPE_BOOL: u32 = 7;
+const GGUF_VALUE_TYPE_STRING: u32 = 8;
+const GGUF_VALUE_TYPE_ARRAY: u32 = 9;
+const GGUF_VALUE_TYPE_UINT64: u32 = 10;
+const GGUF_VALUE_TYPE_INT64: u32 = 11;
+const GGUF_VALUE_TYPE_FLOAT64: u32 = 12;
+
+fn read_gguf_tokenizer_metadata(path: &str) -> Result<Map<String, Value>, String> {
+    let file = std::fs::File::open(path)
+        .map_err(|e| format!("Failed to open model file {}: {}", path, e))?;
+    let mut reader = BufReader::new(file);
+
+    let magic = read_bytes(&mut reader, 4)?;
+    if magic.as_slice() != GGUF_MAGIC {
+        return Err("Not a GGUF file".to_string());
+    }
+
+    let _version = read_u32(&mut reader)?;
+    let _tensor_count = read_u64(&mut reader)?;
+    let kv_count = read_u64(&mut reader)?;
+
+    let mut result = Map::new();
+    for _ in 0..kv_count {
+        let key = read_string(&mut reader)?;
+        let value_type = read_u32(&mut reader)?;
+        let value = read_value(&mut reader, value_type)?;
+
+        if key.starts_with("tokenizer.") {
+            if key == "tokenizer.ggml.tokens"
+                || key == "tokenizer.ggml.token_type"
+                || key == "tokenizer.ggml.merges"
+            {
+                continue;
+            }
+            result.insert(key, value);
+        }
+    }
+
+    Ok(result)
+}
+
+fn read_bytes(reader: &mut BufReader<std::fs::File>, len: usize) -> Result<Vec<u8>, String> {
+    let mut buf = vec![0u8; len];
+    reader
+        .read_exact(&mut buf)
+        .map_err(|e| format!("Failed to read bytes: {}", e))?;
+    Ok(buf)
+}
+
+fn read_u32(reader: &mut BufReader<std::fs::File>) -> Result<u32, String> {
+    let mut buf = [0u8; 4];
+    reader
+        .read_exact(&mut buf)
+        .map_err(|e| format!("Failed to read u32: {}", e))?;
+    Ok(u32::from_le_bytes(buf))
+}
+
+fn read_u64(reader: &mut BufReader<std::fs::File>) -> Result<u64, String> {
+    let mut buf = [0u8; 8];
+    reader
+        .read_exact(&mut buf)
+        .map_err(|e| format!("Failed to read u64: {}", e))?;
+    Ok(u64::from_le_bytes(buf))
+}
+
+fn read_string(reader: &mut BufReader<std::fs::File>) -> Result<String, String> {
+    let len = read_u64(reader)? as usize;
+    let bytes = read_bytes(reader, len)?;
+    String::from_utf8(bytes).map_err(|e| format!("Failed to parse string: {}", e))
+}
+
+fn read_value(reader: &mut BufReader<std::fs::File>, value_type: u32) -> Result<Value, String> {
+    match value_type {
+        GGUF_VALUE_TYPE_UINT8 => {
+            let mut buf = [0u8; 1];
+            reader
+                .read_exact(&mut buf)
+                .map_err(|e| format!("Failed to read u8: {}", e))?;
+            Ok(Value::Number(serde_json::Number::from(buf[0] as u64)))
+        }
+        GGUF_VALUE_TYPE_INT8 => {
+            let mut buf = [0u8; 1];
+            reader
+                .read_exact(&mut buf)
+                .map_err(|e| format!("Failed to read i8: {}", e))?;
+            Ok(Value::Number(serde_json::Number::from(buf[0] as i64)))
+        }
+        GGUF_VALUE_TYPE_UINT16 => {
+            let mut buf = [0u8; 2];
+            reader
+                .read_exact(&mut buf)
+                .map_err(|e| format!("Failed to read u16: {}", e))?;
+            Ok(Value::Number(serde_json::Number::from(
+                u16::from_le_bytes(buf) as u64,
+            )))
+        }
+        GGUF_VALUE_TYPE_INT16 => {
+            let mut buf = [0u8; 2];
+            reader
+                .read_exact(&mut buf)
+                .map_err(|e| format!("Failed to read i16: {}", e))?;
+            Ok(Value::Number(serde_json::Number::from(
+                i16::from_le_bytes(buf) as i64,
+            )))
+        }
+        GGUF_VALUE_TYPE_UINT32 => {
+            let value = read_u32(reader)?;
+            Ok(Value::Number(serde_json::Number::from(value)))
+        }
+        GGUF_VALUE_TYPE_INT32 => {
+            let mut buf = [0u8; 4];
+            reader
+                .read_exact(&mut buf)
+                .map_err(|e| format!("Failed to read i32: {}", e))?;
+            Ok(Value::Number(serde_json::Number::from(
+                i32::from_le_bytes(buf) as i64,
+            )))
+        }
+        GGUF_VALUE_TYPE_FLOAT32 => {
+            let mut buf = [0u8; 4];
+            reader
+                .read_exact(&mut buf)
+                .map_err(|e| format!("Failed to read f32: {}", e))?;
+            let value = f32::from_le_bytes(buf);
+            serde_json::Number::from_f64(value as f64)
+                .map(Value::Number)
+                .ok_or_else(|| "Invalid f32 value".to_string())
+        }
+        GGUF_VALUE_TYPE_BOOL => {
+            let mut buf = [0u8; 1];
+            reader
+                .read_exact(&mut buf)
+                .map_err(|e| format!("Failed to read bool: {}", e))?;
+            Ok(Value::Bool(buf[0] != 0))
+        }
+        GGUF_VALUE_TYPE_STRING => Ok(Value::String(read_string(reader)?)),
+        GGUF_VALUE_TYPE_ARRAY => {
+            let element_type = read_u32(reader)?;
+            let len = read_u64(reader)? as usize;
+            let mut values = Vec::with_capacity(len);
+            for _ in 0..len {
+                values.push(read_value(reader, element_type)?);
+            }
+            Ok(Value::Array(values))
+        }
+        GGUF_VALUE_TYPE_UINT64 => {
+            let value = read_u64(reader)?;
+            Ok(Value::Number(serde_json::Number::from(value)))
+        }
+        GGUF_VALUE_TYPE_INT64 => {
+            let mut buf = [0u8; 8];
+            reader
+                .read_exact(&mut buf)
+                .map_err(|e| format!("Failed to read i64: {}", e))?;
+            Ok(Value::Number(serde_json::Number::from(i64::from_le_bytes(
+                buf,
+            ))))
+        }
+        GGUF_VALUE_TYPE_FLOAT64 => {
+            let mut buf = [0u8; 8];
+            reader
+                .read_exact(&mut buf)
+                .map_err(|e| format!("Failed to read f64: {}", e))?;
+            let value = f64::from_le_bytes(buf);
+            serde_json::Number::from_f64(value)
+                .map(Value::Number)
+                .ok_or_else(|| "Invalid f64 value".to_string())
+        }
+        other => Err(format!("Unsupported GGUF value type: {}", other)),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -845,6 +1108,7 @@ pub fn parse_model_manifest_sync(
 fn process_version_entry(
     version_entry: fs::DirEntry,
     models_root: &str,
+    metadata_root: &str,
     models: &mut Vec<ModelInfo>,
 ) {
     let manifest_path = version_entry.path();
@@ -865,7 +1129,11 @@ fn process_version_entry(
 
     if let Some(path) = candidate {
         if let Some(path_str) = path.to_str() {
-            match parse_model_manifest_sync(path_str.to_string(), models_root.to_string()) {
+            match parse_model_manifest_sync(
+                path_str.to_string(),
+                models_root.to_string(),
+                metadata_root,
+            ) {
                 Ok(model_info) => models.push(model_info),
                 // Log and continue — a single bad manifest shouldn't abort the scan.
                 Err(e) => eprintln!("[llama-desktop] Error parsing {}: {}", path_str, e),
@@ -874,10 +1142,15 @@ fn process_version_entry(
     }
 }
 
-fn process_model_entry(model_entry: fs::DirEntry, models_root: &str, models: &mut Vec<ModelInfo>) {
+fn process_model_entry(
+    model_entry: fs::DirEntry,
+    models_root: &str,
+    metadata_root: &str,
+    models: &mut Vec<ModelInfo>,
+) {
     if let Ok(versions) = fs::read_dir(model_entry.path()) {
         for version_entry in versions.flatten() {
-            process_version_entry(version_entry, models_root, models);
+            process_version_entry(version_entry, models_root, metadata_root, models);
         }
     }
 }
@@ -885,11 +1158,12 @@ fn process_model_entry(model_entry: fs::DirEntry, models_root: &str, models: &mu
 fn process_library_entry(
     library_entry: fs::DirEntry,
     models_root: &str,
+    metadata_root: &str,
     models: &mut Vec<ModelInfo>,
 ) {
     if let Ok(model_names) = fs::read_dir(library_entry.path()) {
         for model_entry in model_names.flatten() {
-            process_model_entry(model_entry, models_root, models);
+            process_model_entry(model_entry, models_root, metadata_root, models);
         }
     }
 }
@@ -897,17 +1171,21 @@ fn process_library_entry(
 fn process_provider_entry(
     provider_entry: fs::DirEntry,
     models_root: &str,
+    metadata_root: &str,
     models: &mut Vec<ModelInfo>,
 ) {
     if let Ok(libraries) = fs::read_dir(provider_entry.path()) {
         for library_entry in libraries.flatten() {
-            process_library_entry(library_entry, models_root, models);
+            process_library_entry(library_entry, models_root, metadata_root, models);
         }
     }
 }
 
 #[command]
-pub async fn scan_models_directory(models_root: String) -> Result<Vec<ModelInfo>, String> {
+pub async fn scan_models_directory(
+    app: AppHandle,
+    models_root: String,
+) -> Result<Vec<ModelInfo>, String> {
     let manifests_path = Path::new(&models_root).join("manifests");
 
     if !manifests_path.exists() {
@@ -915,10 +1193,11 @@ pub async fn scan_models_directory(models_root: String) -> Result<Vec<ModelInfo>
     }
 
     let mut models = Vec::new();
+    let metadata_root = get_metadata_root(&app)?;
 
     if let Ok(providers) = fs::read_dir(&manifests_path) {
         for provider_entry in providers.flatten() {
-            process_provider_entry(provider_entry, &models_root, &mut models);
+            process_provider_entry(provider_entry, &models_root, &metadata_root, &mut models);
         }
     }
 
@@ -938,13 +1217,26 @@ pub async fn save_model_library(
 }
 
 #[command]
-pub async fn load_model_library(library_path: String) -> Result<Vec<ModelInfo>, String> {
+pub async fn load_model_library(
+    app: AppHandle,
+    library_path: String,
+) -> Result<Vec<ModelInfo>, String> {
     if !Path::new(&library_path).exists() {
         // Return empty list rather than an error — caller decides if that's a problem.
         return Ok(Vec::new());
     }
 
-    let library: ModelLibrary = crate::utils::read_json(Path::new(&library_path))?;
+    let mut library: ModelLibrary = crate::utils::read_json(Path::new(&library_path))?;
+    let metadata_root = get_metadata_root(&app)?;
+    if let Ok(cache) = load_models_metadata_cache(&metadata_root) {
+        for model in &mut library.models {
+            if model.tokenizer_metadata.is_none() {
+                if let Some(found) = cache.models.get(&model.full_identifier) {
+                    model.tokenizer_metadata = Some(found.clone());
+                }
+            }
+        }
+    }
     Ok(library.models)
 }
 
@@ -1041,7 +1333,8 @@ pub async fn download_model_from_registry(
         .to_str()
         .ok_or_else(|| "Failed to build manifest path string".to_string())?;
 
-    parse_model_manifest_sync(manifest_path_str.to_string(), models_root)
+    let metadata_root = get_metadata_root(&app)?;
+    parse_model_manifest_sync(manifest_path_str.to_string(), models_root, &metadata_root)
 }
 
 // ---------------------------------------------------------------------------
@@ -1072,8 +1365,49 @@ pub mod test_utils {
     pub fn parse_model_manifest_sync_for_test(
         model_path: String,
         models_root: String,
+        metadata_root: &str,
     ) -> Result<ModelInfo, String> {
-        parse_model_manifest_sync(model_path, models_root)
+        parse_model_manifest_sync(model_path, models_root, metadata_root)
+    }
+
+    pub fn scan_models_directory_for_test(
+        models_root: String,
+        metadata_root: &str,
+    ) -> Result<Vec<ModelInfo>, String> {
+        let manifests_path = Path::new(&models_root).join("manifests");
+        if !manifests_path.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut models = Vec::new();
+        if let Ok(providers) = fs::read_dir(&manifests_path) {
+            for provider_entry in providers.flatten() {
+                process_provider_entry(provider_entry, &models_root, metadata_root, &mut models);
+            }
+        }
+
+        Ok(models)
+    }
+
+    pub async fn load_model_library_for_test(
+        library_path: String,
+        metadata_root: &str,
+    ) -> Result<Vec<ModelInfo>, String> {
+        if !Path::new(&library_path).exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut library: ModelLibrary = crate::utils::read_json(Path::new(&library_path))?;
+        if let Ok(cache) = load_models_metadata_cache(metadata_root) {
+            for model in &mut library.models {
+                if model.tokenizer_metadata.is_none() {
+                    if let Some(found) = cache.models.get(&model.full_identifier) {
+                        model.tokenizer_metadata = Some(found.clone());
+                    }
+                }
+            }
+        }
+        Ok(library.models)
     }
 
     pub fn choose_hf_filename_for_test(
@@ -1083,7 +1417,7 @@ pub mod test_utils {
         choose_hf_filename(files, selector)
     }
 
-    pub fn parse_hf_reference_for_test(reference: &str) -> Result<HfModelRef, String> {
+    pub(crate) fn parse_hf_reference_for_test(reference: &str) -> Result<HfModelRef, String> {
         parse_hf_reference(reference)
     }
 }

@@ -1,5 +1,9 @@
 use llama_desktop_lib::commands::models::{
-    load_model_library, parse_model_manifest, save_model_library, scan_models_directory,
+    save_model_library,
+    test_utils::{
+        load_model_library_for_test, parse_model_manifest_sync_for_test,
+        scan_models_directory_for_test,
+    },
 };
 use llama_desktop_lib::models::{ManifestConfig, ManifestLayer, ModelInfo, ModelManifest};
 use tempfile::tempdir;
@@ -44,9 +48,13 @@ async fn scan_models_directory_collects_models() {
     std::fs::create_dir_all(&blobs_dir).expect("create blobs");
     std::fs::write(blobs_dir.join("sha256-abc123"), "model").expect("write blob");
 
-    let models = scan_models_directory(dir.path().to_string_lossy().to_string())
-        .await
-        .expect("scan");
+    let metadata_root = dir.path().join("metadata");
+    std::fs::create_dir_all(&metadata_root).expect("create metadata");
+    let models = scan_models_directory_for_test(
+        dir.path().to_string_lossy().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
+    )
+    .expect("scan");
     assert_eq!(models.len(), 1);
 }
 
@@ -66,11 +74,13 @@ async fn parse_model_manifest_async_success() {
     std::fs::create_dir_all(&blobs_dir).expect("create blobs");
     std::fs::write(blobs_dir.join("sha256-abc123"), "model").expect("write blob");
 
-    let model = parse_model_manifest(
+    let metadata_root = dir.path().join("metadata");
+    std::fs::create_dir_all(&metadata_root).expect("create metadata");
+    let model = parse_model_manifest_sync_for_test(
         manifest_path.to_string_lossy().to_string(),
         dir.path().to_string_lossy().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
     )
-    .await
     .expect("parse");
     assert_eq!(model.provider, "provider");
 }
@@ -78,10 +88,14 @@ async fn parse_model_manifest_async_success() {
 #[tokio::test]
 async fn scan_models_directory_requires_manifests_dir() {
     let dir = tempdir().expect("tempdir");
-    let err = scan_models_directory(dir.path().to_string_lossy().to_string())
-        .await
-        .expect_err("expected error");
-    assert!(err.contains("Manifests directory not found"));
+    let metadata_root = dir.path().join("metadata");
+    std::fs::create_dir_all(&metadata_root).expect("create metadata");
+    let models = scan_models_directory_for_test(
+        dir.path().to_string_lossy().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
+    )
+    .expect("scan");
+    assert!(models.is_empty());
 }
 
 #[tokio::test]
@@ -94,9 +108,13 @@ async fn scan_models_directory_skips_invalid_manifest() {
     let manifest_path = manifest_dir.join("manifest.json");
     std::fs::write(&manifest_path, "{invalid").expect("write bad");
 
-    let models = scan_models_directory(dir.path().to_string_lossy().to_string())
-        .await
-        .expect("scan");
+    let metadata_root = dir.path().join("metadata");
+    std::fs::create_dir_all(&metadata_root).expect("create metadata");
+    let models = scan_models_directory_for_test(
+        dir.path().to_string_lossy().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
+    )
+    .expect("scan");
     assert!(models.is_empty());
 }
 
@@ -111,6 +129,7 @@ async fn save_and_load_model_library_round_trip() {
         name: "name".to_string(),
         version: "version".to_string(),
         manifest_data: manifest,
+        tokenizer_metadata: None,
         model_file_path: Some("path/to/model".to_string()),
         manifest_path: Some("path/to/manifest.json".to_string()),
         full_identifier: "provider:name:version".to_string(),
@@ -119,9 +138,14 @@ async fn save_and_load_model_library_round_trip() {
     save_model_library(path.to_string_lossy().to_string(), vec![model.clone()])
         .await
         .expect("save");
-    let loaded = load_model_library(path.to_string_lossy().to_string())
-        .await
-        .expect("load");
+    let metadata_root = dir.path().join("metadata");
+    std::fs::create_dir_all(&metadata_root).expect("create metadata");
+    let loaded = load_model_library_for_test(
+        path.to_string_lossy().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
+    )
+    .await
+    .expect("load");
     assert_eq!(loaded.len(), 1);
     assert_eq!(loaded[0].full_identifier, model.full_identifier);
 }
@@ -130,8 +154,13 @@ async fn save_and_load_model_library_round_trip() {
 async fn load_model_library_returns_empty_if_missing() {
     let dir = tempdir().expect("tempdir");
     let path = dir.path().join("missing.json");
-    let loaded = load_model_library(path.to_string_lossy().to_string())
-        .await
-        .expect("load");
+    let metadata_root = dir.path().join("metadata");
+    std::fs::create_dir_all(&metadata_root).expect("create metadata");
+    let loaded = load_model_library_for_test(
+        path.to_string_lossy().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
+    )
+    .await
+    .expect("load");
     assert!(loaded.is_empty());
 }

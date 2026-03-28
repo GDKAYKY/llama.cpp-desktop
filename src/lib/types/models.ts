@@ -16,5 +16,6 @@ export interface Model {
             size: number;
         }>;
     };
+    tokenizer_metadata?: Record<string, unknown>;
     model_file_path?: string;
 }

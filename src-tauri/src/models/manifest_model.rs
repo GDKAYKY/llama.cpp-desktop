@@ -70,6 +70,10 @@ pub struct ModelInfo {
     #[serde(rename = "manifest_data", alias = "manifest")]
     pub manifest_data: ModelManifest,
 
+    /// Cached tokenizer metadata extracted from GGUF (models.json).
+    #[serde(default)]
+    pub tokenizer_metadata: Option<serde_json::Value>,
+
     /// Absolute path to the model binary (blob) on the local filesystem.
     pub model_file_path: Option<String>,
 

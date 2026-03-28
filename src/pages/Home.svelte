@@ -91,6 +91,10 @@
     const modelPath = model.model_file_path;
     const port = settingsStore.settings.serverPort;
     const ctxSize = settingsStore.settings.contextSize;
+    const chatTemplate =
+      typeof model?.tokenizer_metadata?.["tokenizer.chat_template"] === "string"
+        ? model.tokenizer_metadata["tokenizer.chat_template"]
+        : null;
 
     if (!binaryPath) {
       toast.error("Llama Server path not configured. Please go to Settings.");
@@ -115,7 +119,15 @@
       if (serverStore.isRunning) {
         await serverStore.stopServer();
       }
-      await serverStore.startServer(binaryPath, modelPath, port, ctxSize);
+      await serverStore.startServer(
+        binaryPath,
+        modelPath,
+        port,
+        ctxSize,
+        undefined,
+        undefined,
+        chatTemplate,
+      );
 
       setTimeout(() => {
         if (serverStore.error) {
@@ -200,6 +212,7 @@
             thinkingProcess={chatStore.thinkingProcess}
             modelThinking={chatStore.modelThinking}
             thinkingLabel={chatStore.thinkingLabel}
+            thinkingTags={chatStore.thinkingTags}
             toolContext={chatStore.toolContext}
             bind:messagesEnd
           />
