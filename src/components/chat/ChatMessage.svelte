@@ -204,7 +204,7 @@
   ) {
     const steps = Array.isArray(entries) ? [...entries] : [];
     const raw = String(modelThinkingText || "");
-    const contentRaw = String(messageContent || "");
+    const contentRaw = modelThinkingText ? "" : String(messageContent || "");
 
     const quotedThinking = extractQuotedSteps(raw);
     const quotedContent = extractQuotedSteps(contentRaw);
@@ -229,6 +229,7 @@
     }
 
     if (parsed.length === 0) return steps;
+    if (raw.trim()) return parsed;
     return mergeUniqueSteps(steps, parsed);
   }
 
@@ -559,7 +560,7 @@
                   />
                   {#if isStreaming}
                     <TextShimmer class="min-w-0 flex-1 truncate" duration={1.5}>
-                      {`Thinked for ${formatThinkingDuration(thinkingElapsed)}`}
+                      Thinking
                     </TextShimmer>
                   {:else}
                     <span class="min-w-0 flex-1 truncate">
@@ -628,20 +629,6 @@
                                   </pre>
                                 </div>
                               {/each}
-                            </div>
-                          </div>
-                        {/if}
-                        {#if modelThinking}
-                          <div
-                            class="mt-2 text-[11px] text-muted-foreground/60"
-                          >
-                            <div class="mb-1 uppercase tracking-wider">
-                              Model thinking
-                            </div>
-                            <div
-                              class="whitespace-pre-wrap break-words text-[12px] text-muted-foreground/70"
-                            >
-                              {modelThinking}
                             </div>
                           </div>
                         {/if}
