@@ -471,7 +471,7 @@
 <div class="group w-full py-2">
   <div
     class={cn(
-      "mx-auto relative flex w-full max-w-[40rem] px-4 md:px-6 lg:max-w-[48rem] gap-3 md:gap-4",
+      "mx-auto relative flex w-full max-w-160 px-4 md:px-6 lg:max-w-3xl gap-3 md:gap-4",
       message.role === "user" ? "flex-row-reverse" : "flex-row",
     )}
   >
@@ -542,7 +542,7 @@
         {:else}
           <div class="w-fit rounded-[20px] bg-[#2f2f2f] px-4 py-2.5 text-white">
             <div
-              class="whitespace-pre-wrap break-words text-[15px] leading-6 md:text-base md:leading-relaxed"
+              class="whitespace-pre-wrap wrap-break-word text-[15px] leading-6 md:text-base md:leading-relaxed"
             >
               {#each extractTokens(message.content) as token}
                 {#if token.type === "link"}
@@ -667,7 +667,9 @@
                             {#if group.items.length > 0}
                               <ul class="ml-4 list-disc space-y-0.5">
                                 {#each group.items as item, itemIndex}
-                                  <li class="whitespace-pre-wrap break-words">
+                                  <li
+                                    class="whitespace-pre-wrap wrap-break-word"
+                                  >
                                     {#if isStreaming && groupIndex === groupedSteps.length - 1 && itemIndex === group.items.length - 1}
                                       {#if isToolStep(item)}
                                         <div class="flex items-center gap-2">
@@ -709,7 +711,7 @@
                             <div class="flex flex-col gap-2">
                               {#each toolContext as ctx}
                                 <details
-                                  class="group rounded-md border bg-neutral-900 px-2 py-2 border-0"
+                                  class="group rounded-md border-none bg-neutral-900 px-2 py-2"
                                 >
                                   <summary
                                     class="flex cursor-pointer items-center gap-2 text-[12px] text-foreground/80"
@@ -764,7 +766,7 @@
                                           />
                                         </summary>
                                         <pre
-                                          class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/40 px-2 py-1 text-[11px] text-muted-foreground/70">
+                                          class="mt-1 whitespace-pre-wrap wrap-break-word rounded-md bg-background/40 px-2 py-1 text-[11px] text-muted-foreground/70">
 {formatValue(ctx.arguments)}
                                         </pre>
                                       </details>
@@ -783,7 +785,7 @@
                                           />
                                         </summary>
                                         <pre
-                                          class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/40 px-2 py-1 text-[11px] text-muted-foreground/70">
+                                          class="mt-1 whitespace-pre-wrap wrap-break-word rounded-md bg-background/40 px-2 py-1 text-[11px] text-muted-foreground/70">
 {formatValue(ctx.result)}
                                         </pre>
                                       </details>
