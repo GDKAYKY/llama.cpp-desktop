@@ -1,8 +1,8 @@
-use tauri::AppHandle;
-use tauri::Manager;
-use std::path::PathBuf;
 use reqwest::Client;
 use serde_json::Value;
+use std::path::PathBuf;
+use tauri::AppHandle;
+use tauri::Manager;
 
 /// Garante que o chat template Jinja de um repo HuggingFace esteja em cache.
 pub async fn ensure_hf_chat_template(
@@ -37,7 +37,8 @@ pub async fn ensure_hf_chat_template(
         .build()
         .map_err(|e| format!("Erro ao criar cliente HTTP: {}", e))?;
 
-    let template_content = download_chat_template(&client, hf_repo, revision.unwrap_or("main")).await?;
+    let template_content =
+        download_chat_template(&client, hf_repo, revision.unwrap_or("main")).await?;
 
     // 6. Salva o conteúdo no cache
     tokio::fs::write(&cache_path, template_content)
@@ -48,12 +49,15 @@ pub async fn ensure_hf_chat_template(
 }
 
 /// Tenta baixar o chat template em ordem: jinja file -> tokenizer_config.json
-async fn download_chat_template(client: &Client, hf_repo: &str, revision: &str) -> Result<String, String> {
+async fn download_chat_template(
+    client: &Client,
+    hf_repo: &str,
+    revision: &str,
+) -> Result<String, String> {
     // Tenta primeiro o arquivo .jinja direto
     let url_jinja = format!(
         "https://huggingface.co/{}/resolve/{}/chat_template.jinja",
-        hf_repo,
-        revision
+        hf_repo, revision
     );
 
     let res = client.get(&url_jinja).send().await;
@@ -69,8 +73,7 @@ async fn download_chat_template(client: &Client, hf_repo: &str, revision: &str) 
     // Fallback: Tenta extrair do tokenizer_config.json
     let url_config = format!(
         "https://huggingface.co/{}/resolve/{}/tokenizer_config.json",
-        hf_repo,
-        revision
+        hf_repo, revision
     );
 
     let response = client
@@ -91,9 +94,9 @@ async fn download_chat_template(client: &Client, hf_repo: &str, revision: &str) 
         .await
         .map_err(|e| format!("Erro ao parsear tokenizer_config.json: {}", e))?;
 
-    let template = config["chat_template"]
-        .as_str()
-        .ok_or_else(|| "Campo 'chat_template' não encontrado em tokenizer_config.json".to_string())?;
+    let template = config["chat_template"].as_str().ok_or_else(|| {
+        "Campo 'chat_template' não encontrado em tokenizer_config.json".to_string()
+    })?;
 
     Ok(template.to_string())
 }

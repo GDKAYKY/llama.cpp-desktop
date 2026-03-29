@@ -53,12 +53,60 @@ The config is a JSON object with a `servers` array.
 3. Click **Connect** to start the session.
 4. List tools/resources to verify connectivity.
 
+## Local npm install (no npx)
+You can install MCP servers locally and run them from `node_modules/.bin`.
+
+### Install
+```bash
+npm install @modelcontextprotocol/server-filesystem
+```
+
+### Example config
+```json
+{
+  "servers": [
+    {
+      "id": "filesystem",
+      "name": "Filesystem MCP (Local)",
+      "enabled": true,
+      "transport": "stdio",
+      "command": "node_modules/.bin/mcp-server-filesystem",
+      "args": ["--allow", "C:/"],
+      "cwd": "<repo-root>",
+      "env": null,
+      "url": null,
+      "headers": null,
+      "tool_allowlist": null,
+      "resource_allowlist": null
+    }
+  ]
+}
+```
+
+### Windows note
+On Windows, the local bin is `node_modules/.bin/mcp-server-filesystem.cmd`.
+
 ## Status & Caching
 The backend tracks:
 - Connection status.
 - Cached tools list.
 - Cached resources list.
 - Last error (if any).
+
+## Embedded Node (npx)
+The app does **not** ship Node by default. If your MCP server command uses `npx`, you must either:
+- Have Node installed and available in the PATH of the GUI process, or
+- Embed Node binaries in the app bundle.
+
+When Node is embedded, the MCP resolver looks in the bundled resources before failing:
+- `resources/node/bin/npx.cmd` and `resources/node/bin/node.exe` (Windows)
+- `resources/node/bin/npx` and `resources/node/bin/node` (macOS/Linux)
+
+### Bundle Setup
+1. Place Node/NPM binaries in `src-tauri/resources/node/bin/` as shown above.
+2. Ensure `tauri.conf.json` includes:
+   - `bundle.resources: ["resources/node/**"]`
+3. Rebuild the Tauri app so the resources are packaged.
 
 ## Commands
 The MCP UI uses Tauri commands:
@@ -71,3 +119,4 @@ The MCP UI uses Tauri commands:
 ## Notes
 - `transport` values are serialized in camelCase (`httpSse`).
 - The **Editar mcp.json** button uses `openPath` via the Tauri opener plugin.
+- If you see "program not found" when connecting via `npx`, it means Node is not available to the GUI process and must be installed or embedded.

@@ -33,7 +33,9 @@ pub struct McpConfig {
 
 impl Default for McpConfig {
     fn default() -> Self {
-        Self { servers: Vec::new() }
+        Self {
+            servers: Vec::new(),
+        }
     }
 }
 
@@ -45,6 +47,25 @@ pub struct McpServerStatus {
     pub last_error: Option<String>,
     pub tools_cached: usize,
     pub resources_cached: usize,
+    pub capabilities: Option<McpCapabilities>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpInferredTool {
+    pub name: String,
+    pub method: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpCapabilities {
+    pub has_tools_list: bool,
+    pub has_resources_list: bool,
+    pub supports_tools_call: bool,
+    pub supports_resources_read: bool,
+    pub inferred_tools: Vec<McpInferredTool>,
+    pub last_error: Option<String>,
 }
 
 pub type ToolDefinition = serde_json::Value;

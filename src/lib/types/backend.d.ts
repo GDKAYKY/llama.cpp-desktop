@@ -102,6 +102,21 @@ export interface McpServerStatus {
     last_error?: string | null;
     tools_cached: number;
     resources_cached: number;
+    capabilities?: McpCapabilities | null;
+}
+
+export interface McpInferredTool {
+    name: string;
+    method: string;
+}
+
+export interface McpCapabilities {
+    has_tools_list: boolean;
+    has_resources_list: boolean;
+    supports_tools_call: boolean;
+    supports_resources_read: boolean;
+    inferred_tools: McpInferredTool[];
+    last_error?: string | null;
 }
 
 export type ToolDefinition = Record<string, any>;

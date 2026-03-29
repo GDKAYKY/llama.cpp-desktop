@@ -97,7 +97,10 @@ class ChatStore {
       role: h.role,
       content: h.content,
       timestamp: h.timestamp,
-      model: h.model
+      model: h.model,
+      thinkingProcess: h.thinkingProcess,
+      modelThinking: h.modelThinking,
+      toolContext: h.toolContext
     }));
 
     this.activeConversationId = id;
@@ -234,7 +237,16 @@ class ChatStore {
             conversationId,
             'assistant',
             assistantContent,
-            modelName
+            modelName,
+            {
+              thinkingProcess: this.thinkingProcess.length
+                ? [...this.thinkingProcess]
+                : undefined,
+              modelThinking: this.modelThinking || undefined,
+              toolContext: this.toolContext.length
+                ? [...this.toolContext]
+                : undefined
+            }
           );
 
           if (this.messages.length > 0) {

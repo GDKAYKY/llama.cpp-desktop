@@ -20,19 +20,26 @@
 <div class="flex w-full grow flex-col">
   <div class="flex flex-col pb-4">
     {#each messages as msg, i}
+      {@const isLast = i === messages.length - 1}
+      {@const useLiveThinking =
+        isLast &&
+        (isLoading ||
+          (msg.thinkingProcess == null &&
+            msg.modelThinking == null &&
+            msg.toolContext == null))}
       <ChatMessage
         message={msg}
         index={i}
-        isStreaming={isLoading && i === messages.length - 1}
-        thinkingProcess={isLoading && i === messages.length - 1
+        isStreaming={isLoading && isLast}
+        thinkingProcess={useLiveThinking
           ? thinkingProcess
           : (msg.thinkingProcess ?? [])}
-        modelThinking={isLoading && i === messages.length - 1
+        modelThinking={useLiveThinking
           ? modelThinking
           : (msg.modelThinking ?? "")}
         {thinkingLabel}
         {thinkingTags}
-        toolContext={isLoading && i === messages.length - 1
+        toolContext={useLiveThinking
           ? toolContext
           : (msg.toolContext ?? [])}
         {pill}

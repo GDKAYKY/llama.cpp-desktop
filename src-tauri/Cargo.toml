@@ -26,12 +26,17 @@ tauri-plugin-shell = "2.3.4"
 tauri-plugin-fs = "2.4.5"
 tauri-plugin-dialog = "2.6.0"
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.11", features = ["json", "stream", "blocking"] }
+reqwest = { version = "0.13.2", features = ["json", "stream", "blocking"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 once_cell = "1.19"
 futures = "0.3.31"
 sysinfo = "0.38.0"
 sha2 = "0.11.0"
+rmcp = { version = "1.3.0", features = [
+    "client",
+    "transport-child-process",
+    "transport-streamable-http-client-reqwest",
+] }
 
 [dev-dependencies]
 async-stream = "0.3.6"

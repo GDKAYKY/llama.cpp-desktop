@@ -44,8 +44,6 @@ pub mod services {
         pub use service::LlamaCppService;
     }
     pub mod mcp {
-        pub mod client;
-        pub mod protocol;
         pub mod service;
 
         pub use service::McpService;
@@ -92,7 +90,8 @@ pub fn run() {
                 .map(std::path::PathBuf::from)
                 .unwrap_or_else(|| std::path::PathBuf::from("E:\\models"));
 
-            app.manage(AppState::new(models_path, mcp_config));
+            let resource_dir = app.path().resource_dir().ok();
+            app.manage(AppState::new(models_path, mcp_config, resource_dir));
 
             // Hydrate capability registry on startup
             let state = app.state::<AppState>();
