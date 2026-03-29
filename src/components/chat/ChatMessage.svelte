@@ -12,6 +12,7 @@
     Share2,
     MoreHorizontal,
     ChevronDown,
+    Wrench,
   } from "lucide-svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
@@ -61,6 +62,18 @@
       toast.success("Message copied to clipboard");
     } catch (err) {
       toast.error("Failed to copy message");
+    }
+  }
+
+  async function copyToolContext(ctx) {
+    try {
+      const args = formatValue(ctx?.arguments ?? "");
+      const result = formatValue(ctx?.result ?? "");
+      const payload = `Arguments:\n${args}\n\nResult:\n${result}`.trim();
+      await navigator.clipboard.writeText(payload);
+      toast.success("Tool context copied to clipboard");
+    } catch (err) {
+      toast.error("Failed to copy tool context");
     }
   }
 
@@ -353,6 +366,46 @@
     return `Ran ${normalized}`;
   }
 
+  function groupThinkingSteps(steps) {
+    const groups = [];
+    let current = null;
+    for (const rawStep of steps) {
+      const step = String(rawStep || "").trim();
+      if (!step) continue;
+      const numbered = step.match(/^\d+\.\s+(.*)$/);
+      const bullet = step.match(/^(?:\*|-|•)\s+(.*)$/);
+      if (numbered) {
+        if (current) groups.push(current);
+        current = { title: numbered[1].trim(), items: [] };
+        continue;
+      }
+      if (bullet) {
+        if (!current) {
+          groups.push({ title: bullet[1].trim(), items: [] });
+        } else {
+          current.items.push(bullet[1].trim());
+        }
+        continue;
+      }
+      if (current) {
+        current.items.push(step);
+      } else {
+        groups.push({ title: step, items: [] });
+      }
+    }
+    if (current) groups.push(current);
+    return groups;
+  }
+
+  function isToolStep(text) {
+    const raw = String(text || "")
+      .trim()
+      .toLowerCase();
+    return (
+      raw.startsWith("calling mcp tool") || raw.startsWith("called mcp tool")
+    );
+  }
+
   function formatValue(value) {
     if (value === null || value === undefined) return "";
     if (typeof value === "string") {
@@ -383,7 +436,9 @@
   });
 
   function formatThinkingDuration(totalSeconds) {
-    const seconds = Number.isFinite(totalSeconds) ? Math.max(0, totalSeconds) : 0;
+    const seconds = Number.isFinite(totalSeconds)
+      ? Math.max(0, totalSeconds)
+      : 0;
     const minutes = Math.floor(seconds / 60);
     const remaining = seconds % 60;
     if (minutes <= 0) return `${remaining}s`;
@@ -572,62 +627,169 @@
                 {#if thinkingOpen}
                   <div class="pl-5">
                     <div
-                      class="thinking-scroll max-h-56 overflow-y-auto text-[12px] text-muted-foreground/60"
+                      class="thinking-scroll max-h-56 overflow-y-auto text-[12px] text-muted-foreground/60 mt-1"
                     >
                       <div class="flex flex-col gap-1">
                         {#if summary.steps.length > 0}
-                          {#each summary.steps as step}
-                            <div class="whitespace-pre-wrap break-words">
-                              {#if isStreaming}
-                                <TextShimmer duration={1.5}>{step}</TextShimmer>
+                          {@const groupedSteps = groupThinkingSteps(
+                            summary.steps,
+                          )}
+                          {#each groupedSteps as group, groupIndex}
+                            <div class="whitespace-pre-wrap wrap-break-word">
+                              {#if isStreaming && groupIndex === groupedSteps.length - 1 && group.items.length === 0}
+                                {#if isToolStep(group.title)}
+                                  <div class="flex items-center gap-2">
+                                    <Wrench
+                                      size={12}
+                                      class="text-muted-foreground/70"
+                                    />
+                                    <TextShimmer duration={1.5}
+                                      >{group.title}</TextShimmer
+                                    >
+                                  </div>
+                                {:else}
+                                  <TextShimmer duration={1.5}
+                                    >{group.title}</TextShimmer
+                                  >
+                                {/if}
+                              {:else if isToolStep(group.title)}
+                                <div class="flex items-center gap-2">
+                                  <Wrench
+                                    size={12}
+                                    class="text-muted-foreground/70"
+                                  />
+                                  <span>{group.title}</span>
+                                </div>
                               {:else}
-                                {step}
+                                {group.title}
                               {/if}
                             </div>
+                            {#if group.items.length > 0}
+                              <ul class="ml-4 list-disc space-y-0.5">
+                                {#each group.items as item, itemIndex}
+                                  <li class="whitespace-pre-wrap break-words">
+                                    {#if isStreaming && groupIndex === groupedSteps.length - 1 && itemIndex === group.items.length - 1}
+                                      {#if isToolStep(item)}
+                                        <div class="flex items-center gap-2">
+                                          <Wrench
+                                            size={12}
+                                            class="text-muted-foreground/70"
+                                          />
+                                          <TextShimmer duration={1.5}
+                                            >{item}</TextShimmer
+                                          >
+                                        </div>
+                                      {:else}
+                                        <TextShimmer duration={1.5}
+                                          >{item}</TextShimmer
+                                        >
+                                      {/if}
+                                    {:else if isToolStep(item)}
+                                      <div class="flex items-center gap-2">
+                                        <Wrench
+                                          size={12}
+                                          class="text-muted-foreground/70"
+                                        />
+                                        <span>{item}</span>
+                                      </div>
+                                    {:else}
+                                      {item}
+                                    {/if}
+                                  </li>
+                                {/each}
+                              </ul>
+                            {/if}
                           {/each}
                         {/if}
                         {#if toolContext.length > 0}
                           <div
                             class="mt-2 text-[11px] text-muted-foreground/60"
                           >
-                            <div class="mb-1 uppercase tracking-wider">
-                              Tool context
-                            </div>
+                            <div class="mb-1 uppercase tracking-wider"></div>
                             <div class="flex flex-col gap-2">
                               {#each toolContext as ctx}
-                                <div
-                                  class="rounded-md border border-border/50 bg-secondary/20 px-2 py-2"
+                                <details
+                                  class="group rounded-md border bg-neutral-900 px-2 py-2 border-0"
                                 >
-                                  <div class="text-[12px] text-foreground/80">
-                                    {ctx.serverId ||
-                                      "unknown"}::{ctx.toolName || "tool"}
-                                  </div>
-                                  {#if ctx.toolCallId}
-                                    <div
-                                      class="text-[10px] text-muted-foreground/60"
+                                  <summary
+                                    class="flex cursor-pointer items-center gap-2 text-[12px] text-foreground/80"
+                                  >
+                                    <Wrench
+                                      size={12}
+                                      class="text-muted-foreground/70"
+                                    />
+                                    <span
+                                      class="text-[10px] tracking-wider text-muted-foreground/60"
                                     >
-                                      {ctx.toolCallId}
-                                    </div>
-                                  {/if}
-                                  <div
-                                    class="mt-2 text-[11px] text-muted-foreground/60"
-                                  >
-                                    Arguments
-                                  </div>
-                                  <pre
-                                    class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/40 px-2 py-1 text-[11px] text-muted-foreground/70">
+                                      {isStreaming
+                                        ? "Calling MCP Tool"
+                                        : "Called MCP Tool"}
+                                    </span>
+                                    <span>
+                                      {ctx.toolName || "tool"}
+                                    </span>
+
+                                    <ChevronDown
+                                      size={12}
+                                      class="ml-auto text-muted-foreground/70 transition-transform -rotate-90 group-open:rotate-0"
+                                    />
+                                  </summary>
+                                  <div class="relative pt-2">
+                                    <button
+                                      class="absolute right-0 top-0 p-1 text-muted-foreground/70 hover:text-foreground transition-colors"
+                                      onclick={() => copyToolContext(ctx)}
+                                      title="Copy tool context"
+                                      type="button"
+                                    >
+                                      <Copy size={12} />
+                                    </button>
+                                    {#if ctx.toolCallId}
+                                      <div
+                                        class="text-[10px] text-muted-foreground/60"
+                                      >
+                                        {ctx.toolCallId}
+                                      </div>
+                                    {/if}
+                                    <div
+                                      class="mt-2 text-[11px] text-muted-foreground/60"
+                                    >
+                                      <details class="group">
+                                        <summary
+                                          class="flex cursor-pointer items-center gap-2 text-[11px] text-muted-foreground/60"
+                                        >
+                                          Arguments
+                                          <ChevronDown
+                                            size={10}
+                                            class="ml-auto text-muted-foreground/60 transition-transform -rotate-90 group-open:rotate-0"
+                                          />
+                                        </summary>
+                                        <pre
+                                          class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/40 px-2 py-1 text-[11px] text-muted-foreground/70">
 {formatValue(ctx.arguments)}
-                                  </pre>
-                                  <div
-                                    class="mt-2 text-[11px] text-muted-foreground/60"
-                                  >
-                                    Result
-                                  </div>
-                                  <pre
-                                    class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/40 px-2 py-1 text-[11px] text-muted-foreground/70">
+                                        </pre>
+                                      </details>
+                                    </div>
+                                    <div
+                                      class="mt-2 text-[11px] text-muted-foreground/60"
+                                    >
+                                      <details class="group">
+                                        <summary
+                                          class="flex cursor-pointer items-center gap-2 text-[11px] text-muted-foreground/60"
+                                        >
+                                          Result
+                                          <ChevronDown
+                                            size={10}
+                                            class="ml-auto text-muted-foreground/60 transition-transform -rotate-90 group-open:rotate-0"
+                                          />
+                                        </summary>
+                                        <pre
+                                          class="mt-1 whitespace-pre-wrap break-words rounded-md bg-background/40 px-2 py-1 text-[11px] text-muted-foreground/70">
 {formatValue(ctx.result)}
-                                  </pre>
-                                </div>
+                                        </pre>
+                                      </details>
+                                    </div>
+                                  </div>
+                                </details>
                               {/each}
                             </div>
                           </div>

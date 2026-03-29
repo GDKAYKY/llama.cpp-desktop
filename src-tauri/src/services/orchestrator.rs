@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tauri::ipc::Channel;
 use tokio::sync::Mutex;
 
-const MAX_TOOL_ITERATIONS: usize = 5;
+const MAX_TOOL_ITERATIONS: usize = 3;
 const TOOL_CALL_MAX_TOKENS: i32 = 1024;
 const TOOL_RESULT_TOKEN_BUDGET: usize = 512;
 
@@ -127,6 +127,7 @@ impl ChatOrchestrator {
 
         let mut iteration = 0usize;
         let mut seen_calls: HashSet<String> = HashSet::new();
+        let mut tool_call_counts: HashMap<String, usize> = HashMap::new();
 
         loop {
             iteration += 1;
@@ -217,6 +218,7 @@ impl ChatOrchestrator {
                     &tool_bundle,
                     &parsed.tool_calls,
                     &mut seen_calls,
+                    &mut tool_call_counts,
                     &on_event,
                 )
                 .await?;
@@ -254,16 +256,27 @@ impl ChatOrchestrator {
         tool_bundle: &LlmToolSpecBundle,
         tool_calls: &[LlmToolCall],
         seen_calls: &mut HashSet<String>,
+        tool_call_counts: &mut HashMap<String, usize>,
         on_event: &Channel<serde_json::Value>,
     ) -> Result<bool, String> {
         let mut repeat_detected = false;
 
-        for (idx, call) in tool_calls.iter().enumerate() {
-            let fingerprint = format!(
-                "{}:{}",
-                call.tool_id,
-                serde_json::to_string(&call.arguments).unwrap_or_default()
-            );
+        if tool_calls.len() > 1 {
+            if !Self::try_send(
+                &on_event,
+                serde_json::json!({
+                    "thinking": format!(
+                        "Multiple tool calls received ({}). Executing the first only.",
+                        tool_calls.len()
+                    )
+                }),
+            ) {
+                return Ok(repeat_detected);
+            }
+        }
+
+        for (idx, call) in tool_calls.iter().take(1).enumerate() {
+            let fingerprint = format!("{}:{}", call.tool_id, hash_args(&call.arguments));
             if !seen_calls.insert(fingerprint) {
                 repeat_detected = true;
                 self.append_tool_error(
@@ -287,6 +300,19 @@ impl ChatOrchestrator {
                     continue;
                 }
             };
+
+            let tool_count = tool_call_counts.entry(call.tool_id.clone()).or_insert(0);
+            if *tool_count >= 2 {
+                repeat_detected = true;
+                self.append_tool_error(
+                    session_id,
+                    &call.id,
+                    format!("Tool '{}' called too many times", tool_name),
+                )
+                .await;
+                continue;
+            }
+            *tool_count += 1;
 
             if !allowed_servers.contains(&server_id) {
                 self.append_tool_error(
@@ -350,6 +376,12 @@ impl ChatOrchestrator {
                     ) {
                         return Ok(repeat_detected);
                     }
+                    if is_rate_limit_error(&e) {
+                        return Err(e);
+                    }
+                    if !is_invalid_input_error(&e) {
+                        repeat_detected = true;
+                    }
                     (serde_json::json!({ "error": e }).to_string(), None, Some(e))
                 }
             };
@@ -385,7 +417,7 @@ impl ChatOrchestrator {
                 return Ok(repeat_detected);
             }
 
-            if idx + 1 == tool_calls.len() {
+            if idx + 1 == 1 {
                 if !Self::try_send(
                     &on_event,
                     serde_json::json!({
@@ -675,6 +707,31 @@ impl ChatOrchestrator {
     async fn current_ctx_size(&self) -> Option<u32> {
         self.service.get_config().await.map(|cfg| cfg.ctx_size)
     }
+}
+
+fn hash_args(args: &serde_json::Value) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    serde_json::to_string(args).unwrap_or_default().hash(&mut hasher);
+    hasher.finish()
+}
+
+fn is_rate_limit_error(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("429")
+        || lower.contains("too many requests")
+        || lower.contains("rate limit")
+        || lower.contains("rate-limited")
+}
+
+fn is_invalid_input_error(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("invalid")
+        || lower.contains("bad request")
+        || lower.contains("missing")
+        || lower.contains("validation")
+        || lower.contains("schema")
+        || lower.contains("argument")
 }
 
 // ══════════════════════════════════════════════════════════════════
