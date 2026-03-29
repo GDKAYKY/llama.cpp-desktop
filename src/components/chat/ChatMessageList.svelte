@@ -26,15 +26,15 @@
         isStreaming={isLoading && i === messages.length - 1}
         thinkingProcess={isLoading && i === messages.length - 1
           ? thinkingProcess
-          : msg.thinkingProcess ?? []}
+          : (msg.thinkingProcess ?? [])}
         modelThinking={isLoading && i === messages.length - 1
           ? modelThinking
-          : msg.modelThinking ?? ""}
-        thinkingLabel={thinkingLabel}
-        thinkingTags={thinkingTags}
+          : (msg.modelThinking ?? "")}
+        {thinkingLabel}
+        {thinkingTags}
         toolContext={isLoading && i === messages.length - 1
           ? toolContext
-          : msg.toolContext ?? []}
+          : (msg.toolContext ?? [])}
         {pill}
       />
     {/each}

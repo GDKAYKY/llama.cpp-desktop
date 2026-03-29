@@ -62,6 +62,9 @@
   onMount(async () => {
     loading = true;
     await settingsStore.init();
+    if (settingsStore.error) {
+      showMessage("error", settingsStore.error);
+    }
     await loadConfigPath();
     loading = false;
   });
@@ -70,7 +73,8 @@
     try {
       configPath = await getConfigPath();
     } catch (err) {
-      // Silence error as requested
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      showMessage("error", `Failed to load config path: ${errorMessage}`);
     }
   }
 

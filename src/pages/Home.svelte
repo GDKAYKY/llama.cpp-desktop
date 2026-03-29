@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick, onMount } from "svelte";
   import ChatHeader from "$components/layout/ChatHeader.svelte";
-  import ChatMessages from "$components/chat/ChatMessages.svelte";
+  import ChatMessages from "$components/chat/ChatMessageList.svelte";
   import ChatForm from "$components/chat/ChatForm.svelte";
   import { toast } from "svelte-sonner";
   import { chatStore } from "$lib/stores/chat.svelte";

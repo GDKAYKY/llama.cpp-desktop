@@ -8,6 +8,7 @@
   } from "$lib/types/backend";
   import { openPath } from "@tauri-apps/plugin-opener";
   import { invokeCommand } from "$infrastructure/ipc";
+  import { cn } from "$shared/cn.js";
   import {
     Link,
     Unlink,
@@ -30,6 +31,7 @@
 
   let selectedId = $state<string | null>(null);
   let saving = $state(false);
+  let initializing = $state(true);
   let message = $state<{ type: string; text: string }>({ type: "", text: "" });
   let showCopySuccess = $state(false);
 
@@ -61,9 +63,20 @@
   });
 
   onMount(async () => {
-    await mcpStore.init();
-    if (mcpStore.servers.length > 0) {
-      selectServer(mcpStore.servers[0]);
+    initializing = true;
+    try {
+      await mcpStore.init();
+      if (mcpStore.error) {
+        showMessage("error", mcpStore.error);
+      }
+      if (mcpStore.servers.length > 0) {
+        selectServer(mcpStore.servers[0]);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showMessage("error", msg);
+    } finally {
+      initializing = false;
     }
   });
 
@@ -394,6 +407,23 @@
         >
           <Copy size={14} />
         </button>
+      </div>
+    {/if}
+    {#if message.text}
+      <div
+        class={cn(
+          "mt-4 rounded-lg border px-4 py-3 text-sm",
+          message.type === "success"
+            ? "border-green-500/30 bg-green-500/10 text-green-400"
+            : "border-red-500/30 bg-red-500/10 text-red-400",
+        )}
+      >
+        {message.text}
+      </div>
+    {/if}
+    {#if initializing}
+      <div class="mt-4 text-sm text-muted-foreground">
+        Loading MCP servers...
       </div>
     {/if}
   </div>
