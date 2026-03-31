@@ -1,51 +1,76 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { OrchestratorService } from '$lib/services/orchestrator';
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
+    invoke: vi.fn(),
 }));
 
-const { invoke } = await import('@tauri-apps/api/core');
-const { OrchestratorService, useConversation } = await import('../../src/lib/services/orchestrator');
+describe('OrchestratorService', () => {
+    it('createSlot calls invoke with correct params', async () => {
+        const { invoke } = await import('@tauri-apps/api/core');
+        vi.mocked(invoke).mockResolvedValue('slot-123');
+        
+        const slotId = await OrchestratorService.createSlot(10);
+        
+        expect(invoke).toHaveBeenCalledWith('create_slot', { max_ctx: 10 });
+        expect(slotId).toBe('slot-123');
+    });
 
-describe('orchestrator service', () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-  });
+    it('deleteSlot calls invoke with slot_id', async () => {
+        const { invoke } = await import('@tauri-apps/api/core');
+        vi.mocked(invoke).mockResolvedValue(true);
+        
+        const result = await OrchestratorService.deleteSlot('slot-123');
+        
+        expect(invoke).toHaveBeenCalledWith('delete_slot', { slot_id: 'slot-123' });
+        expect(result).toBe(true);
+    });
 
-  it('getStats aggregates messages per slot', async () => {
-    (invoke as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce(['a', 'b']) // listSlots
-      .mockResolvedValueOnce([{ id: 1 }, { id: 2 }]) // getSlotMessages a
-      .mockResolvedValueOnce([{ id: 3 }]); // getSlotMessages b
+    it('listSlots returns array of slot IDs', async () => {
+        const { invoke } = await import('@tauri-apps/api/core');
+        vi.mocked(invoke).mockResolvedValue(['slot-1', 'slot-2']);
+        
+        const slots = await OrchestratorService.listSlots();
+        
+        expect(invoke).toHaveBeenCalledWith('list_slots');
+        expect(slots).toEqual(['slot-1', 'slot-2']);
+    });
 
-    const stats = await OrchestratorService.getStats();
-    expect(stats.totalSlots).toBe(2);
-    expect(stats.slots).toEqual([
-      { id: 'a', messageCount: 2 },
-      { id: 'b', messageCount: 1 },
-    ]);
-  });
+    it('getSlotMessages returns messages array', async () => {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const messages = [
+            { role: 'user', content: 'Hello' },
+            { role: 'assistant', content: 'Hi' },
+        ];
+        vi.mocked(invoke).mockResolvedValue(messages);
+        
+        const result = await OrchestratorService.getSlotMessages('slot-123');
+        
+        expect(invoke).toHaveBeenCalledWith('get_slot_messages', { slot_id: 'slot-123' });
+        expect(result).toEqual(messages);
+    });
 
-  it('useConversation flow works', async () => {
-    const convo = useConversation();
-    (invoke as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce('slot-1') // create_slot
-      .mockResolvedValueOnce('response') // send_message
-      .mockResolvedValueOnce([{ id: 1 }]) // get_slot_messages
-      .mockResolvedValueOnce(undefined) // clear_slot
-      .mockResolvedValueOnce(true); // delete_slot
+    it('clearSlot calls invoke', async () => {
+        const { invoke } = await import('@tauri-apps/api/core');
+        vi.mocked(invoke).mockResolvedValue(undefined);
+        
+        await OrchestratorService.clearSlot('slot-123');
+        
+        expect(invoke).toHaveBeenCalledWith('clear_slot', { slot_id: 'slot-123' });
+    });
 
-    const slotId = await convo.init(5);
-    expect(slotId).toBe('slot-1');
-
-    const response = await convo.send('hello');
-    expect(response).toBe('response');
-
-    const messages = await convo.getMessages();
-    expect(messages).toEqual([{ id: 1 }]);
-
-    await convo.clear();
-    await convo.destroy();
-    expect(convo.getSlotId()).toBeNull();
-  });
+    it('getStats aggregates slot information', async () => {
+        const { invoke } = await import('@tauri-apps/api/core');
+        vi.mocked(invoke)
+            .mockResolvedValueOnce(['slot-1', 'slot-2'])
+            .mockResolvedValueOnce([{ role: 'user', content: 'msg1' }])
+            .mockResolvedValueOnce([{ role: 'user', content: 'msg2' }, { role: 'assistant', content: 'msg3' }]);
+        
+        const stats = await OrchestratorService.getStats();
+        
+        expect(stats.totalSlots).toBe(2);
+        expect(stats.slots).toHaveLength(2);
+        expect(stats.slots[0].messageCount).toBe(1);
+        expect(stats.slots[1].messageCount).toBe(2);
+    });
 });

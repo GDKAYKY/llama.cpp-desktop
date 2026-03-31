@@ -1417,6 +1417,7 @@ pub mod test_utils {
         choose_hf_filename(files, selector)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn parse_hf_reference_for_test(reference: &str) -> Result<HfModelRef, String> {
         parse_hf_reference(reference)
     }

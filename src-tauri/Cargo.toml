@@ -4,6 +4,7 @@ version = "1.2.0"
 description = "Llama.cpp Desktop Client"
 authors = ["Llama Desktop Team"]
 edition = "2021"
+autotests = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -43,3 +44,10 @@ async-stream = "0.3.6"
 tempfile = "3.24.0"
 warp = { version = "0.4.2", features = ["server"] }
 tauri = { version = "2", features = ["test"] }
+mockall = "0.13"
+wiremock = "0.6"
+tokio-test = "0.4"
+
+[[test]]
+name = "integration"
+path = "tests/lib.rs"

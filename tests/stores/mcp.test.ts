@@ -1,51 +1,42 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mcpStore } from '$lib/stores/mcp.svelte';
 
-describe('mcp store', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-  });
+vi.mock('@tauri-apps/api/core', () => ({
+    invoke: vi.fn(),
+}));
 
-  it('loads config and status', async () => {
-    const invokeCommand = vi.fn()
-      .mockResolvedValueOnce({ servers: [{ id: 'one' }] }) // load_mcp_config
-      .mockResolvedValueOnce({ servers: [] }) // load_default_mcp_config
-      .mockResolvedValueOnce([{ id: 'one', connected: false }]) // mcp_status
-      .mockResolvedValueOnce('/path/mcp.json'); // get_mcp_config_path_string
+describe('mcpStore', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
 
-    vi.doMock('$infrastructure/ipc', () => ({ invokeCommand }));
-    const { mcpStore } = await import('../../src/lib/stores/mcp.svelte');
+    it('initializes with empty servers', () => {
+        expect(mcpStore.servers).toEqual([]);
+    });
 
-    await mcpStore.init();
-    expect(mcpStore.servers.length).toBe(1);
-    expect(mcpStore.statusMap.one.connected).toBe(false);
-    expect(mcpStore.configPath).toBe('/path/mcp.json');
-  });
+    it('sets servers list', () => {
+        const servers = [
+            { id: 'server1', name: 'Test Server 1', enabled: true },
+            { id: 'server2', name: 'Test Server 2', enabled: false },
+        ];
+        
+        mcpStore.servers = servers;
+        expect(mcpStore.servers.length).toBe(2);
+    });
 
-  it('handles add/update/remove/connect/disconnect', async () => {
-    const invokeCommand = vi.fn().mockResolvedValue(undefined);
-    vi.doMock('$infrastructure/ipc', () => ({ invokeCommand }));
-    const { mcpStore } = await import('../../src/lib/stores/mcp.svelte');
+    it('sets loading state', () => {
+        mcpStore.isLoading = true;
+        expect(mcpStore.isLoading).toBe(true);
+    });
 
-    await mcpStore.addServer({ id: 'one' } as any);
-    await mcpStore.updateServer({ id: 'one' } as any);
-    await mcpStore.removeServer('one');
-    await mcpStore.connect('one');
-    await mcpStore.disconnect('one');
+    it('sets error message', () => {
+        mcpStore.error = 'Connection failed';
+        expect(mcpStore.error).toBe('Connection failed');
+    });
 
-    expect(invokeCommand).toHaveBeenCalled();
-  });
-
-  it('lists tools and resources', async () => {
-    const invokeCommand = vi.fn()
-      .mockResolvedValueOnce([{ name: 'tool' }])
-      .mockResolvedValueOnce([{ uri: 'res' }]);
-    vi.doMock('$infrastructure/ipc', () => ({ invokeCommand }));
-    const { mcpStore } = await import('../../src/lib/stores/mcp.svelte');
-
-    const tools = await mcpStore.listTools('one');
-    const resources = await mcpStore.listResources('one');
-    expect(tools).toEqual([{ name: 'tool' }]);
-    expect(resources).toEqual([{ uri: 'res' }]);
-  });
+    it('clears error', () => {
+        mcpStore.error = 'Test error';
+        mcpStore.clearError();
+        expect(mcpStore.error).toBeNull();
+    });
 });

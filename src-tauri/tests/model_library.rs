@@ -147,11 +147,7 @@ async fn test_model_manifest_missing_model_layer() {
     )
     .expect_err("should fail");
 
-    assert!(
-        err.contains("No model layer"),
-        "unexpected error: {}",
-        err
-    );
+    assert!(err.contains("No model layer"), "unexpected error: {}", err);
 }
 
 #[tokio::test]
@@ -184,7 +180,9 @@ async fn test_model_library_persistence() {
                 size: 200,
             }],
         },
-        manifest_path: Some("manifests/test-provider/test-library/test-model/1.0/manifest.json".to_string()),
+        manifest_path: Some(
+            "manifests/test-provider/test-library/test-model/1.0/manifest.json".to_string(),
+        ),
     };
 
     let models = vec![model_info];

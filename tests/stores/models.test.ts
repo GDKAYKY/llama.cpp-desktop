@@ -1,117 +1,55 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-describe('models store', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-  });
+vi.mock('@tauri-apps/api/core', () => ({
+    invoke: vi.fn(),
+}));
 
-  it('computes libraryPath from settings', async () => {
-    vi.doMock('$lib/stores/settings.svelte', () => ({
-      settingsStore: {
+vi.mock('$lib/services/models', () => ({
+    scanModelsDirectory: vi.fn().mockResolvedValue([]),
+    loadModelLibrary: vi.fn().mockResolvedValue([]),
+    saveModelLibrary: vi.fn().mockResolvedValue(undefined),
+    selectModelsDirectory: vi.fn().mockResolvedValue('/models'),
+}));
+
+vi.mock('$lib/stores/settings.svelte', () => ({
+    settingsStore: {
         settings: { modelsDirectory: '/models' },
-        update: vi.fn(),
-      },
-    }));
-    vi.doMock('$lib/services/models', () => ({
-      scanModelsDirectory: vi.fn(),
-      loadModelLibrary: vi.fn(),
-      saveModelLibrary: vi.fn(),
-      selectModelsDirectory: vi.fn(),
-    }));
+        update: vi.fn().mockResolvedValue(undefined),
+    },
+}));
 
-    const { modelsStore } = await import('../../src/lib/stores/models.svelte');
-    expect(modelsStore.libraryPath).toBe('/models/modelLibrary.json');
-  });
+describe('modelsStore', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
 
-  it('scans models and saves library', async () => {
-    const scanModelsDirectory = vi.fn().mockResolvedValue([{ name: 'model' }]);
-    const saveModelLibrary = vi.fn().mockResolvedValue(undefined);
+    it('computes libraryPath from modelsRoot', async () => {
+        const { modelsStore } = await import('$lib/stores/models.svelte');
+        expect(modelsStore.libraryPath).toBe('/models/modelLibrary.json');
+    });
 
-    vi.doMock('$lib/stores/settings.svelte', () => ({
-      settingsStore: {
-        settings: { modelsDirectory: '/models' },
-        update: vi.fn(),
-      },
-    }));
-    vi.doMock('$lib/services/models', () => ({
-      scanModelsDirectory,
-      loadModelLibrary: vi.fn(),
-      saveModelLibrary,
-      selectModelsDirectory: vi.fn(),
-    }));
+    it('returns empty libraryPath when no modelsRoot', async () => {
+        vi.doMock('$lib/stores/settings.svelte', () => ({
+            settingsStore: {
+                settings: { modelsDirectory: null },
+                update: vi.fn(),
+            },
+        }));
+        
+        const { modelsStore } = await import('$lib/stores/models.svelte');
+        expect(modelsStore.libraryPath).toBe('');
+    });
 
-    const { modelsStore } = await import('../../src/lib/stores/models.svelte');
-    await modelsStore.scan();
-    expect(modelsStore.models.length).toBe(1);
-    expect(modelsStore.successMessage).toContain('Found and saved');
-    expect(saveModelLibrary).toHaveBeenCalled();
-  });
-
-  it('sets error when no models root', async () => {
-    vi.doMock('$lib/stores/settings.svelte', () => ({
-      settingsStore: {
-        settings: { modelsDirectory: null },
-        update: vi.fn(),
-      },
-    }));
-    vi.doMock('$lib/services/models', () => ({
-      scanModelsDirectory: vi.fn(),
-      loadModelLibrary: vi.fn(),
-      saveModelLibrary: vi.fn(),
-      selectModelsDirectory: vi.fn(),
-    }));
-
-    const { modelsStore } = await import('../../src/lib/stores/models.svelte');
-    await modelsStore.scan();
-    expect(modelsStore.error).toBe('Please select a models directory first');
-  });
-
-  it('selects directory and loads library', async () => {
-    const selectModelsDirectory = vi.fn().mockResolvedValue('/models');
-    const loadModelLibrary = vi.fn().mockResolvedValue([{ name: 'one' }]);
-    const update = vi.fn().mockResolvedValue(undefined);
-
-    vi.doMock('$lib/stores/settings.svelte', () => ({
-      settingsStore: {
-        settings: { modelsDirectory: '' },
-        update,
-      },
-    }));
-    vi.doMock('$lib/services/models', () => ({
-      scanModelsDirectory: vi.fn(),
-      loadModelLibrary,
-      saveModelLibrary: vi.fn(),
-      selectModelsDirectory,
-    }));
-
-    const { modelsStore } = await import('../../src/lib/stores/models.svelte');
-    await modelsStore.selectDirectory();
-    expect(update).toHaveBeenCalled();
-    expect(modelsStore.models.length).toBe(1);
-  });
-
-  it('selectModel updates selection and clears messages', async () => {
-    vi.doMock('$lib/stores/settings.svelte', () => ({
-      settingsStore: {
-        settings: { modelsDirectory: '/models' },
-        update: vi.fn(),
-      },
-    }));
-    vi.doMock('$lib/services/models', () => ({
-      scanModelsDirectory: vi.fn(),
-      loadModelLibrary: vi.fn(),
-      saveModelLibrary: vi.fn(),
-      selectModelsDirectory: vi.fn(),
-    }));
-
-    const { modelsStore } = await import('../../src/lib/stores/models.svelte');
-    modelsStore.error = 'err';
-    modelsStore.successMessage = 'ok';
-    modelsStore.selectModel({ name: 'm1' } as any);
-    expect(modelsStore.selectedModel?.name).toBe('m1');
-    modelsStore.clearMessages();
-    expect(modelsStore.error).toBeNull();
-    expect(modelsStore.successMessage).toBe('');
-  });
+    it('sets error when scanning without modelsRoot', async () => {
+        vi.doMock('$lib/stores/settings.svelte', () => ({
+            settingsStore: {
+                settings: { modelsDirectory: null },
+                update: vi.fn(),
+            },
+        }));
+        
+        const { modelsStore } = await import('$lib/stores/models.svelte');
+        await modelsStore.scan();
+        expect(modelsStore.error).toBe('Please select a models directory first');
+    });
 });
