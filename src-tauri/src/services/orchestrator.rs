@@ -359,7 +359,7 @@ impl ChatOrchestrator {
             let result = match self.mcp_service.connect(&server_id).await {
                 Ok(()) => {
                     self.mcp_service
-                        .tools_call(&server_id, &tool_name, arguments)
+                        .call_tools(&server_id, &tool_name, arguments)
                         .await
                 }
                 Err(e) => Err(e),
@@ -554,7 +554,6 @@ impl ChatOrchestrator {
         Ok(())
     }
 
-
     // ══════════════════════════════════════════════════════════════
     //  SESSION MANAGEMENT
     // ══════════════════════════════════════════════════════════════
@@ -712,7 +711,9 @@ impl ChatOrchestrator {
 fn hash_args(args: &serde_json::Value) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    serde_json::to_string(args).unwrap_or_default().hash(&mut hasher);
+    serde_json::to_string(args)
+        .unwrap_or_default()
+        .hash(&mut hasher);
     hasher.finish()
 }
 

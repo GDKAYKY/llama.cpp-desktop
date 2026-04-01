@@ -106,7 +106,7 @@ flowchart TD
     J -- No --> D
     J -- Yes --> K["Parse tool_calls\nfrom response"]
     K --> L["For each tool_call:\nresolve → validate → execute"]
-    L --> M["MCP server executes tool\n(tools_call)"]
+    L --> M["MCP server executes tool\n(call_tools)"]
     M --> N["Append tool result\nto conversation history"]
     N --> O{"Max iterations\nreached?"}
     O -- No --> G
@@ -148,7 +148,7 @@ sequenceDiagram
         else Has tool_calls
             Orch->>Orch: parse_tool_calls_from_response()
             Orch->>Reg: validate_call(resolved)
-            Orch->>MCP: tools_call(server_id, tool_name, arguments)
+            Orch->>MCP: call_tools(server_id, tool_name, arguments)
             MCP-->>Orch: tool result JSON
             Orch->>Orch: append tool result to history
             Note over Orch: Continue loop with<br/>enriched context
@@ -435,7 +435,7 @@ The `ChatOrchestrator` implements a bounded loop with safety guards:
 │  │        7. Resolve tool_id → (server_id, tool_name)     │     │
 │  │        8. Validate via CapabilityRegistry               │     │
 │  │        9. Build/repair arguments from schema            │     │
-│  │       10. Execute via McpService.tools_call()           │     │
+│  │       10. Execute via McpService.call_tools()           │     │
 │  │       11. Append tool result to conversation            │     │
 │  │       12. Continue loop                                 │     │
 │  │                                                        │     │
@@ -537,7 +537,7 @@ Run `orchestrator.refresh_capabilities()` after connecting new MCP servers. This
 | **Service**        | `services/llama/service.rs`       | Actor-based LLM service: `complete_chat`, `send_chat_message`    |
 | **Service**        | `services/orchestrator.rs`        | Full tool-calling loop with MCP integration                      |
 | **Service**        | `services/capability_registry.rs` | Cached MCP tool/resource registry with search                    |
-| **Service**        | `services/mcp/service.rs`         | MCP client: `connect`, `tools_list`, `tools_call`                |
+| **Service**        | `services/mcp/service.rs`         | MCP client: `connect`, `tools_list`, `call_tools`                |
 | **Infrastructure** | `infrastructure/llama/server.rs`  | Process spawning + `--jinja` flag + HTTP health check            |
 | **Infrastructure** | `infrastructure/llama/process.rs` | PID registry for child processes                                 |
 | **Model**          | `models/chat_model.rs`            | `ChatMessage`, `ChatRequest`, `ChatResponse` structs             |

@@ -30,8 +30,20 @@ describe("mcpStore", () => {
 
   it("sets servers list", () => {
     const servers: McpServerConfig[] = [
-      { id: "server1", name: "Test Server 1", enabled: true, transport: "stdio", command: "" },
-      { id: "server2", name: "Test Server 2", enabled: false, transport: "stdio", command: "" },
+      {
+        id: "server1",
+        name: "Test Server 1",
+        enabled: true,
+        transport: "stdio",
+        command: "",
+      },
+      {
+        id: "server2",
+        name: "Test Server 2",
+        enabled: false,
+        transport: "stdio",
+        command: "",
+      },
     ];
 
     mcpStore.servers = servers;
@@ -63,7 +75,7 @@ describe("mcpStore", () => {
 
       expect(invoke).toHaveBeenCalledWith("load_mcp_config", {});
       expect(invoke).toHaveBeenCalledWith("load_default_mcp_config", {});
-      expect(invoke).toHaveBeenCalledWith("mcp_status", {});
+      expect(invoke).toHaveBeenCalledWith("status", {});
       expect(invoke).toHaveBeenCalledWith("get_mcp_config_path_string", {});
     });
   });
@@ -71,11 +83,29 @@ describe("mcpStore", () => {
   describe("rebuildServers", () => {
     it("merges default and user servers, user overrides default", () => {
       mcpStore.defaultServers = [
-        { id: "s1", name: "Default S1", enabled: true, transport: "stdio", command: "cmd1" },
-        { id: "s2", name: "Default S2", enabled: true, transport: "stdio", command: "cmd2" },
+        {
+          id: "s1",
+          name: "Default S1",
+          enabled: true,
+          transport: "stdio",
+          command: "cmd1",
+        },
+        {
+          id: "s2",
+          name: "Default S2",
+          enabled: true,
+          transport: "stdio",
+          command: "cmd2",
+        },
       ];
       mcpStore.userServers = [
-        { id: "s1", name: "User S1", enabled: false, transport: "http_sse", url: "http://localhost" },
+        {
+          id: "s1",
+          name: "User S1",
+          enabled: false,
+          transport: "http_sse",
+          url: "http://localhost",
+        },
       ];
 
       mcpStore.rebuildServers();
@@ -88,7 +118,13 @@ describe("mcpStore", () => {
 
     it("includes all default servers when no user servers", () => {
       mcpStore.defaultServers = [
-        { id: "s1", name: "Default S1", enabled: true, transport: "stdio", command: "cmd1" },
+        {
+          id: "s1",
+          name: "Default S1",
+          enabled: true,
+          transport: "stdio",
+          command: "cmd1",
+        },
       ];
       mcpStore.userServers = [];
 
@@ -104,7 +140,13 @@ describe("mcpStore", () => {
       const { invoke } = await import("@tauri-apps/api/core");
       const mockConfig = {
         servers: [
-          { id: "s1", name: "User Server", enabled: true, transport: "stdio", command: "test" },
+          {
+            id: "s1",
+            name: "User Server",
+            enabled: true,
+            transport: "stdio",
+            command: "test",
+          },
         ],
       };
       vi.mocked(invoke).mockResolvedValue(mockConfig);
@@ -151,7 +193,13 @@ describe("mcpStore", () => {
       const { invoke } = await import("@tauri-apps/api/core");
       const mockConfig = {
         servers: [
-          { id: "d1", name: "Default", enabled: true, transport: "stdio", command: "default-cmd" },
+          {
+            id: "d1",
+            name: "Default",
+            enabled: true,
+            transport: "stdio",
+            command: "default-cmd",
+          },
         ],
       };
       vi.mocked(invoke).mockResolvedValue(mockConfig);
@@ -212,7 +260,7 @@ describe("mcpStore", () => {
 
       await mcpStore.refreshStatus();
 
-      expect(invoke).toHaveBeenCalledWith("mcp_status", {});
+      expect(invoke).toHaveBeenCalledWith("status", {});
       expect(mcpStore.statusMap["s1"].connected).toBe(true);
       expect(mcpStore.statusMap["s2"].connected).toBe(false);
     });
@@ -225,7 +273,7 @@ describe("mcpStore", () => {
 
       await mcpStore.refreshStatus("s1");
 
-      expect(invoke).toHaveBeenCalledWith("mcp_status", { id: "s1" });
+      expect(invoke).toHaveBeenCalledWith("status", { id: "s1" });
     });
 
     it("sets error on failure", async () => {
@@ -246,7 +294,7 @@ describe("mcpStore", () => {
 
       const result = await mcpStore.listTools("s1");
 
-      expect(invoke).toHaveBeenCalledWith("mcp_tools_list", { id: "s1" });
+      expect(invoke).toHaveBeenCalledWith("list_tools", { id: "s1" });
       expect(result).toEqual(mockTools);
       expect(mcpStore.toolsMap["s1"]).toEqual(mockTools);
     });
@@ -260,7 +308,7 @@ describe("mcpStore", () => {
 
       const result = await mcpStore.listResources("s1");
 
-      expect(invoke).toHaveBeenCalledWith("mcp_resources_list", { id: "s1" });
+      expect(invoke).toHaveBeenCalledWith("list_resources", { id: "s1" });
       expect(result).toEqual(mockResources);
       expect(mcpStore.resourcesMap["s1"]).toEqual(mockResources);
     });
@@ -274,12 +322,16 @@ describe("mcpStore", () => {
       vi.mocked(invoke).mockResolvedValue({ servers: [] });
 
       const server: McpServerConfig = {
-        id: "new", name: "New Server", enabled: true, transport: "stdio", command: "test",
+        id: "new",
+        name: "New Server",
+        enabled: true,
+        transport: "stdio",
+        command: "test",
       };
 
       await mcpStore.addServer(server);
 
-      expect(invoke).toHaveBeenCalledWith("mcp_add_server", { server });
+      expect(invoke).toHaveBeenCalledWith("add_server", { server });
     });
   });
 
@@ -289,12 +341,16 @@ describe("mcpStore", () => {
       vi.mocked(invoke).mockResolvedValue({ servers: [] });
 
       const server: McpServerConfig = {
-        id: "s1", name: "Updated", enabled: true, transport: "stdio", command: "test",
+        id: "s1",
+        name: "Updated",
+        enabled: true,
+        transport: "stdio",
+        command: "test",
       };
 
       await mcpStore.updateServer(server);
 
-      expect(invoke).toHaveBeenCalledWith("mcp_update_server", { server });
+      expect(invoke).toHaveBeenCalledWith("update_server", { server });
     });
   });
 
@@ -305,7 +361,7 @@ describe("mcpStore", () => {
 
       await mcpStore.removeServer("s1");
 
-      expect(invoke).toHaveBeenCalledWith("mcp_remove_server", { id: "s1" });
+      expect(invoke).toHaveBeenCalledWith("remove_server", { id: "s1" });
     });
   });
 
@@ -313,23 +369,23 @@ describe("mcpStore", () => {
     it("calls connect and loads capabilities", async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       vi.mocked(invoke)
-        .mockResolvedValueOnce(undefined)  // mcp_connect
-        .mockResolvedValueOnce([])         // mcp_tools_list
-        .mockResolvedValueOnce([])         // mcp_resources_list
-        .mockResolvedValueOnce([]);        // mcp_status
+        .mockResolvedValueOnce(undefined) // connect
+        .mockResolvedValueOnce([]) // list_tools
+        .mockResolvedValueOnce([]) // list_resources
+        .mockResolvedValueOnce([]); // status
 
       await mcpStore.connect("s1");
 
-      expect(invoke).toHaveBeenCalledWith("mcp_connect", { id: "s1" });
+      expect(invoke).toHaveBeenCalledWith("connect", { id: "s1" });
     });
 
     it("sets error if tools loading fails", async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       vi.mocked(invoke)
-        .mockResolvedValueOnce(undefined)  // mcp_connect
-        .mockRejectedValueOnce(new Error("Tools failed"))  // mcp_tools_list
-        .mockResolvedValueOnce([])         // mcp_resources_list
-        .mockResolvedValueOnce([]);        // mcp_status
+        .mockResolvedValueOnce(undefined) // connect
+        .mockRejectedValueOnce(new Error("Tools failed")) // list_tools
+        .mockResolvedValueOnce([]) // list_resources
+        .mockResolvedValueOnce([]); // status
 
       await mcpStore.connect("s1");
 
@@ -339,10 +395,10 @@ describe("mcpStore", () => {
     it("sets error if resources loading fails", async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       vi.mocked(invoke)
-        .mockResolvedValueOnce(undefined)  // mcp_connect
-        .mockResolvedValueOnce([])         // mcp_tools_list
-        .mockRejectedValueOnce(new Error("Resources failed"))  // mcp_resources_list
-        .mockResolvedValueOnce([]);        // mcp_status
+        .mockResolvedValueOnce(undefined) // connect
+        .mockResolvedValueOnce([]) // list_tools
+        .mockRejectedValueOnce(new Error("Resources failed")) // list_resources
+        .mockResolvedValueOnce([]); // status
 
       await mcpStore.connect("s1");
 
@@ -357,7 +413,7 @@ describe("mcpStore", () => {
 
       await mcpStore.disconnect("s1");
 
-      expect(invoke).toHaveBeenCalledWith("mcp_disconnect", { id: "s1" });
+      expect(invoke).toHaveBeenCalledWith("disconnect", { id: "s1" });
     });
   });
 
@@ -366,23 +422,33 @@ describe("mcpStore", () => {
       const { invoke } = await import("@tauri-apps/api/core");
       mcpStore.statusMap = {
         s1: { id: "s1", connected: true, tools_cached: 0, resources_cached: 0 },
-        s2: { id: "s2", connected: false, tools_cached: 0, resources_cached: 0 },
+        s2: {
+          id: "s2",
+          connected: false,
+          tools_cached: 0,
+          resources_cached: 0,
+        },
       };
       vi.mocked(invoke)
-        .mockResolvedValueOnce([{ name: "tool1" }])   // tools for s1
-        .mockResolvedValueOnce([{ name: "res1" }]);    // resources for s1
+        .mockResolvedValueOnce([{ name: "tool1" }]) // tools for s1
+        .mockResolvedValueOnce([{ name: "res1" }]); // resources for s1
 
       await mcpStore.loadCapabilitiesForConnected();
 
-      expect(invoke).toHaveBeenCalledWith("mcp_tools_list", { id: "s1" });
-      expect(invoke).toHaveBeenCalledWith("mcp_resources_list", { id: "s1" });
-      expect(invoke).not.toHaveBeenCalledWith("mcp_tools_list", { id: "s2" });
+      expect(invoke).toHaveBeenCalledWith("list_tools", { id: "s1" });
+      expect(invoke).toHaveBeenCalledWith("list_resources", { id: "s1" });
+      expect(invoke).not.toHaveBeenCalledWith("list_tools", { id: "s2" });
     });
 
     it("skips when no connected servers", async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       mcpStore.statusMap = {
-        s1: { id: "s1", connected: false, tools_cached: 0, resources_cached: 0 },
+        s1: {
+          id: "s1",
+          connected: false,
+          tools_cached: 0,
+          resources_cached: 0,
+        },
       };
 
       await mcpStore.loadCapabilitiesForConnected();

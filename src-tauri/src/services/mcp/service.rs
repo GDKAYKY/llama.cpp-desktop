@@ -554,13 +554,13 @@ impl McpService {
         match client.list_all_tools().await {
             Ok(tools) => {
                 caps.has_tools_list = true;
-                caps.supports_tools_call = true;
+                caps.supports_call_tools = true;
                 caps.inferred_tools = extract_inferred_tools(&tools);
             }
             Err(err) => match classify_call_error(err) {
                 McpCallError::Unsupported(err) => {
                     caps.has_tools_list = false;
-                    caps.supports_tools_call = false;
+                    caps.supports_call_tools = false;
                     caps.last_error = Some(err);
                 }
                 McpCallError::Transport(err) => {
@@ -658,7 +658,7 @@ impl McpService {
                     let mut caps_map = self.capabilities.lock().await;
                     let caps = caps_map.entry(id.to_string()).or_default();
                     caps.has_tools_list = false;
-                    caps.supports_tools_call = false;
+                    caps.supports_call_tools = false;
                     caps.inferred_tools = Vec::new();
                     caps.last_error = Some(err);
                     return Ok(Vec::new());
@@ -679,13 +679,13 @@ impl McpService {
         let mut caps_map = self.capabilities.lock().await;
         let caps = caps_map.entry(id.to_string()).or_default();
         caps.has_tools_list = true;
-        caps.supports_tools_call = true;
+        caps.supports_call_tools = true;
         caps.inferred_tools = extract_inferred_tools(&tools);
         caps.last_error = None;
         Ok(filtered)
     }
 
-    pub async fn tools_call(
+    pub async fn call_tools(
         &self,
         id: &str,
         tool_name: &str,
@@ -710,7 +710,7 @@ impl McpService {
                 McpCallError::Unsupported(err) => {
                     let mut caps_map = self.capabilities.lock().await;
                     let caps = caps_map.entry(id.to_string()).or_default();
-                    caps.supports_tools_call = false;
+                    caps.supports_call_tools = false;
                     caps.last_error = Some(err);
                     Err("Server does not support tools/call".to_string())
                 }

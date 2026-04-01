@@ -117,15 +117,15 @@ async fn test_mcp_http_integration_and_allowlists() {
     assert_eq!(res[0]["uri"], "res://ok");
 
     let call = service
-        .tools_call("local", "allowed", json!({"x": 1}))
+        .call_tools("local", "allowed", json!({"x": 1}))
         .await
-        .expect("tools_call");
+        .expect("call_tools");
     assert_eq!(call["ok"], true);
     assert_eq!(call["echo"]["name"], "allowed");
     assert_eq!(call["echo"]["arguments"]["x"], 1);
 
     let err = service
-        .tools_call("local", "blocked", json!({}))
+        .call_tools("local", "blocked", json!({}))
         .await
         .expect_err("should reject blocked tool");
     assert!(err.contains("Tool not allowed"));

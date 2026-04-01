@@ -62,7 +62,7 @@ pub struct McpInferredTool {
 pub struct McpCapabilities {
     pub has_tools_list: bool,
     pub has_resources_list: bool,
-    pub supports_tools_call: bool,
+    pub supports_call_tools: bool,
     pub supports_resources_read: bool,
     pub inferred_tools: Vec<McpInferredTool>,
     pub last_error: Option<String>,

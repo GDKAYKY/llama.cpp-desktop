@@ -274,7 +274,7 @@ async fn resources_read_errors_when_not_connected() {
 }
 
 #[tokio::test]
-async fn tools_call_and_resource_read_respect_allowlist() {
+async fn call_tools_and_resource_read_respect_allowlist() {
     let (addr, _server) = start_rpc_server().await;
     let mut config = McpConfig::default();
     let mut server = sample_server("one", format!("http://{}", addr));
@@ -285,13 +285,13 @@ async fn tools_call_and_resource_read_respect_allowlist() {
 
     service.connect("one").await.expect("connect");
     let ok = service
-        .tools_call("one", "alpha", json!({}))
+        .call_tools("one", "alpha", json!({}))
         .await
         .expect("call");
     assert_eq!(ok["ok"], true);
 
     let err = service
-        .tools_call("one", "beta", json!({}))
+        .call_tools("one", "beta", json!({}))
         .await
         .expect_err("blocked");
     assert!(err.contains("Tool not allowed"));
@@ -307,7 +307,7 @@ async fn tools_call_and_resource_read_respect_allowlist() {
 }
 
 #[tokio::test]
-async fn tools_call_errors_when_not_connected() {
+async fn call_tools_errors_when_not_connected() {
     let config = McpConfig {
         servers: vec![McpServerConfig {
             id: "one".to_string(),
@@ -326,7 +326,7 @@ async fn tools_call_errors_when_not_connected() {
     };
     let service = McpService::new(config);
     let err = service
-        .tools_call("one", "alpha", json!({}))
+        .call_tools("one", "alpha", json!({}))
         .await
         .expect_err("not connected");
     assert!(err.contains("Server not connected"));
@@ -342,7 +342,7 @@ async fn tools_and_resources_allow_when_no_allowlist() {
 
     service.connect("one").await.expect("connect");
     let ok = service
-        .tools_call("one", "alpha", json!({}))
+        .call_tools("one", "alpha", json!({}))
         .await
         .expect("call");
     assert_eq!(ok["ok"], true);

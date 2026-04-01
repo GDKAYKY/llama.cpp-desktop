@@ -223,7 +223,7 @@ impl Subagent {
         self.mcp_service.connect(server_id).await?;
         let result = self
             .mcp_service
-            .tools_call(server_id, tool_name, resolved_call.arguments.clone())
+            .call_tools(server_id, tool_name, resolved_call.arguments.clone())
             .await?;
 
         Ok(ToolCallResult {

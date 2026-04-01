@@ -15,7 +15,7 @@ LlamaServer HTTP POST /completion
     ↓
 SSE Stream → Parse chunks → Detect tool calls
     ↓
-[If tool call] → McpService::tools_call() → MCP Server
+[If tool call] → McpService::call_tools() → MCP Server
     ↓
 Tool result → Continue streaming
     ↓
@@ -47,7 +47,7 @@ LLM generates <tool_call>
     ↓
 Orchestrator parses XML
     ↓
-McpService::tools_call(server_id, name, args)
+McpService::call_tools(server_id, name, args)
     ↓
 Check allowlist → Send to MCP server
     ↓
@@ -102,4 +102,4 @@ Return success → Show toast
 
 ---
 
-*Last updated: 2026-03-28*
+_Last updated: 2026-03-28_

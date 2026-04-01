@@ -47,7 +47,7 @@ async fn test_mcp_config_persistence() {
 }
 
 #[tokio::test]
-async fn test_mcp_status_multiple_servers() {
+async fn test_status_multiple_servers() {
     let mut config = McpConfig::default();
     config.servers.push(common::sample_mcp_server("server1"));
     config.servers.push(common::sample_mcp_server("server2"));

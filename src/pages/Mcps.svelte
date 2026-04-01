@@ -319,7 +319,7 @@
         showMessage("error", "Clipboard does not contain valid JSON.");
         return;
       }
-      const server = (await invokeCommand("mcp_import_config", {
+      const server = (await invokeCommand("import_config", {
         payload: parsed,
       })) as McpServerConfig;
       await mcpStore.loadConfig();
@@ -603,7 +603,7 @@
                   No resources/list
                 </span>
               {/if}
-              {#if !caps.supports_tools_call}
+              {#if !caps.supports_call_tools}
                 <span
                   class="rounded-full bg-muted/40 px-2 py-0.5 text-muted-foreground"
                 >
