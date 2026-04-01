@@ -62,7 +62,10 @@
   }
 
   function getTotalSize(model: Model) {
-    return model.manifest_data.layers.reduce((acc, layer) => acc + layer.size, 0);
+    return model.manifest_data.layers.reduce(
+      (acc: number, layer) => acc + layer.size,
+      0,
+    );
   }
 
   function getModelMetadata(model: Model) {
@@ -373,7 +376,7 @@
         <span>Layers</span>
       </div>
       <span class="font-medium text-foreground/80"
-          >{model.manifest_data.layers.length} files</span
+        >{model.manifest_data.layers.length} files</span
       >
     </div>
     <div class="flex items-center justify-between text-[10px]">
@@ -391,7 +394,7 @@
     <div
       bind:clientWidth={statusWidth}
       class={cn(
-        "absolute bottom-0 left-4 z-[100] flex translate-y-1/2 items-center gap-1.5 text-[9px] font-bold uppercase tracking-tight transition-all",
+        "absolute bottom-0 left-4 z-100 flex translate-y-1/2 items-center gap-1.5 text-[9px] font-bold uppercase tracking-tight transition-all",
         currentStatus.color,
       )}
     >

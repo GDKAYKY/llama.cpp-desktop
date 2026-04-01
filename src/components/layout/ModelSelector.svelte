@@ -258,22 +258,28 @@
 
   {#if Object.keys(modelsStore.downloads ?? {}).length > 0}
     <div class="mb-6 space-y-3">
-      <h3 class="flex items-center gap-2 text-sm font-medium text-muted-foreground uppercase tracking-wider">
+      <h3
+        class="flex items-center gap-2 text-sm font-medium text-muted-foreground uppercase tracking-wider"
+      >
         Active Downloads
       </h3>
       {#each Object.values(modelsStore.downloads) as download}
+        {@const d = download as any}
         <div class="rounded-xl border border-border bg-white/0.02 p-4">
           <div class="flex items-center justify-between mb-2">
-            <span class="font-mono text-sm text-foreground">{download.reference}</span>
+            <span class="font-mono text-sm text-foreground">{d.reference}</span>
             <span class="text-xs text-muted-foreground">
-              {(download.downloaded / 1024 / 1024).toFixed(1)} MB / {(download.total / 1024 / 1024).toFixed(1)} MB
-              ({(download.speed / 1024 / 1024).toFixed(1)} MB/s)
+              {(d.downloaded / 1024 / 1024).toFixed(1)} MB / {(
+                d.total /
+                1024 /
+                1024
+              ).toFixed(1)} MB ({(d.speed / 1024 / 1024).toFixed(1)} MB/s)
             </span>
           </div>
           <div class="h-2 w-full overflow-hidden rounded-full bg-neutral-800">
-            <div 
-              class="h-full bg-blue-500 transition-all duration-300" 
-              style={`width: ${Math.min(100, Math.max(0, (download.downloaded / download.total) * 100))}%`}
+            <div
+              class="h-full bg-blue-500 transition-all duration-300"
+              style={`width: ${Math.min(100, Math.max(0, (d.downloaded / d.total) * 100))}%`}
             ></div>
           </div>
         </div>
@@ -422,10 +428,11 @@
   >
     <div class="space-y-4">
       <div class="space-y-2">
-        <label class="text-sm font-medium text-foreground"
+        <label for="model-ref-input" class="text-sm font-medium text-foreground"
           >Model reference</label
         >
         <input
+          id="model-ref-input"
           class="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60"
           placeholder="hf.co/unsloth/Qwen3.5-9B-GGUF:Q4_K_M"
           bind:value={downloadReference}

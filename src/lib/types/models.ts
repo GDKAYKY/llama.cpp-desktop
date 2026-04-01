@@ -4,7 +4,7 @@ export interface Model {
     provider: string;
     library: string;
     full_identifier: string;
-    manifest: {
+    manifest_data: {
         config: {
             mediaType: string;
             digest: string;

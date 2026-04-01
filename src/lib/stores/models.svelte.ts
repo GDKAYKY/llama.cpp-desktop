@@ -2,6 +2,15 @@ import { scanModelsDirectory, loadModelLibrary, saveModelLibrary, selectModelsDi
 import { downloadModelFromRegistry } from '$lib/services/model_downloads';
 import { settingsStore } from './settings.svelte';
 import type { Model } from '$lib/types/models';
+import { listen } from '@tauri-apps/api/event';
+
+export interface DownloadState {
+  reference: string;
+  downloaded: number;
+  total: number;
+  speed: number;
+  lastUpdate: number;
+}
 
 class ModelsStore {
   models = $state<Model[]>([]);
@@ -10,6 +19,46 @@ class ModelsStore {
   isDownloading = $state(false);
   error = $state<string | null>(null);
   successMessage = $state('');
+  downloads = $state<Record<string, DownloadState>>({});
+
+  constructor() {
+    this.listenForDownloads();
+  }
+
+  private async listenForDownloads() {
+    try {
+      await listen<{ filename?: string; digest?: string; downloaded: number; total: number }>('download:progress', (event) => {
+        const payload = event.payload;
+        const id = payload.filename || payload.digest || 'unknown';
+        
+        const now = Date.now();
+        const prev = this.downloads[id];
+        let speed = 0;
+        
+        if (prev && now > prev.lastUpdate) {
+            const timeDiff = (now - prev.lastUpdate) / 1000; // seconds
+            const bytesDiff = payload.downloaded - prev.downloaded;
+            speed = bytesDiff / timeDiff;
+        }
+
+        this.downloads[id] = {
+          reference: id,
+          downloaded: payload.downloaded,
+          total: payload.total,
+          speed: speed,
+          lastUpdate: now
+        };
+
+        if (payload.downloaded >= payload.total && payload.total > 0) {
+            setTimeout(() => {
+                delete this.downloads[id];
+            }, 2000);
+        }
+      });
+    } catch (err) {
+      console.error('Failed to listen for downloads:', err);
+    }
+  }
 
   get modelsRoot() {
     return settingsStore.settings.modelsDirectory;
@@ -107,6 +156,26 @@ class ModelsStore {
       this.error = `Failed to download model: ${err instanceof Error ? err.message : String(err)}`;
     } finally {
       this.isDownloading = false;
+    }
+  }
+
+  async remove(model: Model) {
+    try {
+      this.isLoading = true;
+      this.error = null;
+      
+      this.models = this.models.filter(m => m.full_identifier !== model.full_identifier);
+      
+      if (this.selectedModel?.full_identifier === model.full_identifier) {
+        this.selectedModel = null;
+      }
+      
+      await saveModelLibrary(this.libraryPath, this.models);
+      this.successMessage = `Removed ${model.name} from library`;
+    } catch (err) {
+      this.error = `Failed to remove model: ${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      this.isLoading = false;
     }
   }
 
