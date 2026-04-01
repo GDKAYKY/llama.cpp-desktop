@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
-#[cfg(windows)]
 use reqwest::header::{HeaderName, HeaderValue};
 use rmcp::{
     model::{
@@ -65,7 +64,7 @@ impl McpClient {
         env: Option<HashMap<String, String>>,
         resource_dir: Option<PathBuf>,
     ) -> Result<Self, String> {
-        let mut cmd = build_stdio_command(
+        let cmd = build_stdio_command(
             &command,
             &args,
             cwd.as_ref(),
@@ -73,6 +72,8 @@ impl McpClient {
             resource_dir.as_deref(),
         )
         .ok_or_else(|| format!("Failed to start MCP process: program not found: {command}"))?;
+        #[cfg(windows)]
+        let mut cmd = cmd;
         #[cfg(windows)]
         {
             cmd.creation_flags(0x08000000);

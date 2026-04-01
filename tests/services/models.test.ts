@@ -46,7 +46,7 @@ describe("models service", () => {
 
     expect(invoke).toHaveBeenCalledWith("save_model_library", {
       libraryPath: "/models/library.json",
-      library: { models: [] },
+      models: [],
     });
   });
 });
