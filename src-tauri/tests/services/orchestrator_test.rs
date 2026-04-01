@@ -65,7 +65,7 @@ async fn test_orchestrator_remove_message() {
     ];
     
     orchestrator.set_session_history(session_id, messages).await;
-    orchestrator.remove_message(session_id, 1).await;
+    let _ = orchestrator.remove_message(session_id, 1).await;
     
     let msg = orchestrator.get_message(session_id, 1).await;
     assert!(msg.is_some());

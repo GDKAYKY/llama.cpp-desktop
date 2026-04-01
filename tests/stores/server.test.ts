@@ -1,38 +1,41 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { serverStore } from '$lib/stores/server.svelte';
+import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
+import { serverStore } from "$lib/stores/server.svelte";
 
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn(),
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(),
 }));
 
-describe('serverStore', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
+describe("serverStore", () => {
+  beforeAll(() => {
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: true });
+  });
 
-    it('initializes with default state', () => {
-        expect(serverStore.isRunning).toBe(false);
-        expect(serverStore.isLoading).toBe(false);
-    });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-    it('sets running state', () => {
-        serverStore.isRunning = true;
-        expect(serverStore.isRunning).toBe(true);
-    });
+  it("initializes with default state", () => {
+    expect(serverStore.isRunning).toBe(false);
+  });
 
-    it('sets loading state', () => {
-        serverStore.isLoading = true;
-        expect(serverStore.isLoading).toBe(true);
-    });
+  it("sets running state", () => {
+    serverStore.isRunning = true;
+    expect(serverStore.isRunning).toBe(true);
+  });
 
-    it('sets error message', () => {
-        serverStore.error = 'Test error';
-        expect(serverStore.error).toBe('Test error');
-    });
+  it("sets starting state", () => {
+    serverStore.isStarting = true;
+    expect(serverStore.isStarting).toBe(true);
+  });
 
-    it('clears error', () => {
-        serverStore.error = 'Test error';
-        serverStore.clearError();
-        expect(serverStore.error).toBeNull();
-    });
+  it("sets error message", () => {
+    serverStore.error = "Test error";
+    expect(serverStore.error).toBe("Test error");
+  });
+
+  it("clears error", () => {
+    serverStore.error = "Test error";
+    serverStore.error = null;
+    expect(serverStore.error).toBeNull();
+  });
 });

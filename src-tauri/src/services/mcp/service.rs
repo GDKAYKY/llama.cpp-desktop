@@ -6,8 +6,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 #[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
 use reqwest::header::{HeaderName, HeaderValue};
 use rmcp::{
     model::{
@@ -15,7 +13,7 @@ use rmcp::{
         ReadResourceRequestParams,
     },
     transport::{
-        child_process::{ConfigureCommandExt, TokioChildProcess},
+        child_process::TokioChildProcess,
         streamable_http_client::{
             StreamableHttpClientTransport, StreamableHttpClientTransportConfig,
         },
@@ -55,7 +53,7 @@ type StdioConnector = Arc<
 type McpRunningClient = rmcp::service::RunningService<rmcp::service::RoleClient, ClientInfo>;
 
 #[derive(Clone)]
-struct McpClient {
+pub struct McpClient {
     inner: Arc<Mutex<McpRunningClient>>,
 }
 
@@ -79,8 +77,8 @@ impl McpClient {
         {
             cmd.creation_flags(0x08000000);
         }
-        let transport = TokioChildProcess::new(cmd)
-            .map_err(|e| format!("Failed to start MCP process: {e}"))?;
+        let transport =
+            TokioChildProcess::new(cmd).map_err(|e| format!("Failed to start MCP process: {e}"))?;
 
         let client_info = ClientInfo::new(
             ClientCapabilities::default(),
@@ -263,7 +261,8 @@ fn resolve_command(
     if command_path.components().count() > 1 {
         if command_path.exists() {
             if cfg!(windows) && command_path.extension().is_none() {
-                let pathext = get_env("PATHEXT").unwrap_or_else(|| ".COM;.EXE;.BAT;.CMD".to_string());
+                let pathext =
+                    get_env("PATHEXT").unwrap_or_else(|| ".COM;.EXE;.BAT;.CMD".to_string());
                 for ext in pathext.split(';') {
                     if ext.trim().is_empty() {
                         continue;
@@ -826,15 +825,6 @@ fn is_method_not_found_error(message: &str) -> bool {
 enum McpCallError {
     Unsupported(String),
     Transport(String),
-}
-
-impl McpCallError {
-    fn message(&self) -> String {
-        match self {
-            McpCallError::Unsupported(msg) => msg.clone(),
-            McpCallError::Transport(msg) => msg.clone(),
-        }
-    }
 }
 
 fn classify_call_error(err: String) -> McpCallError {

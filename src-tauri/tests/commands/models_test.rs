@@ -1,7 +1,6 @@
 use crate::common;
 
 use llama_desktop_lib::commands::models::{save_model_library, test_utils};
-use llama_desktop_lib::models::ModelLibrary;
 
 #[tokio::test]
 async fn test_scan_models_directory_empty() {

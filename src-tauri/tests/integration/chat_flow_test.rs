@@ -27,7 +27,7 @@ async fn test_chat_session_management() {
     assert_eq!(msg.unwrap().content, "Hello");
     
     // Remove message
-    orchestrator.remove_message(session_id, 0).await;
+    let _ = orchestrator.remove_message(session_id, 0).await;
     let msg = orchestrator.get_message(session_id, 0).await;
     assert_eq!(msg.unwrap().content, "Hi");
     

@@ -51,7 +51,7 @@ const PROGRESS_EMIT_INTERVAL_BYTES: u64 = 1024 * 1024;
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
-struct ModelRef {
+pub(crate) struct ModelRef {
     registry: String,
     library: String,
     name: String,
@@ -59,7 +59,7 @@ struct ModelRef {
 }
 
 #[derive(Debug, Clone)]
-struct HfModelRef {
+pub(crate) struct HfModelRef {
     repo_id: String,
     // None means "pick the only GGUF, or fail if ambiguous".
     selector: Option<String>,
