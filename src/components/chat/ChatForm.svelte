@@ -302,7 +302,10 @@
         if (server) {
           e.preventDefault();
           if (!selectedMcps.some((item) => item.id === server.id)) {
-            selectedMcps = [...selectedMcps, { id: server.id, name: server.name }];
+            selectedMcps = [
+              ...selectedMcps,
+              { id: server.id, name: server.name },
+            ];
           }
           removeSlashToken();
           isSlashMenuOpen = false;
@@ -516,7 +519,7 @@
     {/if}
 
     <form
-      class="rounded-[28px] border border-white/10 bg-[#2f2f2f] p-3 px-4 shadow-xl transition-all focus-within:border-white/20"
+      class="rounded-[28px] border border-white/10 bg-[#2f2f2f] p-3 px-4 shadow-xl transition-all"
       onsubmit={handleSubmit}
     >
       <div class="flex flex-col gap-2">
@@ -644,22 +647,22 @@
 
             {#if selectedMcps.length > 0}
               {#each selectedMcps as selectedMcp}
-              <button
-                type="button"
-                class="group inline-flex items-center gap-2 rounded-full bg-white/5 px-2.5 py-1 text-xs text-foreground/90 transition-colors hover:bg-white/10"
-                title="Remove MCP"
-                onclick={() => removeMcpToken(selectedMcp.id)}
-              >
-                <span
-                  class="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-foreground/70"
+                <button
+                  type="button"
+                  class="group inline-flex items-center gap-2 rounded-full bg-white/5 px-2.5 py-1 text-xs text-foreground/90 transition-colors hover:bg-white/10"
+                  title="Remove MCP"
+                  onclick={() => removeMcpToken(selectedMcp.id)}
                 >
-                  <span class="contents group-hover:hidden">
-                    <SiModelcontextprotocol size={12} />
+                  <span
+                    class="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-foreground/70"
+                  >
+                    <span class="contents group-hover:hidden">
+                      <SiModelcontextprotocol size={12} />
+                    </span>
+                    <X size={12} class="hidden group-hover:block" />
                   </span>
-                  <X size={12} class="hidden group-hover:block" />
-                </span>
-                <span>{selectedMcp?.name}</span>
-              </button>
+                  <span>{selectedMcp?.name}</span>
+                </button>
               {/each}
             {/if}
             {#if pendingWebSearchMcpId}

@@ -1,38 +1,121 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
+import { DEFAULT_CONFIG } from "$lib/config/defaultConfig";
 
-vi.mock('$infrastructure/ipc', () => ({
-  invokeCommand: vi.fn(),
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(),
 }));
 
-const { invokeCommand } = await import('$infrastructure/ipc');
-const { loadConfig, saveConfig, resetConfig, getConfigPath } = await import('../../src/lib/config/index');
+beforeAll(() => {
+  vi.stubGlobal("window", { __TAURI_INTERNALS__: true });
+});
 
-describe('config helpers', () => {
+describe("config module", () => {
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
   });
 
-  it('loads config via IPC', async () => {
-    (invokeCommand as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ theme: 'dark' });
-    const config = await loadConfig();
-    expect(config).toEqual({ theme: 'dark' });
+  describe("DEFAULT_CONFIG", () => {
+    it("has modelsDirectory as null", () => {
+      expect(DEFAULT_CONFIG.modelsDirectory).toBeNull();
+    });
+
+    it("has llamaDirectory as null", () => {
+      expect(DEFAULT_CONFIG.llamaDirectory).toBeNull();
+    });
+
+    it("is a valid config object", () => {
+      expect(DEFAULT_CONFIG).toBeDefined();
+      expect(typeof DEFAULT_CONFIG).toBe("object");
+    });
+
+    it("has expected default values", () => {
+      expect(DEFAULT_CONFIG.theme).toBe("dark");
+      expect(DEFAULT_CONFIG.language).toBe("en");
+      expect(DEFAULT_CONFIG.maxTokens).toBe(2048);
+      expect(DEFAULT_CONFIG.contextSize).toBe(8192);
+      expect(DEFAULT_CONFIG.temperature).toBe(0.7);
+      expect(DEFAULT_CONFIG.autoSaveChat).toBe(true);
+      expect(DEFAULT_CONFIG.chatHistoryLimit).toBe(50);
+      expect(DEFAULT_CONFIG.serverPort).toBe(8080);
+      expect(DEFAULT_CONFIG.webSearchProvider).toBe("tavily");
+      expect(DEFAULT_CONFIG.webSearchMcpId).toBeNull();
+      expect(DEFAULT_CONFIG.chatHeaderStyle).toBe("default");
+    });
   });
 
-  it('saves config via IPC', async () => {
-    (invokeCommand as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
-    await saveConfig({ theme: 'light' } as any);
-    expect(invokeCommand).toHaveBeenCalledWith('save_config', { config: { theme: 'light' } });
+  describe("loadConfig", () => {
+    it("calls invoke and returns config", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { loadConfig } = await import("$lib/config/index");
+
+      const mockConfig = { ...DEFAULT_CONFIG, theme: "light" };
+      vi.mocked(invoke).mockResolvedValue(mockConfig);
+
+      const result = await loadConfig();
+
+      expect(invoke).toHaveBeenCalledWith("load_config", {});
+      expect(result).toEqual(mockConfig);
+    });
+
+    it("propagates errors", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { loadConfig } = await import("$lib/config/index");
+
+      vi.mocked(invoke).mockRejectedValue(new Error("File not found"));
+
+      await expect(loadConfig()).rejects.toThrow("File not found");
+    });
   });
 
-  it('resets config via IPC', async () => {
-    (invokeCommand as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ theme: 'dark' });
-    const config = await resetConfig();
-    expect(config).toEqual({ theme: 'dark' });
+  describe("saveConfig", () => {
+    it("calls invoke with config object", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { saveConfig } = await import("$lib/config/index");
+
+      vi.mocked(invoke).mockResolvedValue(undefined);
+
+      await saveConfig(DEFAULT_CONFIG);
+
+      expect(invoke).toHaveBeenCalledWith("save_config", {
+        config: DEFAULT_CONFIG,
+      });
+    });
+
+    it("propagates errors", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { saveConfig } = await import("$lib/config/index");
+
+      vi.mocked(invoke).mockRejectedValue(new Error("Write failed"));
+
+      await expect(saveConfig(DEFAULT_CONFIG)).rejects.toThrow("Write failed");
+    });
   });
 
-  it('gets config path via IPC', async () => {
-    (invokeCommand as ReturnType<typeof vi.fn>).mockResolvedValueOnce('/path/config.json');
-    const path = await getConfigPath();
-    expect(path).toBe('/path/config.json');
+  describe("resetConfig", () => {
+    it("calls invoke and returns reset config", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { resetConfig } = await import("$lib/config/index");
+
+      vi.mocked(invoke).mockResolvedValue(DEFAULT_CONFIG);
+
+      const result = await resetConfig();
+
+      expect(invoke).toHaveBeenCalledWith("reset_config", {});
+      expect(result).toEqual(DEFAULT_CONFIG);
+    });
+  });
+
+  describe("getConfigPath", () => {
+    it("calls invoke and returns path", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { getConfigPath } = await import("$lib/config/index");
+
+      vi.mocked(invoke).mockResolvedValue("/home/user/.config/llama/config.json");
+
+      const result = await getConfigPath();
+
+      expect(invoke).toHaveBeenCalledWith("get_config_path_string", {});
+      expect(result).toBe("/home/user/.config/llama/config.json");
+    });
   });
 });

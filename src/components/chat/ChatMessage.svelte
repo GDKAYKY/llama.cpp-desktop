@@ -12,11 +12,21 @@
     MoreHorizontal,
   } from "lucide-svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
-  import { modelsStore } from "$lib/stores/models.svelte";
   import { toast } from "svelte-sonner";
+  import EditableMessage from "./EditableMessage.svelte";
+  import ThinkingPanel from "./ThinkingPanel.svelte";
 
-  /** @type {{ message: { role: string, content: string }, index: number }} */
-  let { message, index } = $props();
+  /** @type {{ message: { role: string, content: string, model?: string, timestamp?: number }, index: number, isStreaming?: boolean, thinkingProcess?: string[], modelThinking?: string, thinkingLabel?: string, thinkingTags?: string[], toolContext?: any[] }} */
+  let {
+    message,
+    index,
+    isStreaming = false,
+    thinkingProcess = [],
+    modelThinking = "",
+    thinkingLabel = "Thinking",
+    thinkingTags = [],
+    toolContext = [],
+  } = $props();
 
   let isEditing = $state(false);
   let editText = $state("");
@@ -119,10 +129,10 @@
   }
 </script>
 
-<div class="group w-full py-4">
+<div class="group w-full py-2">
   <div
     class={cn(
-      "mx-auto relative flex w-full max-w-[40rem] px-4 md:px-6 lg:max-w-[48rem] gap-3 md:gap-4",
+      "mx-auto relative flex w-full max-w-160 px-4 md:px-6 lg:max-w-3xl gap-3 md:gap-4",
       message.role === "user" ? "flex-row-reverse" : "flex-row",
     )}
   >
@@ -148,52 +158,15 @@
         </div>
       {:else if message.role === "user"}
         {#if isEditing}
-          <div class="w-full flex-1 mb-4 relative flex min-w-0 flex-col">
-            <div
-              class="bg-secondary/50 border border-border rounded-3xl px-3 py-3"
-            >
-              <div class="m-2 max-h-[25vh] overflow-auto">
-                <div class="grid">
-                  <textarea
-                    bind:value={editText}
-                    class="col-start-1 col-end-2 row-start-1 row-end-2 w-full resize-none overflow-hidden p-0 m-0 border-0 bg-transparent text-foreground outline-none focus:ring-0"
-                    placeholder="Edit message..."
-                    onkeydown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        submitEdit();
-                      }
-                      if (e.key === "Escape") {
-                        cancelEditing();
-                      }
-                    }}
-                  ></textarea>
-                  <span
-                    class="invisible col-start-1 col-end-2 row-start-1 row-end-2 p-0 break-all whitespace-pre-wrap"
-                    >{editText}
-                  </span>
-                </div>
-              </div>
-              <div class="flex justify-end gap-2 mt-2">
-                <button
-                  class="px-4 py-2 rounded-full text-sm font-medium hover:bg-white/5 transition-colors"
-                  onclick={cancelEditing}
-                >
-                  Cancelar
-                </button>
-                <button
-                  class="px-4 py-2 rounded-full text-sm font-medium bg-foreground text-background hover:opacity-90 transition-opacity"
-                  onclick={submitEdit}
-                >
-                  Enviar
-                </button>
-              </div>
-            </div>
-          </div>
+          <EditableMessage
+            bind:value={editText}
+            onCancel={cancelEditing}
+            onSubmit={submitEdit}
+          />
         {:else}
           <div class="w-fit rounded-[20px] bg-[#2f2f2f] px-4 py-2.5 text-white">
             <div
-              class="whitespace-pre-wrap break-words text-[15px] leading-6 md:text-base md:leading-relaxed"
+              class="whitespace-pre-wrap wrap-break-word text-[15px] leading-6 md:text-base md:leading-relaxed"
             >
               {#each extractTokens(message.content) as token}
                 {#if token.type === "link"}
@@ -239,6 +212,18 @@
             >
               {message.model}
             </div>
+          {/if}
+          {#if message.role === "assistant" && (thinkingProcess.length > 0 || modelThinking || toolContext.length > 0)}
+            <ThinkingPanel
+              {thinkingProcess}
+              {modelThinking}
+              {thinkingLabel}
+              {thinkingTags}
+              {toolContext}
+              {isStreaming}
+              messageContent={message.content}
+              messageTimestamp={message.timestamp ?? null}
+            />
           {/if}
           <MarkdownContent content={message.content} />
           <div

@@ -1,0 +1,14 @@
+[report]
+out = ["Html", "Lcov"]
+output-dir = "coverage"
+
+[run]
+exclude-files = [
+    "tests/*",
+    "src/main.rs",
+    "build.rs",
+]
+
+[coverage]
+line = 80
+branch = 70

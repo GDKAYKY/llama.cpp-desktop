@@ -15,6 +15,17 @@ export interface ChatMessage {
   keywords: string[];
   timestamp: number;
   model?: string;
+  thinkingProcess?: string[];
+  modelThinking?: string;
+  toolContext?: ToolContext[];
+}
+
+export interface ToolContext {
+  serverId?: string;
+  toolName?: string;
+  arguments?: unknown;
+  result?: unknown;
+  toolCallId?: string;
 }
 
 export class ChatDatabase extends Dexie {
@@ -23,7 +34,7 @@ export class ChatDatabase extends Dexie {
 
   constructor() {
     super('LlamaDesktopDB');
-    this.version(2).stores({
+    this.version(3).stores({
       conversations: '++id, title, updatedAt',
       messages: '++id, conversationId, role, *keywords, timestamp, model'
     }).upgrade(trans => {
@@ -60,7 +71,17 @@ export function estimateTokens(text: string): number {
 
 // --- Service Logic ---
 
-export async function saveMessage(conversationId: number, role: 'user' | 'assistant' | 'system', content: string, model?: string) {
+export async function saveMessage(
+  conversationId: number,
+  role: 'user' | 'assistant' | 'system',
+  content: string,
+  model?: string,
+  meta?: {
+    thinkingProcess?: string[];
+    modelThinking?: string;
+    toolContext?: ToolContext[];
+  }
+) {
   await db.messages.add({
     conversationId,
     role,
@@ -68,7 +89,10 @@ export async function saveMessage(conversationId: number, role: 'user' | 'assist
     tokens: estimateTokens(content),
     keywords: extractKeywords(content),
     timestamp: Date.now(),
-    model
+    model,
+    thinkingProcess: meta?.thinkingProcess,
+    modelThinking: meta?.modelThinking,
+    toolContext: meta?.toolContext
   });
   
   await db.conversations.update(conversationId, { updatedAt: Date.now() });

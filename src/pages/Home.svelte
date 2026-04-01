@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick, onMount } from "svelte";
   import ChatHeader from "$components/layout/ChatHeader.svelte";
-  import ChatMessages from "$components/chat/ChatMessages.svelte";
+  import ChatMessages from "$components/chat/ChatMessageList.svelte";
   import ChatForm from "$components/chat/ChatForm.svelte";
   import { toast } from "svelte-sonner";
   import { chatStore } from "$lib/stores/chat.svelte";
@@ -39,6 +39,11 @@
 
     if (!serverStore.isRunning) {
       toast.error("Server is not running. Please select a model to start.");
+      return;
+    }
+    await serverStore.checkHealth();
+    if (!serverStore.isHealthy) {
+      toast.error(serverStore.error ?? "Server health check failed.");
       return;
     }
 
@@ -86,6 +91,10 @@
     const modelPath = model.model_file_path;
     const port = settingsStore.settings.serverPort;
     const ctxSize = settingsStore.settings.contextSize;
+    const chatTemplate =
+      typeof model?.tokenizer_metadata?.["tokenizer.chat_template"] === "string"
+        ? model.tokenizer_metadata["tokenizer.chat_template"]
+        : null;
 
     if (!binaryPath) {
       toast.error("Llama Server path not configured. Please go to Settings.");
@@ -110,7 +119,15 @@
       if (serverStore.isRunning) {
         await serverStore.stopServer();
       }
-      await serverStore.startServer(binaryPath, modelPath, port, ctxSize);
+      await serverStore.startServer(
+        binaryPath,
+        modelPath,
+        port,
+        ctxSize,
+        undefined,
+        undefined,
+        chatTemplate,
+      );
 
       setTimeout(() => {
         if (serverStore.error) {
@@ -193,6 +210,10 @@
             messages={chatStore.messages}
             isLoading={chatStore.isLoading}
             thinkingProcess={chatStore.thinkingProcess}
+            modelThinking={chatStore.modelThinking}
+            thinkingLabel={chatStore.thinkingLabel}
+            thinkingTags={chatStore.thinkingTags}
+            toolContext={chatStore.toolContext}
             bind:messagesEnd
           />
 
@@ -214,9 +235,7 @@
               />
               <p
                 class="mt-2 text-center text-[0.75rem] text-muted-foreground opacity-80"
-              >
-                Llama-desktop can make mistakes. Check important info.
-              </p>
+              ></p>
             </div>
           </div>
         {/if}

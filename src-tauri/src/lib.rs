@@ -22,17 +22,17 @@ pub mod infrastructure {
 pub mod ipc_handlers;
 
 pub mod models {
-    pub mod app_config;
-    pub mod chat;
-    pub mod llama;
-    pub mod manifest;
-    pub mod mcp;
+    pub mod app_settings_model;
+    pub mod chat_model;
+    pub mod llama_model;
+    pub mod manifest_model;
+    pub mod mcp_model;
 
-    pub use app_config::*;
-    pub use chat::*;
-    pub use llama::*;
-    pub use manifest::*;
-    pub use mcp::*;
+    pub use app_settings_model::*;
+    pub use chat_model::*;
+    pub use llama_model::*;
+    pub use manifest_model::*;
+    pub use mcp_model::*;
 }
 
 pub mod services {
@@ -44,8 +44,6 @@ pub mod services {
         pub use service::LlamaCppService;
     }
     pub mod mcp {
-        pub mod client;
-        pub mod protocol;
         pub mod service;
 
         pub use service::McpService;
@@ -53,6 +51,8 @@ pub mod services {
     pub mod capability_registry;
     pub mod orchestrator;
     pub mod subagent;
+    pub mod templates;
+    pub mod thinking_parser;
 }
 
 pub mod state;
@@ -90,7 +90,8 @@ pub fn run() {
                 .map(std::path::PathBuf::from)
                 .unwrap_or_else(|| std::path::PathBuf::from("E:\\models"));
 
-            app.manage(AppState::new(models_path, mcp_config));
+            let resource_dir = app.path().resource_dir().ok();
+            app.manage(AppState::new(models_path, mcp_config, resource_dir));
 
             // Hydrate capability registry on startup
             let state = app.state::<AppState>();

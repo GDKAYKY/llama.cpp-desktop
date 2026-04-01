@@ -8,6 +8,7 @@
   } from "$lib/types/backend";
   import { openPath } from "@tauri-apps/plugin-opener";
   import { invokeCommand } from "$infrastructure/ipc";
+  import { cn } from "$shared/cn.js";
   import {
     Link,
     Unlink,
@@ -30,6 +31,7 @@
 
   let selectedId = $state<string | null>(null);
   let saving = $state(false);
+  let initializing = $state(true);
   let message = $state<{ type: string; text: string }>({ type: "", text: "" });
   let showCopySuccess = $state(false);
 
@@ -61,9 +63,20 @@
   });
 
   onMount(async () => {
-    await mcpStore.init();
-    if (mcpStore.servers.length > 0) {
-      selectServer(mcpStore.servers[0]);
+    initializing = true;
+    try {
+      await mcpStore.init();
+      if (mcpStore.error) {
+        showMessage("error", mcpStore.error);
+      }
+      if (mcpStore.servers.length > 0) {
+        selectServer(mcpStore.servers[0]);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showMessage("error", msg);
+    } finally {
+      initializing = false;
     }
   });
 
@@ -396,6 +409,23 @@
         </button>
       </div>
     {/if}
+    {#if message.text}
+      <div
+        class={cn(
+          "mt-4 rounded-lg border px-4 py-3 text-sm",
+          message.type === "success"
+            ? "border-green-500/30 bg-green-500/10 text-green-400"
+            : "border-red-500/30 bg-red-500/10 text-red-400",
+        )}
+      >
+        {message.text}
+      </div>
+    {/if}
+    {#if initializing}
+      <div class="mt-4 text-sm text-muted-foreground">
+        Loading MCP servers...
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -553,6 +583,54 @@
               >Save</span
             > to import it into your configuration.
           </div>
+        {/if}
+
+        {#if selectedId}
+          {@const caps = mcpStore.statusMap[selectedId]?.capabilities}
+          {#if caps}
+            <div class="mb-4 flex flex-wrap gap-2 text-[11px]">
+              {#if !caps.has_tools_list}
+                <span
+                  class="rounded-full bg-muted/40 px-2 py-0.5 text-muted-foreground"
+                >
+                  No tools/list
+                </span>
+              {/if}
+              {#if !caps.has_resources_list}
+                <span
+                  class="rounded-full bg-muted/40 px-2 py-0.5 text-muted-foreground"
+                >
+                  No resources/list
+                </span>
+              {/if}
+              {#if !caps.supports_tools_call}
+                <span
+                  class="rounded-full bg-muted/40 px-2 py-0.5 text-muted-foreground"
+                >
+                  No tools/call
+                </span>
+              {/if}
+              {#if !caps.supports_resources_read}
+                <span
+                  class="rounded-full bg-muted/40 px-2 py-0.5 text-muted-foreground"
+                >
+                  No resources/read
+                </span>
+              {/if}
+              {#if (caps.inferred_tools?.length ?? 0) > 0 && !caps.has_tools_list}
+                <span
+                  class="rounded-full bg-amber-500/10 px-2 py-0.5 text-amber-400"
+                >
+                  Tools inferred
+                </span>
+              {/if}
+            </div>
+            {#if caps.last_error}
+              <div class="mb-4 text-xs text-muted-foreground">
+                {caps.last_error}
+              </div>
+            {/if}
+          {/if}
         {/if}
 
         <div class="grid gap-4 md:grid-cols-2">

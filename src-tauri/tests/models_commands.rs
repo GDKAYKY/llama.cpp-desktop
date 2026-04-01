@@ -56,14 +56,19 @@ fn parse_model_path_requires_manifests_segment() {
         .join("lib")
         .join("name")
         .join("version");
-    let err = parse_model_path_for_test(path.to_string_lossy().as_ref()).expect_err("expected error");
+    let err =
+        parse_model_path_for_test(path.to_string_lossy().as_ref()).expect_err("expected error");
     assert!(err.contains("manifests"));
 }
 
 #[test]
 fn parse_model_path_requires_full_structure() {
-    let path = Path::new("models").join("manifests").join("provider").join("lib");
-    let err = parse_model_path_for_test(path.to_string_lossy().as_ref()).expect_err("expected error");
+    let path = Path::new("models")
+        .join("manifests")
+        .join("provider")
+        .join("lib");
+    let err =
+        parse_model_path_for_test(path.to_string_lossy().as_ref()).expect_err("expected error");
     assert!(err.contains("Invalid path structure"));
 }
 
@@ -106,9 +111,12 @@ fn parse_model_manifest_sync_success() {
     let blob_path = blobs_dir.join("sha256-abc123");
     fs::write(&blob_path, "model").expect("write blob");
 
+    let metadata_root = dir.path().join("metadata");
+    fs::create_dir_all(&metadata_root).expect("create metadata");
     let result = parse_model_manifest_sync_for_test(
         manifest_path.to_string_lossy().to_string(),
         dir.path().to_string_lossy().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
     )
     .expect("parse");
     assert_eq!(result.provider, "provider");
@@ -116,7 +124,10 @@ fn parse_model_manifest_sync_success() {
     assert_eq!(result.name, "name");
     assert_eq!(result.version, "version");
     assert_eq!(result.full_identifier, "provider:name:version");
-    assert_eq!(result.model_file_path, blob_path.to_str().map(|s| s.to_string()));
+    assert_eq!(
+        result.model_file_path,
+        blob_path.to_str().map(|s| s.to_string())
+    );
 }
 
 #[test]
@@ -134,9 +145,12 @@ fn parse_model_manifest_sync_missing_layer_errors() {
     }];
     llama_desktop_lib::utils::save_json(&manifest_path, &manifest).expect("save manifest");
 
+    let metadata_root = dir.path().join("metadata");
+    fs::create_dir_all(&metadata_root).expect("create metadata");
     let err = parse_model_manifest_sync_for_test(
         manifest_path.to_string_lossy().to_string(),
         dir.path().to_string_lossy().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
     )
     .expect_err("expected error");
     assert!(err.contains("No model layer"));
@@ -152,9 +166,12 @@ fn parse_model_manifest_sync_handles_missing_blob() {
     let manifest = sample_manifest();
     llama_desktop_lib::utils::save_json(&manifest_path, &manifest).expect("save manifest");
 
+    let metadata_root = dir.path().join("metadata");
+    fs::create_dir_all(&metadata_root).expect("create metadata");
     let result = parse_model_manifest_sync_for_test(
         manifest_path.to_string_lossy().to_string(),
         dir.path().to_string_lossy().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
     )
     .expect("parse");
     assert!(result.model_file_path.is_none());

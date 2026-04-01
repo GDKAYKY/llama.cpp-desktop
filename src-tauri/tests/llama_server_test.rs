@@ -1,9 +1,7 @@
-use async_stream::stream;
 use llama_desktop_lib::infrastructure::llama::server::LlamaServer;
 use llama_desktop_lib::models::{ChatRequest, LlamaCppConfig};
 use tempfile::tempdir;
 use tokio::sync::oneshot;
-use warp::hyper::body::Bytes;
 use warp::Filter;
 
 fn write_dummy_model(dir: &std::path::Path) -> std::path::PathBuf {
@@ -48,13 +46,16 @@ fn write_dummy_llama_server(
 async fn start_health_server() -> (std::net::SocketAddr, oneshot::Sender<()>) {
     let route = warp::path("health").map(|| "ok");
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
-    let (addr, server) = warp::serve(route).bind_with_graceful_shutdown(
-        ([127, 0, 0, 1], 0),
-        async move {
+    let listener = tokio::net::TcpListener::bind(([127, 0, 0, 1], 0))
+        .await
+        .expect("bind health");
+    let addr = listener.local_addr().expect("health addr");
+    let server = warp::serve(route)
+        .incoming(listener)
+        .graceful(async move {
             let _ = shutdown_rx.await;
-        },
-    );
-    tokio::spawn(server);
+        });
+    tokio::spawn(server.run());
     (addr, shutdown_tx)
 }
 
@@ -93,6 +94,8 @@ async fn spawn_errors_when_model_missing() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let err = LlamaServer::spawn(None, config, client)
@@ -112,6 +115,8 @@ async fn spawn_errors_when_server_missing() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let err = LlamaServer::spawn(None, config, client)
@@ -132,6 +137,8 @@ async fn spawn_errors_when_process_exits_early() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let err = LlamaServer::spawn(None, config, client)
@@ -152,6 +159,8 @@ async fn spawn_errors_on_healthcheck_timeout() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let err = LlamaServer::spawn(None, config, client)
@@ -174,6 +183,8 @@ async fn spawn_success_with_dummy_server_and_healthcheck() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let (_port, mut child) = LlamaServer::spawn(None, config, client)
@@ -198,6 +209,8 @@ async fn spawn_finds_server_in_directory_candidates() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let (_port, mut child) = LlamaServer::spawn(None, config, client)
@@ -241,6 +254,8 @@ async fn spawn_finds_server_in_build_candidates() {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     };
     let client = reqwest::Client::new();
     let (_port, mut child) = LlamaServer::spawn(None, config, client)
@@ -258,24 +273,24 @@ async fn stream_chat_parses_data_and_json_lines() {
         .and(warp::path("completions"))
         .and(warp::post())
         .map(|| {
-            let stream = stream! {
-                let payload = concat!(
-                    ": keepalive\n",
-                    "data: {bad json}\n",
-                    "data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\n",
-                    "\n",
-                    "not json\n",
-                    "{\"choices\":[{\"delta\":{\"content\":\"lo\"}}]}\n",
-                    "data: [DONE]\n"
-                );
-                yield Ok::<Bytes, std::io::Error>(Bytes::from(payload));
-            };
-            let body = warp::hyper::Body::wrap_stream(stream);
-            warp::reply::Response::new(body)
+            let payload = concat!(
+                ": keepalive\n",
+                "data: {bad json}\n",
+                "data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\n",
+                "\n",
+                "not json\n",
+                "{\"choices\":[{\"delta\":{\"content\":\"lo\"}}]}\n",
+                "data: [DONE]\n"
+            );
+            warp::reply::with_header(payload, "content-type", "text/event-stream")
         });
 
-    let (addr, server) = warp::serve(route).bind_ephemeral(([127, 0, 0, 1], 0));
-    tokio::spawn(server);
+    let listener = tokio::net::TcpListener::bind(([127, 0, 0, 1], 0))
+        .await
+        .expect("bind stream");
+    let addr = listener.local_addr().expect("stream addr");
+    let server = warp::serve(route).incoming(listener);
+    tokio::spawn(server.run());
 
     let request = ChatRequest {
         model: "test".to_string(),
@@ -285,6 +300,11 @@ async fn stream_chat_parses_data_and_json_lines() {
         top_p: 1.0,
         top_k: 1,
         max_tokens: 1,
+        reasoning_format: None,
+        reasoning_budget: None,
+        reasoning_budget_message: None,
+        thinking_forced_open: None,
+        chat_template_kwargs: None,
         tools: None,
         tool_choice: None,
         stream: true,
@@ -307,8 +327,12 @@ async fn stream_chat_emits_error_on_non_success() {
         .and(warp::path("completions"))
         .and(warp::post())
         .map(|| warp::reply::with_status("nope", warp::http::StatusCode::BAD_REQUEST));
-    let (addr, server) = warp::serve(route).bind_ephemeral(([127, 0, 0, 1], 0));
-    tokio::spawn(server);
+    let listener = tokio::net::TcpListener::bind(([127, 0, 0, 1], 0))
+        .await
+        .expect("bind status");
+    let addr = listener.local_addr().expect("status addr");
+    let server = warp::serve(route).incoming(listener);
+    tokio::spawn(server.run());
 
     let request = ChatRequest {
         model: "test".to_string(),
@@ -318,6 +342,11 @@ async fn stream_chat_emits_error_on_non_success() {
         top_p: 1.0,
         top_k: 1,
         max_tokens: 1,
+        reasoning_format: None,
+        reasoning_budget: None,
+        reasoning_budget_message: None,
+        thinking_forced_open: None,
+        chat_template_kwargs: None,
         tools: None,
         tool_choice: None,
         stream: true,

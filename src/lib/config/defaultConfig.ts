@@ -9,7 +9,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   theme: "dark",
   language: "en",
   maxTokens: 2048,
-  contextSize: 4096,
+  contextSize: 8192,
   temperature: 0.7,
   autoSaveChat: true,
   chatHistoryLimit: 50,

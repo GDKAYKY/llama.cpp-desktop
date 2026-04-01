@@ -2,7 +2,7 @@
     "llama_cpp_path": "E:\\src\\llama_cpp",
     "model_path": "C:\\Models\\mistral-7b.gguf",
     "port": 8080,
-    "ctx_size": 4096,
+    "ctx_size": 8192,
     "parallel": 4,
     "n_gpu_layers": 33,
     "chat_defaults": {

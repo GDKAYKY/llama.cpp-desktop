@@ -2,13 +2,22 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "npm run dev",
-      "request": "launch",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "tauri", "dev"],
+      "name": "Tauri Dev",
       "type": "node",
-      "skipFiles": ["<node_internals>/**"],
-      "console": "internalConsole"
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/@tauri-apps/cli/tauri.js",
+      "args": ["dev", "--no-watch"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Tauri Rust",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/src-tauri/target/debug/llama-desktop",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "cargo build"
     }
   ]
 }

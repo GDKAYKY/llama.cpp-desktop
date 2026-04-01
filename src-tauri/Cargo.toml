@@ -1,9 +1,10 @@
 [package]
 name = "llama-desktop"
-version = "1.1.1"
+version = "1.2.1"
 description = "Llama.cpp Desktop Client"
 authors = ["Llama Desktop Team"]
 edition = "2021"
+autotests = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -26,14 +27,27 @@ tauri-plugin-shell = "2.3.4"
 tauri-plugin-fs = "2.4.5"
 tauri-plugin-dialog = "2.6.0"
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.11", features = ["json", "stream"] }
+reqwest = { version = "0.13.2", features = ["json", "stream", "blocking"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 once_cell = "1.19"
 futures = "0.3.31"
 sysinfo = "0.38.0"
-sha2 = "0.10"
+sha2 = "0.11.0"
+rmcp = { version = "1.3.0", features = [
+    "client",
+    "transport-child-process",
+    "transport-streamable-http-client-reqwest",
+] }
 
 [dev-dependencies]
 async-stream = "0.3.6"
 tempfile = "3.24.0"
-warp = "0.3.7"
+warp = { version = "0.4.2", features = ["server"] }
+tauri = { version = "2", features = ["test"] }
+mockall = "0.13"
+wiremock = "0.6"
+tokio-test = "0.4"
+
+[[test]]
+name = "integration"
+path = "tests/lib.rs"

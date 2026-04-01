@@ -1,13 +1,16 @@
-use crate::models::{ChatMessage, IntentClassification};
-use crate::services::capability_registry::CapabilityRegistry;
-use crate::services::capability_registry::ResolvedCall;
+use crate::models::ChatMessage;
+use crate::services::capability_registry::{CapabilityRegistry, LlmToolSpecBundle, ResolvedCall};
 use crate::services::llama::service::LlamaCppService;
 use crate::services::mcp::McpService;
-use crate::services::subagent::{format_subagent_data_for_prompt, Subagent};
-use std::collections::HashMap;
+use crate::services::thinking_parser::{ParsedChunk, ThinkingStreamParser};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tauri::ipc::Channel;
 use tokio::sync::Mutex;
+
+const MAX_TOOL_ITERATIONS: usize = 3;
+const TOOL_CALL_MAX_TOKENS: i32 = 1024;
+const TOOL_RESULT_TOKEN_BUDGET: usize = 512;
 
 #[derive(Clone)]
 pub struct ChatOrchestrator {
@@ -15,21 +18,50 @@ pub struct ChatOrchestrator {
     service: LlamaCppService,
     mcp_service: McpService,
     registry: CapabilityRegistry,
-    subagent: Subagent,
 }
 
 impl ChatOrchestrator {
     pub fn new(service: LlamaCppService, mcp_service: McpService) -> Self {
         let registry = CapabilityRegistry::new();
-        let subagent = Subagent::new(service.clone(), mcp_service.clone(), registry.clone());
 
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             service,
             mcp_service,
             registry,
-            subagent,
         }
+    }
+
+    pub async fn complete_chat_once(
+        &self,
+        messages: Vec<ChatMessage>,
+        temperature: f32,
+        top_p: f32,
+        top_k: i32,
+        max_tokens: i32,
+        reasoning_format: Option<String>,
+        reasoning_budget: Option<i32>,
+        chat_template_kwargs: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value, String> {
+        self.service
+            .complete_chat(
+                None,
+                messages,
+                temperature,
+                top_p,
+                top_k,
+                max_tokens,
+                reasoning_format,
+                reasoning_budget,
+                chat_template_kwargs,
+                None,
+                None,
+            )
+            .await
+    }
+
+    fn try_send(on_event: &Channel<serde_json::Value>, payload: serde_json::Value) -> bool {
+        on_event.send(payload).is_ok()
     }
 
     /// Call once at startup and whenever MCP config changes.
@@ -49,6 +81,12 @@ impl ChatOrchestrator {
         max_tokens: i32,
         on_event: Channel<serde_json::Value>,
     ) -> Result<(), String> {
+        // Guard against race condition: if registry is empty (startup refresh still running),
+        // attempt a blocking refresh before processing.
+        if self.registry.available_server_ids().await.is_empty() {
+            let _ = self.refresh_capabilities().await;
+        }
+
         let (mentioned_mcp_ids, cleaned_input) = extract_mcp_ids(&user_input);
         let allowed_servers = if !mentioned_mcp_ids.is_empty() {
             mentioned_mcp_ids
@@ -56,463 +94,384 @@ impl ChatOrchestrator {
             self.registry.available_server_ids().await
         };
 
-        // Push user message to history
-        {
-            let mut sessions = self.sessions.lock().await;
-            let history = sessions
-                .entry(session_id.to_string())
-                .or_insert_with(Vec::new);
-            history.push(ChatMessage {
+        self.append_message(
+            session_id,
+            ChatMessage {
                 role: "user".to_string(),
                 content: cleaned_input.clone(),
                 name: None,
                 tool_call_id: None,
                 tool_calls: None,
-            });
+            },
+        )
+        .await;
+
+        if allowed_servers.is_empty() {
+            let messages = self.get_history(session_id).await;
+            return self
+                .run_streaming(session_id, messages, temperature, max_tokens, on_event)
+                .await;
         }
 
-        // ── Step 1: Intent classification (cheap, fast) ──
-        if !allowed_servers.is_empty() {
-            let intent = self
-                .classify_intent(
-                    session_id,
-                    &cleaned_input,
-                    &allowed_servers,
-                    temperature,
-                    max_tokens,
+        let tool_bundle = self
+            .registry
+            .llm_tools_for_query(&cleaned_input, &allowed_servers, 0)
+            .await;
+
+        if tool_bundle.tools.is_empty() {
+            let messages = self.get_history(session_id).await;
+            return self
+                .run_streaming(session_id, messages, temperature, max_tokens, on_event)
+                .await;
+        }
+
+        let mut iteration = 0usize;
+        let mut seen_calls: HashSet<String> = HashSet::new();
+        let mut tool_call_counts: HashMap<String, usize> = HashMap::new();
+
+        loop {
+            iteration += 1;
+            if iteration > MAX_TOOL_ITERATIONS {
+                if !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
+                        "thinking": format!(
+                            "Tool loop exceeded max iterations ({}). Streaming final answer.",
+                            MAX_TOOL_ITERATIONS
+                        )
+                    }),
+                ) {
+                    return Ok(());
+                }
+                let messages = self.get_history(session_id).await;
+                return self
+                    .run_streaming(session_id, messages, temperature, max_tokens, on_event)
+                    .await;
+            }
+
+            let ctx_size = self.current_ctx_size().await.unwrap_or(4096) as usize;
+            let tool_max_tokens = clamp_max_tokens(ctx_size, TOOL_CALL_MAX_TOKENS);
+            let prompt_budget = compute_prompt_budget(ctx_size, tool_max_tokens);
+            let history = self.get_history(session_id).await;
+            let request_messages =
+                sanitize_messages_for_request(trim_messages_to_budget(&history, prompt_budget));
+
+            if !Self::try_send(
+                &on_event,
+                serde_json::json!({
+                    "thinking": format!("Tool loop iteration {}", iteration)
+                }),
+            ) {
+                return Ok(());
+            }
+
+            let response = self
+                .service
+                .complete_chat(
+                    None,
+                    request_messages,
+                    temperature.min(0.5),
+                    0.95,
+                    40,
+                    tool_max_tokens,
+                    None,
+                    None,
+                    None,
+                    Some(tool_bundle.tools.clone()),
+                    None,
                 )
                 .await?;
 
-            let _ = on_event.send(serde_json::json!({
-                "thinking": format!(
-                    "Intent: needs_external={}, needs_multi_step={}, query='{}'",
-                    intent.needs_external, intent.needs_multi_step, intent.query
+            let parsed = parse_tool_calls_from_response(&response)?;
+            if parsed.tool_calls.is_empty() {
+                if !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
+                        "thinking": "No tool calls detected. Streaming final answer."
+                    }),
+                ) {
+                    return Ok(());
+                }
+                let messages = self.get_history(session_id).await;
+                return self
+                    .run_streaming(session_id, messages, temperature, max_tokens, on_event)
+                    .await;
+            }
+
+            self.append_message(
+                session_id,
+                ChatMessage {
+                    role: "assistant".to_string(),
+                    content: parsed.content,
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: Some(parsed.raw_tool_calls),
+                },
+            )
+            .await;
+
+            let repeat_detected = self
+                .execute_tool_calls(
+                    session_id,
+                    &cleaned_input,
+                    &allowed_servers,
+                    &tool_bundle,
+                    &parsed.tool_calls,
+                    &mut seen_calls,
+                    &mut tool_call_counts,
+                    &on_event,
                 )
-            }));
+                .await?;
 
-            if intent.needs_external {
-                if intent.needs_multi_step {
-                    let _ = on_event.send(serde_json::json!({
-                        "thinking": format!(
-                            "Multi-step task detected: {}. Activating subagent...",
-                            intent.multi_step_reasoning.as_deref().unwrap_or("complex query")
-                        )
-                    }));
-
-                    match self
-                        .subagent
-                        .execute(&intent.query, &allowed_servers, temperature)
-                        .await
-                    {
-                        Ok(subagent_result) => {
-                            let _ = on_event.send(serde_json::json!({
-                                "thinking": format!(
-                                    "Subagent completed: {} tool calls in {} iterations",
-                                    subagent_result.data.len(),
-                                    subagent_result.iterations_used
-                                )
-                            }));
-
-                            let formatted_data =
-                                format_subagent_data_for_prompt(&subagent_result);
-
-                            return self
-                                .answer_with_formatted_data(
-                                    session_id,
-                                    &formatted_data,
-                                    temperature,
-                                    max_tokens,
-                                    on_event,
-                                )
-                                .await;
-                        }
-                        Err(e) => {
-                            let _ = on_event.send(serde_json::json!({
-                                "thinking": format!(
-                                    "Subagent failed: {}. Falling back to single-tool path.",
-                                    e
-                                )
-                            }));
-                        }
-                    }
+            if repeat_detected {
+                if !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
+                        "thinking": "Repeated tool call detected. Streaming final answer."
+                    }),
+                ) {
+                    return Ok(());
                 }
-
-                // ── Step 2: Host resolves tool (deterministic) ──
-                let resolved = self.resolve_tool(&intent, &allowed_servers).await;
-
-                if let Some(call) = resolved {
-                    // ── Step 3: Hard validation ──
-                    self.registry.validate_call(&call).await?;
-
-                    let _ = on_event.send(serde_json::json!({
-                        "thinking": format!(
-                            "Dispatching: server='{}', tool='{}' (host-validated)",
-                            call.server_id, call.tool_name
-                        )
-                    }));
-
-                    // ── Step 4: Execute MCP (deterministic) ──
-                    self.mcp_service.connect(&call.server_id).await?;
-                    let mcp_result = self
-                        .mcp_service
-                        .tools_call(&call.server_id, &call.tool_name, call.arguments.clone())
-                        .await?;
-                    let extracted_text = extract_mcp_result_text(&mcp_result);
-                    let data_preview_len = extracted_text.chars().count();
-                    let data_preview: String = extracted_text.chars().take(220).collect();
-                    let top_level_keys = mcp_result
-                        .as_object()
-                        .map(|obj| {
-                            obj.keys()
-                                .take(4)
-                                .cloned()
-                                .collect::<Vec<String>>()
-                                .join(", ")
-                        })
-                        .unwrap_or_else(|| "non-object".to_string());
-                    let _ = on_event.send(serde_json::json!({
-                        "thinking": format!(
-                            "MCP result received: {} chars, keys: {}",
-                            data_preview_len, top_level_keys
-                        )
-                    }));
-                    let _ = on_event.send(serde_json::json!({
-                        "thinking": format!("MCP preview: {}", data_preview.replace('\n', " "))
-                    }));
-
-                    // ── Step 5: LLM answers with data ──
-                    return self
-                        .answer_with_data(
-                            session_id,
-                            &mcp_result,
-                            temperature,
-                            max_tokens,
-                            on_event,
-                        )
-                        .await;
-                } else {
-                    let _ = on_event.send(serde_json::json!({
-                        "thinking": "No matching tool found in registry; falling back to plain LLM."
-                    }));
-                }
+                let messages = self.get_history(session_id).await;
+                return self
+                    .run_streaming(session_id, messages, temperature, max_tokens, on_event)
+                    .await;
             }
         }
-
-        // ── Fallback: plain streaming (no MCP) ──
-        let messages = self.get_history(session_id).await;
-        self.run_streaming(session_id, messages, temperature, max_tokens, on_event)
-            .await
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  INTENT CLASSIFICATION — the ONLY thing the LLM decides
-    // ══════════════════════════════════════════════════════════════
+    async fn append_message(&self, session_id: &str, message: ChatMessage) {
+        let mut sessions = self.sessions.lock().await;
+        let history = sessions
+            .entry(session_id.to_string())
+            .or_insert_with(Vec::new);
+        history.push(message);
+    }
 
-    async fn classify_intent(
+    async fn execute_tool_calls(
         &self,
         session_id: &str,
-        user_input: &str,
+        original_query: &str,
         allowed_servers: &[String],
-        temperature: f32,
-        _max_tokens: i32,
-    ) -> Result<IntentClassification, String> {
-        let capabilities_summary = self.registry.summary_for_prompt(allowed_servers).await;
+        tool_bundle: &LlmToolSpecBundle,
+        tool_calls: &[LlmToolCall],
+        seen_calls: &mut HashSet<String>,
+        tool_call_counts: &mut HashMap<String, usize>,
+        on_event: &Channel<serde_json::Value>,
+    ) -> Result<bool, String> {
+        let mut repeat_detected = false;
 
-        let system_prompt = format!(
-            r#"You are an intent classifier. Given the user message and available tools, return ONLY valid JSON:
-{{
-  "needs_external": boolean,
-  "query": "the search/action query extracted from user message",
-  "suggested_tool": "tool_name or null",
-  "suggested_server": "server_id or null",
-  "arguments": {{}} or null,
-  "needs_multi_step": boolean,
-  "multi_step_reasoning": "why multiple steps are needed or null"
-}}
-
-Available capabilities:
-{}
-
-Rules:
-- If the user's request can be answered from general knowledge, set needs_external=false.
-- If external data/action is needed, set needs_external=true and fill query + suggested_tool.
-- Set needs_multi_step=true when:
-  * multiple entities/sources must be queried
-  * one tool result determines a later call
-  * iterative lookups are required
-- If needs_multi_step=true, provide concise multi_step_reasoning.
-- arguments should match the tool's expected input schema.
-- Do NOT invent tool names. Only use names from the list above.
-- Return ONLY the JSON object, nothing else."#,
-            capabilities_summary
-        );
-
-        let messages = vec![
-            ChatMessage {
-                role: "system".to_string(),
-                content: system_prompt,
-                name: None,
-                tool_call_id: None,
-                tool_calls: None,
-            },
-            ChatMessage {
-                role: "user".to_string(),
-                content: user_input.to_string(),
-                name: None,
-                tool_call_id: None,
-                tool_calls: None,
-            },
-        ];
-
-        let ctx_size = self.current_ctx_size().await.unwrap_or(4096) as usize;
-        let effective_max_tokens = clamp_max_tokens(ctx_size, 256); // intent is tiny
-
-        // Use None session to avoid polluting the main conversation's KV-cache slot.
-        // Intent classification is a one-shot ephemeral call.
-        let response = self
-            .service
-            .complete_chat(
-                None,
-                messages,
-                temperature.min(0.3), // low temp for classification
-                0.95,
-                40,
-                effective_max_tokens,
-                None,
-                None,
-            )
-            .await?;
-
-        let content = response
-            .get("choices")
-            .and_then(|v| v.get(0))
-            .and_then(|v| v.get("message"))
-            .and_then(|v| v.get("content"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        // Try to parse; fall back to needs_external=false
-        Ok(parse_intent(content, user_input))
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    //  DETERMINISTIC TOOL RESOLUTION (host logic, not LLM)
-    // ══════════════════════════════════════════════════════════════
-
-    async fn resolve_tool(
-        &self,
-        intent: &IntentClassification,
-        allowed_servers: &[String],
-    ) -> Option<ResolvedCall> {
-        // Priority 1: LLM suggested a tool + server — validate both exist
-        if let (Some(tool), Some(server)) = (&intent.suggested_tool, &intent.suggested_server) {
-            if self.registry.has_tool(server, tool).await {
-                let arguments = self.build_call_arguments(server, tool, intent).await;
-                return Some(ResolvedCall {
-                    server_id: server.clone(),
-                    tool_name: tool.clone(),
-                    arguments,
-                });
+        if tool_calls.len() > 1 {
+            if !Self::try_send(
+                &on_event,
+                serde_json::json!({
+                    "thinking": format!(
+                        "Multiple tool calls received ({}). Executing the first only.",
+                        tool_calls.len()
+                    )
+                }),
+            ) {
+                return Ok(repeat_detected);
             }
         }
 
-        // Priority 2: LLM suggested tool name but wrong/missing server
-        if let Some(tool) = &intent.suggested_tool {
-            for server_id in allowed_servers {
-                if self.registry.has_tool(server_id, tool).await {
-                    let arguments = self.build_call_arguments(server_id, tool, intent).await;
-                    return Some(ResolvedCall {
-                        server_id: server_id.clone(),
-                        tool_name: tool.clone(),
-                        arguments,
-                    });
+        for (idx, call) in tool_calls.iter().take(1).enumerate() {
+            let fingerprint = format!("{}:{}", call.tool_id, hash_args(&call.arguments));
+            if !seen_calls.insert(fingerprint) {
+                repeat_detected = true;
+                self.append_tool_error(
+                    session_id,
+                    &call.id,
+                    format!("Repeated tool call for '{}'", call.tool_id),
+                )
+                .await;
+                continue;
+            }
+
+            let (server_id, tool_name) = match resolve_tool_id(&call.tool_id, tool_bundle) {
+                Some(pair) => pair,
+                None => {
+                    self.append_tool_error(
+                        session_id,
+                        &call.id,
+                        format!("Unknown tool id '{}'", call.tool_id),
+                    )
+                    .await;
+                    continue;
+                }
+            };
+
+            let tool_count = tool_call_counts.entry(call.tool_id.clone()).or_insert(0);
+            if *tool_count >= 2 {
+                repeat_detected = true;
+                self.append_tool_error(
+                    session_id,
+                    &call.id,
+                    format!("Tool '{}' called too many times", tool_name),
+                )
+                .await;
+                continue;
+            }
+            *tool_count += 1;
+
+            if !allowed_servers.contains(&server_id) {
+                self.append_tool_error(
+                    session_id,
+                    &call.id,
+                    format!("Server '{}' not allowed", server_id),
+                )
+                .await;
+                continue;
+            }
+
+            let arguments = self
+                .build_tool_arguments(
+                    original_query,
+                    &server_id,
+                    &tool_name,
+                    &call.arguments,
+                    call.arguments_valid,
+                )
+                .await;
+
+            let resolved = ResolvedCall {
+                server_id: server_id.clone(),
+                tool_name: tool_name.clone(),
+                arguments: arguments.clone(),
+            };
+
+            if let Err(e) = self.registry.validate_call(&resolved).await {
+                self.append_tool_error(session_id, &call.id, e).await;
+                continue;
+            }
+
+            if !Self::try_send(
+                &on_event,
+                serde_json::json!({
+                    "thinking": format!("Calling MCP tool {}::{}", server_id, tool_name)
+                }),
+            ) {
+                return Ok(repeat_detected);
+            }
+
+            let tool_context_args = arguments.clone();
+
+            let result = match self.mcp_service.connect(&server_id).await {
+                Ok(()) => {
+                    self.mcp_service
+                        .tools_call(&server_id, &tool_name, arguments)
+                        .await
+                }
+                Err(e) => Err(e),
+            };
+
+            let (content, raw_result, error_message) = match result {
+                Ok(res) => (format_tool_result(&res), Some(res), None),
+                Err(e) => {
+                    if !Self::try_send(
+                        &on_event,
+                        serde_json::json!({
+                            "thinking": format!("Tool call failed: {}", e)
+                        }),
+                    ) {
+                        return Ok(repeat_detected);
+                    }
+                    if is_rate_limit_error(&e) {
+                        return Err(e);
+                    }
+                    if !is_invalid_input_error(&e) {
+                        repeat_detected = true;
+                    }
+                    (serde_json::json!({ "error": e }).to_string(), None, Some(e))
+                }
+            };
+
+            self.append_message(
+                session_id,
+                ChatMessage {
+                    role: "tool".to_string(),
+                    content,
+                    name: None,
+                    tool_call_id: Some(call.id.clone()),
+                    tool_calls: None,
+                },
+            )
+            .await;
+
+            let tool_context = serde_json::json!({
+                "server_id": server_id,
+                "tool_name": tool_name,
+                "arguments": tool_context_args,
+                "result": raw_result.unwrap_or_else(|| {
+                    serde_json::json!({ "error": error_message.unwrap_or_else(|| "Tool call failed".to_string()) })
+                }),
+                "tool_call_id": call.id,
+            });
+
+            if !Self::try_send(
+                &on_event,
+                serde_json::json!({
+                    "tool_context": tool_context
+                }),
+            ) {
+                return Ok(repeat_detected);
+            }
+
+            if idx + 1 == 1 {
+                if !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
+                        "thinking": "Tool results injected into context."
+                    }),
+                ) {
+                    return Ok(repeat_detected);
                 }
             }
         }
 
-        // Priority 3: keyword matching against registry
-        if let Some(mut call) = self
-            .registry
-            .match_tool(&intent.query, allowed_servers)
-            .await
-        {
-            let arguments = self
-                .build_call_arguments(&call.server_id, &call.tool_name, intent)
-                .await;
-            call.arguments = arguments;
-            return Some(call);
-        }
-
-        None
+        Ok(repeat_detected)
     }
 
-    /// Build arguments for a tool call. Uses LLM-provided arguments if they
-    /// contain non-empty fields, otherwise derives arguments from the tool's
-    /// input schema + the extracted query string.
-    async fn build_call_arguments(
+    async fn build_tool_arguments(
         &self,
+        original_query: &str,
         server_id: &str,
         tool_name: &str,
-        intent: &IntentClassification,
+        args: &serde_json::Value,
+        args_valid: bool,
     ) -> serde_json::Value {
-        // If the LLM provided non-empty arguments, use them
-        if let Some(args) = &intent.arguments {
-            let is_usable = match args {
-                serde_json::Value::Object(map) => !map.is_empty(),
-                _ => false,
-            };
-            if is_usable {
-                return args.clone();
-            }
+        let is_usable =
+            args_valid && matches!(args, serde_json::Value::Object(map) if !map.is_empty());
+        if is_usable {
+            return args.clone();
         }
 
-        // Otherwise, build arguments from the tool's schema + query
         if let Some(tool_def) = self.registry.get_tool_def(server_id, tool_name).await {
-            return CapabilityRegistry::build_arguments_from_query(&tool_def, &intent.query);
+            return CapabilityRegistry::build_arguments_from_query(&tool_def, original_query);
         }
 
-        // Ultimate fallback
-        serde_json::json!({ "query": intent.query })
+        serde_json::json!({ "query": original_query })
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  ANSWER WITH DATA — LLM does what it's good at: language
-    // ══════════════════════════════════════════════════════════════
-
-    async fn answer_with_data(
-        &self,
-        session_id: &str,
-        mcp_result: &serde_json::Value,
-        temperature: f32,
-        max_tokens: i32,
-        on_event: Channel<serde_json::Value>,
-    ) -> Result<(), String> {
-        let ctx_size = self.current_ctx_size().await.unwrap_or(4096) as usize;
-        let effective_max_tokens = clamp_max_tokens(ctx_size, max_tokens) as usize;
-
-        // Calculate how much room we have for the MCP data
-        let history = self.get_history(session_id).await;
-        let history_tokens: usize = history.iter().map(|m| estimate_message_tokens(m)).sum();
-        let system_overhead = 80; // tokens for the surrounding system prompt text
-        let safety_margin = 128; // buffer for templates/metadata
-
-        let available_for_data = ctx_size
-            .saturating_sub(history_tokens)
-            .saturating_sub(effective_max_tokens)
-            .saturating_sub(system_overhead)
-            .saturating_sub(safety_margin);
-
-        let data_str = extract_mcp_result_text(mcp_result);
-
-        // Truncate the data to fit within the available budget
-        let truncated_data = truncate_to_token_budget(&data_str, available_for_data);
-
-        // Build a focused prompt for MCP answers.
-        // Use only the latest user request + external data to avoid stale assistant
-        // replies ("I can't access tools") contaminating the response.
-        let mut messages = vec![ChatMessage {
-            role: "system".to_string(),
-            content: format!(
-                "You already have external data retrieved by the host.\n\
-                 Never say you cannot access external tools, services, or live data.\n\
-                 Use the external data below as the primary source for your answer.\n\
-                 If data is incomplete, say what is missing briefly.\n\
-                 External data:\n{}\n\n\
-                 Answer naturally in the user's language. Do not mention JSON, tools, or MCP.",
-                truncated_data
-            ),
-            name: None,
-            tool_call_id: None,
-            tool_calls: None,
-        }];
-        let last_user_request = history
-            .iter()
-            .rev()
-            .find(|m| m.role == "user")
-            .map(|m| m.content.clone())
-            .unwrap_or_else(|| "Answer the user's latest request.".to_string());
-        messages.push(ChatMessage {
-            role: "user".to_string(),
-            content: format!(
-                "User request:\n{}\n\nProvide the best possible answer using the external data.",
-                last_user_request
-            ),
-            name: None,
-            tool_call_id: None,
-            tool_calls: None,
-        });
-
-        self.run_streaming(session_id, messages, temperature, max_tokens, on_event)
-            .await
-    }
-
-    async fn answer_with_formatted_data(
-        &self,
-        session_id: &str,
-        formatted_data: &str,
-        temperature: f32,
-        max_tokens: i32,
-        on_event: Channel<serde_json::Value>,
-    ) -> Result<(), String> {
-        let ctx_size = self.current_ctx_size().await.unwrap_or(4096) as usize;
-        let effective_max_tokens = clamp_max_tokens(ctx_size, max_tokens) as usize;
-
-        let history = self.get_history(session_id).await;
-        let history_tokens: usize = history.iter().map(estimate_message_tokens).sum();
-        let system_overhead = 100;
-        let safety_margin = 128;
-
-        let available_for_data = ctx_size
-            .saturating_sub(history_tokens)
-            .saturating_sub(effective_max_tokens)
-            .saturating_sub(system_overhead)
-            .saturating_sub(safety_margin);
-
-        let truncated_data = truncate_to_token_budget(formatted_data, available_for_data);
-        let last_user_request = history
-            .iter()
-            .rev()
-            .find(|m| m.role == "user")
-            .map(|m| m.content.clone())
-            .unwrap_or_else(|| "Answer the user's latest request.".to_string());
-
-        let messages = vec![
+    async fn append_tool_error(&self, session_id: &str, call_id: &str, error: String) {
+        self.append_message(
+            session_id,
             ChatMessage {
-                role: "system".to_string(),
-                content: format!(
-                    "You already have external data retrieved by a specialized subagent.\n\
-                     Never say you cannot access external tools, services, or live data.\n\
-                     Use the external data below as the primary source for your answer.\n\
-                     If data is incomplete, say what is missing briefly.\n\
-                     External data:\n{}\n\n\
-                     Answer naturally in the user's language. Do not mention JSON, tools, or MCP.",
-                    truncated_data
-                ),
+                role: "tool".to_string(),
+                content: serde_json::json!({ "error": error }).to_string(),
                 name: None,
-                tool_call_id: None,
+                tool_call_id: Some(call_id.to_string()),
                 tool_calls: None,
             },
-            ChatMessage {
-                role: "user".to_string(),
-                content: format!(
-                    "User request:\n{}\n\nProvide the best possible answer using the external data.",
-                    last_user_request
-                ),
-                name: None,
-                tool_call_id: None,
-                tool_calls: None,
-            },
-        ];
-
-        self.run_streaming(session_id, messages, temperature, max_tokens, on_event)
-            .await
+        )
+        .await;
     }
 
     // ══════════════════════════════════════════════════════════════
     //  PLAIN STREAMING
     // ══════════════════════════════════════════════════════════════
 
-    async fn run_streaming(
+    pub async fn run_streaming(
         &self,
         session_id: &str,
         messages: Vec<ChatMessage>,
@@ -539,13 +498,47 @@ Rules:
             .await?;
 
         let mut full_response = String::new();
+        let mut parser = ThinkingStreamParser::new();
 
         while let Some(chunk) = rx.recv().await {
-            full_response.push_str(&chunk);
-            let _ = on_event.send(serde_json::json!({ "chunk": chunk }));
+            for parsed in parser.push(&chunk) {
+                match parsed {
+                    ParsedChunk::Content(text) => {
+                        full_response.push_str(&text);
+                        if !Self::try_send(&on_event, serde_json::json!({ "chunk": text })) {
+                            return Ok(());
+                        }
+                    }
+                    ParsedChunk::Thinking(text) => {
+                        if !Self::try_send(&on_event, serde_json::json!({ "thinking_chunk": text }))
+                        {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
         }
 
-        let _ = on_event.send(serde_json::json!({ "status": "done" }));
+        // Flush any buffered content at end-of-stream
+        for parsed in parser.flush() {
+            match parsed {
+                ParsedChunk::Content(text) => {
+                    full_response.push_str(&text);
+                    if !Self::try_send(&on_event, serde_json::json!({ "chunk": text })) {
+                        return Ok(());
+                    }
+                }
+                ParsedChunk::Thinking(text) => {
+                    if !Self::try_send(&on_event, serde_json::json!({ "thinking_chunk": text })) {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        if !Self::try_send(&on_event, serde_json::json!({ "status": "done" })) {
+            return Ok(());
+        }
 
         let mut sessions = self.sessions.lock().await;
         if let Some(history) = sessions.get_mut(session_id) {
@@ -560,6 +553,7 @@ Rules:
 
         Ok(())
     }
+
 
     // ══════════════════════════════════════════════════════════════
     //  SESSION MANAGEMENT
@@ -585,6 +579,24 @@ Rules:
     pub async fn set_session_history(&self, session_id: &str, history: Vec<ChatMessage>) {
         let mut sessions = self.sessions.lock().await;
         sessions.insert(session_id.to_string(), history);
+    }
+
+    pub async fn remove_message(
+        &self,
+        session_id: &str,
+        message_index: usize,
+    ) -> Result<(), String> {
+        let mut sessions = self.sessions.lock().await;
+        let history = sessions
+            .get_mut(session_id)
+            .ok_or_else(|| "Session not found".to_string())?;
+
+        if message_index >= history.len() {
+            return Err("Message not found".to_string());
+        }
+
+        history.remove(message_index);
+        Ok(())
     }
 
     pub fn prepare_regenerate_history(
@@ -637,13 +649,46 @@ Rules:
             .await?;
 
         let mut full_response = String::new();
+        let mut parser = ThinkingStreamParser::new();
 
         while let Some(chunk) = rx.recv().await {
-            full_response.push_str(&chunk);
-            let _ = on_event.send(serde_json::json!({ "chunk": chunk }));
+            for parsed in parser.push(&chunk) {
+                match parsed {
+                    ParsedChunk::Content(text) => {
+                        full_response.push_str(&text);
+                        if !Self::try_send(&on_event, serde_json::json!({ "chunk": text })) {
+                            return Ok(());
+                        }
+                    }
+                    ParsedChunk::Thinking(text) => {
+                        if !Self::try_send(&on_event, serde_json::json!({ "thinking_chunk": text }))
+                        {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
         }
 
-        let _ = on_event.send(serde_json::json!({ "status": "done" }));
+        for parsed in parser.flush() {
+            match parsed {
+                ParsedChunk::Content(text) => {
+                    full_response.push_str(&text);
+                    if !Self::try_send(&on_event, serde_json::json!({ "chunk": text })) {
+                        return Ok(());
+                    }
+                }
+                ParsedChunk::Thinking(text) => {
+                    if !Self::try_send(&on_event, serde_json::json!({ "thinking_chunk": text })) {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        if !Self::try_send(&on_event, serde_json::json!({ "status": "done" })) {
+            return Ok(());
+        }
 
         let mut sessions = self.sessions.lock().await;
         let history = sessions
@@ -651,7 +696,7 @@ Rules:
             .ok_or_else(|| "Session not found".to_string())?;
 
         if message_index >= history.len() {
-            return Err("Message no longer exists".to_string());
+            return Err("Message removed".to_string());
         }
 
         history[message_index].content = full_response;
@@ -662,6 +707,31 @@ Rules:
     async fn current_ctx_size(&self) -> Option<u32> {
         self.service.get_config().await.map(|cfg| cfg.ctx_size)
     }
+}
+
+fn hash_args(args: &serde_json::Value) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    serde_json::to_string(args).unwrap_or_default().hash(&mut hasher);
+    hasher.finish()
+}
+
+fn is_rate_limit_error(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("429")
+        || lower.contains("too many requests")
+        || lower.contains("rate limit")
+        || lower.contains("rate-limited")
+}
+
+fn is_invalid_input_error(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("invalid")
+        || lower.contains("bad request")
+        || lower.contains("missing")
+        || lower.contains("validation")
+        || lower.contains("schema")
+        || lower.contains("argument")
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -699,37 +769,346 @@ fn parse_mcp_token(token: &str) -> Option<String> {
     None
 }
 
-fn parse_intent(content: &str, original_query: &str) -> IntentClassification {
-    let trimmed = content.trim();
+#[derive(Debug, Clone)]
+struct LlmToolCall {
+    id: String,
+    tool_id: String,
+    arguments: serde_json::Value,
+    arguments_valid: bool,
+}
 
-    // Try direct parse
-    if let Ok(intent) = serde_json::from_str::<IntentClassification>(trimmed) {
-        return intent;
+#[derive(Debug, Clone)]
+struct ParsedToolCalls {
+    content: String,
+    raw_tool_calls: Vec<serde_json::Value>,
+    tool_calls: Vec<LlmToolCall>,
+}
+
+fn parse_tool_calls_from_response(response: &serde_json::Value) -> Result<ParsedToolCalls, String> {
+    let message = response
+        .get("choices")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("message"))
+        .ok_or_else(|| "Missing response message".to_string())?;
+
+    let content = message
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    if let Some(tool_calls) = message.get("tool_calls").and_then(|v| v.as_array()) {
+        let raw_tool_calls = tool_calls.to_vec();
+        let mut parsed = Vec::new();
+        for (idx, call) in tool_calls.iter().enumerate() {
+            if let Some(parsed_call) = parse_tool_call_entry(call, idx) {
+                parsed.push(parsed_call);
+            }
+        }
+        return Ok(ParsedToolCalls {
+            content,
+            raw_tool_calls,
+            tool_calls: parsed,
+        });
     }
 
-    // Try extracting fenced JSON
-    if let Some(start) = trimmed.find('{') {
-        if let Some(end) = trimmed.rfind('}') {
-            if end > start {
-                if let Ok(intent) =
-                    serde_json::from_str::<IntentClassification>(&trimmed[start..=end])
-                {
-                    return intent;
+    if let Some(function_call) = message.get("function_call") {
+        if let Some(parsed_call) = parse_function_call(function_call, 0) {
+            return Ok(ParsedToolCalls {
+                content,
+                raw_tool_calls: vec![serde_json::json!({
+                    "id": parsed_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": parsed_call.tool_id,
+                        "arguments": parsed_call.arguments
+                    }
+                })],
+                tool_calls: vec![parsed_call],
+            });
+        }
+    }
+
+    if let Some(parsed_from_content) = parse_tool_calls_from_content(&content) {
+        return Ok(ParsedToolCalls {
+            content: parsed_from_content.cleaned_content,
+            raw_tool_calls: parsed_from_content.raw_tool_calls,
+            tool_calls: parsed_from_content.tool_calls,
+        });
+    }
+
+    Ok(ParsedToolCalls {
+        content,
+        raw_tool_calls: Vec::new(),
+        tool_calls: Vec::new(),
+    })
+}
+
+fn parse_tool_call_entry(call: &serde_json::Value, idx: usize) -> Option<LlmToolCall> {
+    let call_id = call
+        .get("id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| default_tool_call_id(idx));
+    let function = call.get("function")?;
+    parse_function_call(function, idx).map(|mut parsed| {
+        parsed.id = call_id;
+        parsed
+    })
+}
+
+fn parse_function_call(function: &serde_json::Value, idx: usize) -> Option<LlmToolCall> {
+    let tool_id = function.get("name")?.as_str()?.to_string();
+    let args_val = function
+        .get("arguments")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    let (arguments, arguments_valid) = parse_tool_arguments(&args_val);
+    Some(LlmToolCall {
+        id: default_tool_call_id(idx),
+        tool_id,
+        arguments,
+        arguments_valid,
+    })
+}
+
+fn default_tool_call_id(idx: usize) -> String {
+    format!("call-{}", idx)
+}
+
+fn parse_tool_arguments(value: &serde_json::Value) -> (serde_json::Value, bool) {
+    match value {
+        serde_json::Value::Null => (serde_json::json!({}), false),
+        serde_json::Value::Object(_) => (value.clone(), true),
+        serde_json::Value::String(s) => match serde_json::from_str::<serde_json::Value>(s) {
+            Ok(serde_json::Value::Object(obj)) => (serde_json::Value::Object(obj), true),
+            Ok(other) => (other, false),
+            Err(_) => (serde_json::json!({}), false),
+        },
+        _ => (serde_json::json!({}), false),
+    }
+}
+
+fn resolve_tool_id(tool_id: &str, tool_bundle: &LlmToolSpecBundle) -> Option<(String, String)> {
+    if let Some(pair) = tool_bundle.tool_map.get(tool_id) {
+        return Some(pair.clone());
+    }
+    None
+}
+
+#[derive(Debug, Clone)]
+struct ParsedToolCallsFromContent {
+    cleaned_content: String,
+    raw_tool_calls: Vec<serde_json::Value>,
+    tool_calls: Vec<LlmToolCall>,
+}
+
+fn parse_tool_calls_from_content(content: &str) -> Option<ParsedToolCallsFromContent> {
+    const OPEN_TAG: &str = "<tool_call>";
+    const CLOSE_TAG: &str = "</tool_call>";
+
+    let mut cleaned = String::new();
+    let mut tool_calls = Vec::new();
+    let mut raw_tool_calls = Vec::new();
+    let mut cursor = 0;
+    let mut idx = 0;
+
+    while let Some(start_rel) = content[cursor..].find(OPEN_TAG) {
+        let start = cursor + start_rel;
+        cleaned.push_str(&content[cursor..start]);
+
+        let block_start = start + OPEN_TAG.len();
+        let Some(end_rel) = content[block_start..].find(CLOSE_TAG) else {
+            cleaned.push_str(&content[start..]);
+            return None;
+        };
+
+        let end = block_start + end_rel;
+        let block = &content[block_start..end];
+
+        if let Some((call, raw_call)) = parse_tool_call_block(block, idx) {
+            tool_calls.push(call);
+            raw_tool_calls.push(raw_call);
+            idx += 1;
+        } else {
+            cleaned.push_str(OPEN_TAG);
+            cleaned.push_str(block);
+            cleaned.push_str(CLOSE_TAG);
+        }
+
+        cursor = end + CLOSE_TAG.len();
+    }
+
+    if cursor < content.len() {
+        cleaned.push_str(&content[cursor..]);
+    }
+
+    if tool_calls.is_empty() {
+        None
+    } else {
+        Some(ParsedToolCallsFromContent {
+            cleaned_content: cleaned,
+            raw_tool_calls,
+            tool_calls,
+        })
+    }
+}
+
+fn parse_tool_call_block(block: &str, idx: usize) -> Option<(LlmToolCall, serde_json::Value)> {
+    let tool_id = parse_function_name(block)?;
+    let args = parse_parameter_map(block);
+    let arguments = serde_json::Value::Object(args);
+    let call_id = default_tool_call_id(idx);
+
+    let raw_call = serde_json::json!({
+        "id": call_id,
+        "type": "function",
+        "function": {
+            "name": tool_id,
+            "arguments": arguments
+        }
+    });
+
+    Some((
+        LlmToolCall {
+            id: call_id,
+            tool_id,
+            arguments,
+            arguments_valid: true,
+        },
+        raw_call,
+    ))
+}
+
+fn parse_function_name(block: &str) -> Option<String> {
+    if let Some(start) = block.find("<function=") {
+        let after = start + "<function=".len();
+        if let Some(gt_rel) = block[after..].find('>') {
+            let raw = block[after..after + gt_rel].trim();
+            let name = trim_quotes(raw);
+            if !name.is_empty() {
+                return Some(name.to_string());
+            }
+        }
+    }
+
+    if let Some(start) = block.find("<function") {
+        if let Some(gt_rel) = block[start..].find('>') {
+            let open_tag = &block[start..start + gt_rel + 1];
+            if let Some(name) = parse_attr_value(open_tag, "name") {
+                if !name.is_empty() {
+                    return Some(name);
+                }
+            }
+
+            if open_tag.trim() == "<function>" {
+                let inner_start = start + open_tag.len();
+                if let Some(close_rel) = block[inner_start..].find("</function>") {
+                    let raw = block[inner_start..inner_start + close_rel].trim();
+                    if !raw.is_empty() {
+                        return Some(raw.to_string());
+                    }
                 }
             }
         }
     }
 
-    // Safe fallback: no external data needed
-    IntentClassification {
-        needs_external: false,
-        query: original_query.to_string(),
-        suggested_tool: None,
-        suggested_server: None,
-        arguments: None,
-        needs_multi_step: false,
-        multi_step_reasoning: None,
+    None
+}
+
+fn parse_parameter_map(block: &str) -> serde_json::Map<String, serde_json::Value> {
+    let mut args = serde_json::Map::new();
+    let mut cursor = 0;
+
+    loop {
+        let Some(start_rel) = block[cursor..].find("<parameter") else {
+            break;
+        };
+        let start = cursor + start_rel;
+        let Some(gt_rel) = block[start..].find('>') else {
+            break;
+        };
+
+        let open_tag = &block[start..start + gt_rel + 1];
+        let name = parse_parameter_name(open_tag);
+        let value_start = start + gt_rel + 1;
+        let Some(close_rel) = block[value_start..].find("</parameter>") else {
+            break;
+        };
+        let value_raw = &block[value_start..value_start + close_rel];
+
+        if let Some(param_name) = name {
+            let value = parse_param_value(value_raw);
+            args.insert(param_name, value);
+        }
+
+        cursor = value_start + close_rel + "</parameter>".len();
     }
+
+    args
+}
+
+fn parse_parameter_name(open_tag: &str) -> Option<String> {
+    if open_tag.starts_with("<parameter=") {
+        let raw = open_tag["<parameter=".len()..open_tag.len() - 1].trim();
+        let name = trim_quotes(raw);
+        if !name.is_empty() {
+            return Some(name.to_string());
+        }
+    }
+
+    if let Some(name) = parse_attr_value(open_tag, "name") {
+        if !name.is_empty() {
+            return Some(name);
+        }
+    }
+
+    None
+}
+
+fn parse_attr_value(tag: &str, attr: &str) -> Option<String> {
+    let attr_pos = tag.find(attr)?;
+    let after_attr = &tag[attr_pos + attr.len()..];
+    let eq_pos = after_attr.find('=')?;
+    let mut rest = after_attr[eq_pos + 1..].trim_start();
+
+    if rest.starts_with('"') || rest.starts_with('\'') {
+        let quote = rest.chars().next()?;
+        rest = &rest[1..];
+        let end = rest.find(quote)?;
+        return Some(rest[..end].to_string());
+    }
+
+    let end = rest
+        .find(|c: char| c.is_whitespace() || c == '>')
+        .unwrap_or(rest.len());
+    let raw = rest[..end].trim();
+    if raw.is_empty() {
+        None
+    } else {
+        Some(raw.to_string())
+    }
+}
+
+fn trim_quotes(value: &str) -> &str {
+    let value = value.trim();
+    if (value.starts_with('"') && value.ends_with('"'))
+        || (value.starts_with('\'') && value.ends_with('\''))
+    {
+        return &value[1..value.len() - 1];
+    }
+    value
+}
+
+fn parse_param_value(value_raw: &str) -> serde_json::Value {
+    let trimmed = value_raw.trim();
+    if trimmed.is_empty() {
+        return serde_json::Value::String(String::new());
+    }
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        return parsed;
+    }
+    serde_json::Value::String(trimmed.to_string())
 }
 
 fn compute_prompt_budget(ctx_size: usize, max_tokens: i32) -> usize {
@@ -797,142 +1176,65 @@ fn sanitize_messages_for_request(mut messages: Vec<ChatMessage>) -> Vec<ChatMess
     messages
 }
 
-fn extract_mcp_result_text(mcp_result: &serde_json::Value) -> String {
-    // Prefer structured payloads first (e.g., Tavily `structuredContent`),
-    // because `content.text` is often a JSON blob encoded as string.
-    if let Some(structured) = mcp_result.get("structuredContent") {
-        // Special formatting for search-style results:
-        // { query, answer?, results: [{ title, url, content, score? }, ...] }
-        if let Some(obj) = structured.as_object() {
-            let mut out = String::new();
-
-            if let Some(query) = obj.get("query").and_then(|v| v.as_str()) {
-                out.push_str("Query: ");
-                out.push_str(query);
-                out.push_str("\n\n");
-            }
-
-            if let Some(answer) = obj.get("answer").and_then(|v| v.as_str()) {
-                if !answer.trim().is_empty() {
-                    out.push_str("Search answer:\n");
-                    out.push_str(answer.trim());
-                    out.push_str("\n\n");
-                }
-            }
-
-            if let Some(results) = obj.get("results").and_then(|v| v.as_array()) {
-                out.push_str("Top results:\n");
-                for (idx, item) in results.iter().take(6).enumerate() {
-                    let title = item
-                        .get("title")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("(no title)");
-                    let url = item.get("url").and_then(|v| v.as_str()).unwrap_or("");
-                    let content = item
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .trim();
-                    let content = if content.chars().count() > 420 {
-                        let mut t: String = content.chars().take(420).collect();
-                        t.push_str("...");
-                        t
-                    } else {
-                        content.to_string()
-                    };
-
-                    out.push_str(&format!("{}. {}\n", idx + 1, title));
-                    if !url.is_empty() {
-                        out.push_str(&format!("   URL: {}\n", url));
-                    }
-                    if !content.is_empty() {
-                        out.push_str(&format!("   Snippet: {}\n", content));
-                    }
-                }
-                out.push('\n');
-            }
-
-            if !out.trim().is_empty() {
-                return out;
-            }
-        }
-
-        if let Ok(s) = serde_json::to_string_pretty(structured) {
-            if !s.is_empty() {
-                return s;
-            }
-        }
-    }
-
-    // Fallback for MCP servers that only return `content` blocks.
-    if let Some(content_items) = mcp_result.get("content").and_then(|v| v.as_array()) {
-        let texts: Vec<String> = content_items
-            .iter()
-            .filter_map(|item| {
-                if item.get("type").and_then(|v| v.as_str()) == Some("text") {
-                    return item
-                        .get("text")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string());
-                }
-                None
-            })
-            .collect();
-        if !texts.is_empty() {
-            return texts.join("\n\n");
-        }
-    }
-
-    serde_json::to_string_pretty(mcp_result).unwrap_or_else(|_| "{}".to_string())
+fn format_tool_result(result: &serde_json::Value) -> String {
+    let json_str = serde_json::to_string_pretty(result).unwrap_or_else(|_| "{}".to_string());
+    truncate_to_token_budget(&json_str, TOOL_RESULT_TOKEN_BUDGET)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::parse_intent;
+    use super::{parse_tool_arguments, parse_tool_calls_from_response};
 
     #[test]
-    fn parse_intent_defaults_when_multi_step_fields_missing() {
-        let content = r#"{
-            "needs_external": true,
-            "query": "weather in tokyo",
-            "suggested_tool": "weather",
-            "suggested_server": "tavily",
-            "arguments": {"location":"Tokyo"}
-        }"#;
-
-        let parsed = parse_intent(content, "fallback");
-        assert!(parsed.needs_external);
-        assert_eq!(parsed.query, "weather in tokyo");
-        assert!(!parsed.needs_multi_step);
-        assert_eq!(parsed.multi_step_reasoning, None);
+    fn parse_tool_arguments_accepts_json_string() {
+        let (args, ok) = parse_tool_arguments(&serde_json::json!("{\"x\":1}"));
+        assert!(ok);
+        assert_eq!(args["x"], 1);
     }
 
     #[test]
-    fn parse_intent_reads_full_multi_step_fields() {
-        let content = r#"{
-            "needs_external": true,
-            "query": "compare weather",
-            "suggested_tool": "weather",
-            "suggested_server": "tavily",
-            "arguments": {"locations":["Tokyo","NYC"]},
-            "needs_multi_step": true,
-            "multi_step_reasoning": "must query multiple locations"
-        }"#;
+    fn parse_tool_calls_extracts_function_call() {
+        let response = serde_json::json!({
+            "choices": [
+                { "message": { "content": "", "tool_calls": [
+                    { "id": "call-1", "type": "function", "function": { "name": "mcp__s1__t1", "arguments": "{\"q\":\"hi\"}" } }
+                ] } }
+            ]
+        });
 
-        let parsed = parse_intent(content, "fallback");
-        assert!(parsed.needs_multi_step);
-        assert_eq!(
-            parsed.multi_step_reasoning.as_deref(),
-            Some("must query multiple locations")
-        );
+        let parsed = parse_tool_calls_from_response(&response).expect("parsed");
+        assert_eq!(parsed.tool_calls.len(), 1);
+        assert_eq!(parsed.tool_calls[0].tool_id, "mcp__s1__t1");
+        assert_eq!(parsed.tool_calls[0].arguments["q"], "hi");
     }
 
     #[test]
-    fn parse_intent_fallback_sets_multi_step_defaults() {
-        let parsed = parse_intent("not-json", "original");
-        assert!(!parsed.needs_external);
-        assert_eq!(parsed.query, "original");
-        assert!(!parsed.needs_multi_step);
-        assert_eq!(parsed.multi_step_reasoning, None);
+    fn parse_tool_calls_from_xml_style_block() {
+        let response = serde_json::json!({
+            "choices": [
+                { "message": { "content": "\
+        <tool_call>\n\
+        <function=mcp__tavily__tavily_search>\n\
+        <parameter=query>\n\
+        Jeffrey Epstein\n\
+        </parameter>\n\
+        <parameter=search_depth>\n\
+        advanced\n\
+        </parameter>\n\
+        <parameter=max_results>\n\
+        10\n\
+        </parameter>\n\
+        </function>\n\
+        </tool_call>" } }
+            ]
+        });
+
+        let parsed = parse_tool_calls_from_response(&response).expect("parsed");
+        assert_eq!(parsed.tool_calls.len(), 1);
+        assert_eq!(parsed.tool_calls[0].tool_id, "mcp__tavily__tavily_search");
+        assert_eq!(parsed.tool_calls[0].arguments["query"], "Jeffrey Epstein");
+        assert_eq!(parsed.tool_calls[0].arguments["search_depth"], "advanced");
+        assert_eq!(parsed.tool_calls[0].arguments["max_results"], 10);
+        assert!(parsed.content.trim().is_empty());
     }
 }

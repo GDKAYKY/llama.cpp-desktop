@@ -20,25 +20,19 @@ async fn run_mock_sse_server(
         .and(warp::post())
         // Validate request shape minimally if needed in the future.
         .map(move || {
-            let content_chunks = content_to_send.clone();
-            let stream = async_stream::stream! {
-                for chunk in content_chunks {
-                    let json = serde_json::json!({
-                        "choices": [{
-                            "delta": {
-                                "content": chunk
-                            }
-                        }]
-                    });
-                    yield Ok::<_, warp::Error>(format!("data: {}\n\n", json.to_string()));
-                }
-                yield Ok::<_, warp::Error>("data: [DONE]\n\n".to_string());
-            };
-            warp::reply::with_header(
-                warp::reply::Response::new(warp::hyper::Body::wrap_stream(stream)),
-                "content-type",
-                "text/event-stream",
-            )
+            let mut payload = String::new();
+            for chunk in content_to_send.clone() {
+                let json = serde_json::json!({
+                    "choices": [{
+                        "delta": {
+                            "content": chunk
+                        }
+                    }]
+                });
+                payload.push_str(&format!("data: {}\n\n", json.to_string()));
+            }
+            payload.push_str("data: [DONE]\n\n");
+            warp::reply::with_header(payload, "content-type", "text/event-stream")
         });
 
     tokio::spawn(warp::serve(route).run(([127, 0, 0, 1], port)))
@@ -67,6 +61,11 @@ async fn test_chat_parsing_logic() {
         top_p: 0.95,
         top_k: 40,
         max_tokens: 16,
+        reasoning_format: None,
+        reasoning_budget: None,
+        reasoning_budget_message: None,
+        thinking_forced_open: None,
+        chat_template_kwargs: None,
         tools: None,
         tool_choice: None,
         stream: true,

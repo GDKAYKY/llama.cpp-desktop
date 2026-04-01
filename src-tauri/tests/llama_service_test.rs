@@ -12,6 +12,8 @@ fn sample_config() -> LlamaCppConfig {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        chat_template: None,
+        chat_template_file: None,
     }
 }
 
@@ -180,8 +182,10 @@ async fn new_loads_registry_when_file_exists() {
             library: "lib".to_string(),
             name: "name".to_string(),
             version: "v1".to_string(),
-            manifest,
+            manifest_data: manifest,
+            tokenizer_metadata: None,
             model_file_path: Some("path".to_string()),
+            manifest_path: Some("manifests/provider/lib/name/v1/manifest.json".to_string()),
             full_identifier: "provider:name:v1".to_string(),
         }],
     };

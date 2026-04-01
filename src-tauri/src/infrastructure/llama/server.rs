@@ -93,14 +93,17 @@ impl LlamaServer {
             llama_server_path, config.port
         );
         let binary_dir = llama_server_path.parent().unwrap_or(Path::new("."));
+        if config.chat_template.is_some() && config.chat_template_file.is_some() {
+            return Err("Use either chat_template or chat_template_file, not both".to_string());
+        }
+
         let mut cmd = Command::new(&llama_server_path);
         #[cfg(windows)]
         {
             // Prevents a console window from flashing when starting the server.
             cmd.creation_flags(0x08000000);
         }
-        let mut child = cmd
-            .current_dir(binary_dir)
+        cmd.current_dir(binary_dir)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -115,7 +118,17 @@ impl LlamaServer {
             .arg("-ngl")
             .arg(config.n_gpu_layers.to_string())
             // Enable Jinja templates for tool calling support.
-            .arg("--jinja")
+            .arg("--jinja");
+
+        if let Some(template) = &config.chat_template {
+            cmd.arg("--chat-template").arg(template);
+        }
+
+        if let Some(template_file) = &config.chat_template_file {
+            cmd.arg("--chat-template-file").arg(template_file);
+        }
+
+        let mut child = cmd
             .spawn()
             .map_err(|e| format!("Failed to spawn llama-server: {}", e))?;
 
@@ -214,36 +227,38 @@ impl LlamaServer {
                     while let Ok(Some(chunk)) = response.chunk().await {
                         let s = String::from_utf8_lossy(&chunk);
                         buffer.push_str(&s);
-                        while let Some(idx) = buffer.find('\n') {
-                            let line = buffer[..idx].trim().to_string();
-                            buffer = buffer[idx + 1..].to_string();
-                            if line.is_empty() || line.starts_with(':') {
-                                continue;
-                            }
+                        if buffer.trim() == "data: [DONE]" {
+                            return;
+                        }
 
-                            if line.starts_with("data:") {
-                                let data_content = line["data:".len()..].trim();
-                                if data_content == "[DONE]" {
+                        while let Some(idx) = buffer.find("\n\n") {
+                            let block = buffer[..idx].to_string();
+                            buffer = buffer[idx + 2..].to_string();
+
+                            for raw_line in block.lines() {
+                                let line = raw_line.trim();
+                                if line.is_empty() || line.starts_with(':') {
+                                    continue;
+                                }
+                                let payload = if line.starts_with("data:") {
+                                    line["data:".len()..].trim()
+                                } else {
+                                    line
+                                };
+
+                                if payload == "[DONE]" {
                                     return;
                                 }
+
                                 if let Ok(json) =
-                                    serde_json::from_str::<serde_json::Value>(data_content)
+                                    serde_json::from_str::<serde_json::Value>(payload)
                                 {
-                                    if let Some(content) =
-                                        json["choices"][0]["delta"]["content"].as_str()
-                                    {
-                                        if tx.send(content.to_string()).await.is_err() {
-                                            return;
-                                        }
-                                    }
-                                }
-                            } else {
-                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
-                                    if let Some(content) =
-                                        json["choices"][0]["delta"]["content"].as_str()
-                                    {
-                                        if tx.send(content.to_string()).await.is_err() {
-                                            return;
+                                    let chunks = extract_stream_chunks(&json);
+                                    if !chunks.is_empty() {
+                                        for chunk in chunks {
+                                            if tx.send(chunk).await.is_err() {
+                                                return;
+                                            }
                                         }
                                     }
                                 }
@@ -293,4 +308,40 @@ impl LlamaServer {
     pub fn test_pipe_output(child: &mut Child) {
         Self::pipe_output(child);
     }
+}
+
+fn extract_stream_chunks(json: &serde_json::Value) -> Vec<String> {
+    let mut chunks = Vec::new();
+
+    if let Some(reasoning) = json["choices"][0]["delta"]["reasoning_content"].as_str() {
+        if !reasoning.is_empty() {
+            chunks.push(format!("<think>{}</think>", reasoning));
+        }
+    }
+
+    if let Some(reasoning) = json["choices"][0]["message"]["reasoning_content"].as_str() {
+        if !reasoning.is_empty() {
+            chunks.push(format!("<think>{}</think>", reasoning));
+        }
+    }
+
+    if let Some(content) = json["choices"][0]["delta"]["content"].as_str() {
+        if !content.is_empty() {
+            chunks.push(content.to_string());
+        }
+    }
+
+    if let Some(content) = json["choices"][0]["message"]["content"].as_str() {
+        if !content.is_empty() {
+            chunks.push(content.to_string());
+        }
+    }
+
+    if let Some(content) = json["choices"][0]["delta"]["text"].as_str() {
+        if !content.is_empty() {
+            chunks.push(content.to_string());
+        }
+    }
+
+    chunks
 }

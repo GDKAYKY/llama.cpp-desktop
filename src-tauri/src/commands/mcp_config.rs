@@ -29,7 +29,10 @@ pub fn load_mcp_config_file(app: &AppHandle) -> Result<McpConfig, String> {
 }
 
 #[command]
-pub async fn load_mcp_config(app: AppHandle, state: State<'_, AppState>) -> Result<McpConfig, String> {
+pub async fn load_mcp_config(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<McpConfig, String> {
     let config = load_mcp_config_file(&app)?;
     state.mcp_service.set_config(config.clone()).await;
     Ok(config)
@@ -102,9 +105,7 @@ fn default_tavily_config() -> McpConfig {
             args: None,
             cwd: None,
             env: None,
-            url: Some(
-                "https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>".to_string(),
-            ),
+            url: Some("https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>".to_string()),
             headers: None,
             tool_allowlist: None,
             resource_allowlist: None,

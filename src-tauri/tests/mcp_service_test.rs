@@ -24,7 +24,7 @@ fn sample_server(id: &str, url: String) -> McpServerConfig {
     }
 }
 
-fn start_rpc_server() -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
+async fn start_rpc_server() -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
     let route = warp::post().and(warp::body::json()).map(|body: serde_json::Value| {
         let id = body.get("id").cloned().unwrap_or(serde_json::Value::Null);
         let method = body
@@ -55,8 +55,12 @@ fn start_rpc_server() -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
         }))
     });
 
-    let (addr, server) = warp::serve(route).bind_ephemeral(([127, 0, 0, 1], 0));
-    let handle = tokio::spawn(server);
+    let listener = tokio::net::TcpListener::bind(([127, 0, 0, 1], 0))
+        .await
+        .expect("bind rpc");
+    let addr = listener.local_addr().expect("rpc addr");
+    let server = warp::serve(route).incoming(listener);
+    let handle = tokio::spawn(server.run());
     (addr, handle)
 }
 
@@ -98,7 +102,7 @@ async fn add_update_remove_server_flow() {
 
 #[tokio::test]
 async fn remove_server_disconnects_active_connection() {
-    let (addr, _server) = start_rpc_server();
+    let (addr, _server) = start_rpc_server().await;
     let mut config = McpConfig::default();
     config.servers.push(sample_server("one", format!("http://{}", addr)));
     let service = McpService::new(config);
@@ -159,7 +163,7 @@ async fn list_servers_returns_configured_servers() {
 
 #[tokio::test]
 async fn connect_and_list_tools_with_allowlist() {
-    let (addr, _server) = start_rpc_server();
+    let (addr, _server) = start_rpc_server().await;
     let mut config = McpConfig::default();
     let mut server = sample_server("one", format!("http://{}", addr));
     server.tool_allowlist = Some(vec!["beta".to_string()]);
@@ -204,7 +208,7 @@ async fn tools_list_errors_when_server_missing() {
 
 #[tokio::test]
 async fn connect_and_list_resources_with_allowlist() {
-    let (addr, _server) = start_rpc_server();
+    let (addr, _server) = start_rpc_server().await;
     let mut config = McpConfig::default();
     let mut server = sample_server("one", format!("http://{}", addr));
     server.resource_allowlist = Some(vec!["file://two".to_string()]);
@@ -271,7 +275,7 @@ async fn resources_read_errors_when_not_connected() {
 
 #[tokio::test]
 async fn tools_call_and_resource_read_respect_allowlist() {
-    let (addr, _server) = start_rpc_server();
+    let (addr, _server) = start_rpc_server().await;
     let mut config = McpConfig::default();
     let mut server = sample_server("one", format!("http://{}", addr));
     server.tool_allowlist = Some(vec!["alpha".to_string()]);
@@ -330,7 +334,7 @@ async fn tools_call_errors_when_not_connected() {
 
 #[tokio::test]
 async fn tools_and_resources_allow_when_no_allowlist() {
-    let (addr, _server) = start_rpc_server();
+    let (addr, _server) = start_rpc_server().await;
     let mut config = McpConfig::default();
     let server = sample_server("one", format!("http://{}", addr));
     config.servers.push(server);
@@ -352,7 +356,7 @@ async fn tools_and_resources_allow_when_no_allowlist() {
 
 #[tokio::test]
 async fn status_reports_connected_and_disconnected() {
-    let (addr, _server) = start_rpc_server();
+    let (addr, _server) = start_rpc_server().await;
     let mut config = McpConfig::default();
     config.servers.push(sample_server("one", format!("http://{}", addr)));
     config.servers.push(sample_server("two", format!("http://{}", addr)));
@@ -368,7 +372,7 @@ async fn status_reports_connected_and_disconnected() {
 
 #[tokio::test]
 async fn disconnect_removes_connection() {
-    let (addr, _server) = start_rpc_server();
+    let (addr, _server) = start_rpc_server().await;
     let mut config = McpConfig::default();
     config.servers.push(sample_server("one", format!("http://{}", addr)));
     let service = McpService::new(config);
@@ -382,7 +386,7 @@ async fn disconnect_removes_connection() {
 
 #[tokio::test]
 async fn status_filters_by_id() {
-    let (addr, _server) = start_rpc_server();
+    let (addr, _server) = start_rpc_server().await;
     let mut config = McpConfig::default();
     config.servers.push(sample_server("one", format!("http://{}", addr)));
     config.servers.push(sample_server("two", format!("http://{}", addr)));

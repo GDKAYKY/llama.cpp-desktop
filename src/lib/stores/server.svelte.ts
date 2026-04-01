@@ -42,6 +42,8 @@ class ServerStore {
         ctxSize: number = 4096,
         nGpuLayers: number = 33,
         parallel: number = 1,
+        chatTemplate?: string | null,
+        chatTemplateFile?: string | null,
     ) {
         if (this.isStarting) return;
         if (
@@ -51,7 +53,9 @@ class ServerStore {
             this.currentConfig?.port === port &&
             this.currentConfig?.ctx_size === ctxSize &&
             this.currentConfig?.n_gpu_layers === nGpuLayers &&
-            this.currentConfig?.parallel === parallel
+            this.currentConfig?.parallel === parallel &&
+            (this.currentConfig?.chat_template ?? null) === (chatTemplate ?? null) &&
+            (this.currentConfig?.chat_template_file ?? null) === (chatTemplateFile ?? null)
         ) {
             return;
         }
@@ -64,6 +68,9 @@ class ServerStore {
                 port,
                 ctxSize,
                 nGpuLayers,
+                parallel,
+                chatTemplate,
+                chatTemplateFile,
             });
             this.isRunning = true;
             this.currentConfig = {
@@ -72,7 +79,9 @@ class ServerStore {
                 port,
                 ctx_size: ctxSize,
                 parallel,
-                n_gpu_layers: nGpuLayers
+                n_gpu_layers: nGpuLayers,
+                chat_template: chatTemplate ?? null,
+                chat_template_file: chatTemplateFile ?? null
             };
             console.log('Server started with PID:', pid);
 
@@ -114,10 +123,15 @@ class ServerStore {
                 this.error = null;
                 return;
             }
-            const healthy = await invokeCommand('check_server_health');
-            this.isHealthy = healthy as boolean;
+            const detail = await invokeCommand('check_server_health_detail');
+            const healthy = Boolean((detail as any)?.healthy);
+            this.isHealthy = healthy;
             if (!healthy) {
-                this.error = 'Server health check failed';
+                const error = (detail as any)?.error;
+                const url = (detail as any)?.url;
+                this.error = error
+                    ? `Healthcheck failed (${url ?? 'unknown'}): ${error}`
+                    : 'Server health check failed';
             } else {
                 this.error = null;
             }

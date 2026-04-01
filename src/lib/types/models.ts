@@ -4,7 +4,7 @@ export interface Model {
     provider: string;
     library: string;
     full_identifier: string;
-    manifest: {
+    manifest_data: {
         config: {
             mediaType: string;
             digest: string;
@@ -16,5 +16,6 @@ export interface Model {
             size: number;
         }>;
     };
+    tokenizer_metadata?: Record<string, unknown>;
     model_file_path?: string;
 }

@@ -18,7 +18,7 @@ impl SystemMetricsProvider {
         Self {
             sys: Mutex::new(System::new_with_specifics(
                 RefreshKind::nothing()
-                    .with_processes(ProcessRefreshKind::nothing().with_cpu())
+                    .with_processes(ProcessRefreshKind::nothing().with_cpu().with_memory())
                     .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
             )),
         }
@@ -33,7 +33,7 @@ impl MetricsProvider for SystemMetricsProvider {
         sys.refresh_processes_specifics(
             ProcessesToUpdate::Some(&[sys_pid]),
             true,
-            ProcessRefreshKind::nothing().with_cpu(),
+            ProcessRefreshKind::nothing().with_cpu().with_memory(),
         );
 
         let process = sys.process(sys_pid)?;

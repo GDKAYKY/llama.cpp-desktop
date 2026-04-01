@@ -1,5 +1,9 @@
 use llama_desktop_lib::commands::models::{
-    load_model_library, parse_model_manifest, save_model_library, scan_models_directory,
+    save_model_library,
+    test_utils::{
+        load_model_library_for_test, parse_model_manifest_sync_for_test,
+        scan_models_directory_for_test,
+    },
 };
 use llama_desktop_lib::models::{ManifestConfig, ManifestLayer, ModelInfo, ModelManifest};
 use std::fs;
@@ -76,11 +80,13 @@ async fn test_model_manifest_parsing() {
     write_manifest(&manifest_path, model_digest);
 
     // 5. Test parse_model_manifest
-    let model_info = parse_model_manifest(
+    let metadata_root = root_path.join("metadata");
+    fs::create_dir_all(&metadata_root).expect("create metadata");
+    let model_info = parse_model_manifest_sync_for_test(
         manifest_path.to_str().unwrap().to_string(),
         root_path.to_str().unwrap().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
     )
-    .await
     .expect("Failed to parse model manifest");
 
     // Verify parsed data
@@ -110,11 +116,13 @@ async fn test_model_manifest_parsing_invalid_path() {
     fs::create_dir_all(manifest_path.parent().unwrap()).expect("create dir");
     write_manifest(&manifest_path, "sha256:deadbeef");
 
-    let err = parse_model_manifest(
+    let metadata_root = root_path.join("metadata");
+    fs::create_dir_all(&metadata_root).expect("create metadata");
+    let err = parse_model_manifest_sync_for_test(
         manifest_path.to_str().unwrap().to_string(),
         root_path.to_str().unwrap().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
     )
-    .await
     .expect_err("should fail");
 
     assert!(err.contains("manifests"), "unexpected error: {}", err);
@@ -130,18 +138,16 @@ async fn test_model_manifest_missing_model_layer() {
     let manifest_path = manifest_dir.join("latest");
     write_manifest_without_model_layer(&manifest_path);
 
-    let err = parse_model_manifest(
+    let metadata_root = root_path.join("metadata");
+    fs::create_dir_all(&metadata_root).expect("create metadata");
+    let err = parse_model_manifest_sync_for_test(
         manifest_path.to_str().unwrap().to_string(),
         root_path.to_str().unwrap().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
     )
-    .await
     .expect_err("should fail");
 
-    assert!(
-        err.contains("No model layer"),
-        "unexpected error: {}",
-        err
-    );
+    assert!(err.contains("No model layer"), "unexpected error: {}", err);
 }
 
 #[tokio::test]
@@ -159,7 +165,8 @@ async fn test_model_library_persistence() {
         version: "1.0".to_string(),
         full_identifier: "test-provider:test-model:1.0".to_string(),
         model_file_path: Some("/path/to/model".to_string()),
-        manifest: ModelManifest {
+        tokenizer_metadata: None,
+        manifest_data: ModelManifest {
             schema_version: 2,
             media_type: "test".to_string(),
             config: ManifestConfig {
@@ -173,6 +180,9 @@ async fn test_model_library_persistence() {
                 size: 200,
             }],
         },
+        manifest_path: Some(
+            "manifests/test-provider/test-library/test-model/1.0/manifest.json".to_string(),
+        ),
     };
 
     let models = vec![model_info];
@@ -188,9 +198,14 @@ async fn test_model_library_persistence() {
     assert!(library_json_path.exists());
 
     // Test load
-    let loaded_models = load_model_library(library_json_path.to_str().unwrap().to_string())
-        .await
-        .expect("Failed to load model library");
+    let metadata_root = dir.path().join("metadata");
+    fs::create_dir_all(&metadata_root).expect("create metadata");
+    let loaded_models = load_model_library_for_test(
+        library_json_path.to_str().unwrap().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
+    )
+    .await
+    .expect("Failed to load model library");
 
     assert_eq!(loaded_models.len(), 1);
     assert_eq!(
@@ -220,9 +235,13 @@ async fn test_scan_models_directory() {
     write_manifest(&manifest_path, model_digest);
 
     // 4. Run scan
-    let models = scan_models_directory(root_path.to_str().unwrap().to_string())
-        .await
-        .expect("Failed to scan models directory");
+    let metadata_root = root_path.join("metadata");
+    fs::create_dir_all(&metadata_root).expect("create metadata");
+    let models = scan_models_directory_for_test(
+        root_path.to_str().unwrap().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
+    )
+    .expect("Failed to scan models directory");
 
     // 5. Verify
     assert_eq!(models.len(), 1);
@@ -254,9 +273,13 @@ async fn test_scan_models_directory_multiple_entries() {
     let manifest_path_b = manifest_dir_b.join("v2");
     write_manifest(&manifest_path_b, "sha256:ccccdddd");
 
-    let models = scan_models_directory(root_path.to_str().unwrap().to_string())
-        .await
-        .expect("Failed to scan models directory");
+    let metadata_root = root_path.join("metadata");
+    fs::create_dir_all(&metadata_root).expect("create metadata");
+    let models = scan_models_directory_for_test(
+        root_path.to_str().unwrap().to_string(),
+        metadata_root.to_string_lossy().as_ref(),
+    )
+    .expect("Failed to scan models directory");
 
     assert_eq!(models.len(), 2);
     let ids: std::collections::HashSet<String> =
