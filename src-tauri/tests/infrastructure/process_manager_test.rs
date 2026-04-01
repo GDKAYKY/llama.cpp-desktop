@@ -1,8 +1,9 @@
 
+use crate::common;
+
 use llama_desktop_lib::infrastructure::llama::process::{LlamaProcessManager, ProcessManager};
 use llama_desktop_lib::models::ModelId;
 use std::sync::Arc;
-use tokio::process::Command;
 
 #[tokio::test]
 async fn test_process_manager_register_and_get() {
@@ -10,7 +11,7 @@ async fn test_process_manager_register_and_get() {
     let model_id = ModelId("test:model:v1".to_string());
     
     // Create a dummy child process (sleep command)
-    let child = Command::new("sleep").arg("1000").spawn().unwrap();
+    let child = common::spawn_sleep_process().unwrap();
     let pid = child.id().unwrap();
     
     manager.register(model_id.clone(), child);
@@ -28,7 +29,7 @@ async fn test_process_manager_remove() {
     let manager = Arc::new(LlamaProcessManager::new());
     let model_id = ModelId("test:model:v1".to_string());
     
-    let child = Command::new("sleep").arg("1000").spawn().unwrap();
+    let child = common::spawn_sleep_process().unwrap();
     manager.register(model_id.clone(), child);
     
     let removed = manager.remove(&model_id);
@@ -48,8 +49,8 @@ async fn test_process_manager_multiple_models() {
     let model1 = ModelId("test:model1:v1".to_string());
     let model2 = ModelId("test:model2:v1".to_string());
     
-    let child1 = Command::new("sleep").arg("1000").spawn().unwrap();
-    let child2 = Command::new("sleep").arg("1000").spawn().unwrap();
+    let child1 = common::spawn_sleep_process().unwrap();
+    let child2 = common::spawn_sleep_process().unwrap();
     let pid1 = child1.id().unwrap();
     let pid2 = child2.id().unwrap();
     

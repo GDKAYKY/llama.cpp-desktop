@@ -745,7 +745,8 @@ async fn download_model_from_hf(
 /// Expected layout (mirrors Ollama):
 ///   `{models_root}/manifests/{provider}/{library}/{name}/{version}[/manifest.json]`
 pub fn parse_model_path(model_path: &str) -> Result<(String, String, String, String), String> {
-    let path = Path::new(model_path);
+    let normalized = model_path.replace('\\', "/");
+    let path = Path::new(&normalized);
 
     let components: Vec<&str> = path
         .components()

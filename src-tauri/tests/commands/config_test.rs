@@ -20,8 +20,7 @@ fn test_get_config_from_path_nonexistent() {
     let path = dir.path().join("config.json");
 
     let config = get_config_from_path(&path).unwrap();
-    // Default config has models_directory set to Some("E:\\models")
-    assert_eq!(config.models_directory, Some("E:\\models".to_string()));
+    assert!(config.models_directory.is_none());
 }
 
 #[test]
@@ -56,10 +55,10 @@ fn test_reset_config() {
 
     let reset = reset_config_at_path(&path).unwrap();
     // After reset, config should have the default values
-    assert_eq!(reset.models_directory, Some("E:\\models".to_string()));
+    assert!(reset.models_directory.is_none());
 
     let loaded = get_config_from_path(&path).unwrap();
-    assert_eq!(loaded.models_directory, Some("E:\\models".to_string()));
+    assert!(loaded.models_directory.is_none());
 }
 
 #[test]

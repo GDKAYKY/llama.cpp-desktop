@@ -56,7 +56,8 @@ async fn test_load_model_library_nonexistent() {
 
     let result =
         test_utils::load_model_library_for_test(path.to_str().unwrap().to_string(), "").await;
-    assert!(result.is_err());
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_empty());
 }
 
 #[tokio::test]

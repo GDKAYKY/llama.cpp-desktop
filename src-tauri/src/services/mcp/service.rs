@@ -458,6 +458,14 @@ impl McpService {
 
     pub async fn remove_server(&self, id: &str) -> Result<(), String> {
         let mut cfg = self.config.lock().await;
+        let found = cfg.servers.iter().any(|s| s.id == id);
+        if !found {
+            let conns = self.connections.lock().await;
+            if !conns.contains_key(id) {
+                return Err("Server not found".to_string());
+            }
+        }
+
         cfg.servers.retain(|s| s.id != id);
         let mut conns = self.connections.lock().await;
         if let Some(conn) = conns.remove(id) {
@@ -587,9 +595,10 @@ impl McpService {
 
     pub async fn disconnect(&self, id: &str) -> Result<(), String> {
         let mut conns = self.connections.lock().await;
-        if let Some(conn) = conns.remove(id) {
-            conn.client.shutdown().await;
-        }
+        let Some(conn) = conns.remove(id) else {
+            return Err("Server not connected".to_string());
+        };
+        conn.client.shutdown().await;
         let mut caps_map = self.capabilities.lock().await;
         caps_map.remove(id);
         Ok(())

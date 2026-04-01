@@ -38,8 +38,8 @@ impl std::fmt::Display for ConfigError {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            models_directory: Some("E:\\models".to_string()),
-            llama_directory: Some("E:\\src\\llama_cpp".to_string()),
+            models_directory: None,
+            llama_directory: None,
             theme: "dark".to_string(),
             language: "en".to_string(),
             max_tokens: 2048,

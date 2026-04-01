@@ -247,7 +247,7 @@ impl CapabilityRegistry {
         }
 
         if lines.is_empty() {
-            "No MCP capabilities available.".to_string()
+            "No tools available.".to_string()
         } else {
             lines.join("\n")
         }

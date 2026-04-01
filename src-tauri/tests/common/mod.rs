@@ -1,5 +1,6 @@
 use llama_desktop_lib::models::*;
 use tempfile::TempDir;
+use tokio::process::{Child, Command};
 
 pub fn sample_llama_config() -> LlamaCppConfig {
     LlamaCppConfig {
@@ -43,6 +44,20 @@ pub fn sample_chat_message(role: &str, content: &str) -> ChatMessage {
 
 pub fn temp_dir() -> TempDir {
     tempfile::tempdir().expect("Failed to create temp dir")
+}
+
+pub fn spawn_sleep_process() -> std::io::Result<Child> {
+    if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .arg("timeout")
+            .arg("/T")
+            .arg("1000")
+            .arg("/NOBREAK")
+            .spawn()
+    } else {
+        Command::new("sleep").arg("1000").spawn()
+    }
 }
 
 pub fn create_test_model_manifest() -> ModelManifest {
