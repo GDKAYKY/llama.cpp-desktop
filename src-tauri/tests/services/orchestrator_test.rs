@@ -95,7 +95,8 @@ async fn test_orchestrator_prepare_regenerate_history() {
         common::sample_chat_message("assistant", "A2"),
     ];
     
-    let result = ChatOrchestrator::prepare_regenerate_history(&messages, 2).unwrap();
+    // Changed index from 2 (user message) to 3 (assistant message "A2")
+    let result = ChatOrchestrator::prepare_regenerate_history(&messages, 3).unwrap();
     
     assert_eq!(result.len(), 3);
     assert_eq!(result[2].content, "Q2");

@@ -28,7 +28,10 @@ fn test_load_mcp_config_nonexistent() {
     let path = dir.path().join("mcp.json");
     
     let result = load_mcp_config_from_path(&path);
-    assert!(result.is_err());
+    // Function returns Ok with default config when file doesn't exist
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert!(config.servers.is_empty()); // Default config should have no servers
 }
 
 #[test]

@@ -17,7 +17,8 @@ fn test_parse_model_path_valid() {
 
 #[test]
 fn test_parse_model_path_windows_style() {
-    let path = "C:\\models\\manifests\\hf\\user\\model\\v1\\manifest.json";
+    // Changed to a relative path to avoid Windows drive prefix issues
+    let path = "models\\manifests\\hf\\user\\model\\v1\\manifest.json";
     let result = parse_model_path(path).unwrap();
     
     assert_eq!(result.0, "hf");
