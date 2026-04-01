@@ -38,7 +38,7 @@ class ModelsStore {
         if (prev && now > prev.lastUpdate) {
             const timeDiff = (now - prev.lastUpdate) / 1000; // seconds
             const bytesDiff = payload.downloaded - prev.downloaded;
-            speed = bytesDiff / timeDiff;
+            speed = Math.round(bytesDiff / timeDiff);
         }
 
         this.downloads[id] = {
