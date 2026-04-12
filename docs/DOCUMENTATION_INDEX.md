@@ -97,7 +97,7 @@ src-tauri/src/
 
 ---
 
-## 🎨 Frontend (Svelte)
+## 🎨 Frontend (Svelte + Tailwind CSS)
 
 ### UI & Design
 - **[UI & Design](./frontend/UI_AND_DESIGN.md)** - Design principles, aesthetics, and branding logic
@@ -163,7 +163,7 @@ src/
 - **Backend Files**: 32 Rust files
 - **Frontend Files**: 66 TypeScript/Svelte files
 - **Test Files**: 50+ test files
-- **Last Updated**: 2026-03-28
+- **Last Updated**: 2026-04-01
 
 ---
 

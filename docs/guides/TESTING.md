@@ -54,6 +54,9 @@ tests/
 ├── services/
 │   ├── history.test.ts
 │   ├── models.test.ts
+│   ├── models_delete.test.ts
+│   ├── model_downloads.test.ts
+│   ├── chat_templates.test.ts
 │   └── orchestrator.test.ts
 └── config/
     └── index.test.ts
