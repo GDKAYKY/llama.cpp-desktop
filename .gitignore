@@ -142,3 +142,5 @@ vite.config.ts.timestamp-*
 /llamacppserverfiles
 /build
 /update_icons.py
+/.obsidian/themes
+/docs/.obsidian
