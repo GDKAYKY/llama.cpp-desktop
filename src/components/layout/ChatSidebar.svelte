@@ -8,7 +8,7 @@
     ChevronDown,
     Ellipsis,
     Settings,
-    CircleQuestionMark,
+    CircleHelp,
     MessageSquare,
     Box,
     SquarePen,
@@ -75,7 +75,7 @@
       icon: Settings,
       path: "/settings",
     },
-    { id: "help", label: "Help", icon: CircleQuestionMark, action: "help" },
+    { id: "help", label: "Help", icon: CircleHelp, action: "help" },
   ];
 
   function toggleChatHistory() {

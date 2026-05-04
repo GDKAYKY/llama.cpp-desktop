@@ -3,7 +3,7 @@
   import {
     ChevronDown,
     Check,
-    LoaderCircle,
+    Loader2,
     Square,
     PanelLeft,
   } from "lucide-svelte";
@@ -150,7 +150,7 @@
         class="flex items-center justify-center text-muted-foreground"
         aria-live="polite"
       >
-        <LoaderCircle class="h-3.5 w-3.5 animate-spin" />
+        <Loader2 class="h-3.5 w-3.5 animate-spin" />
       </div>
     {/if}
   </div>

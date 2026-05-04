@@ -2,7 +2,7 @@
   import { cn } from "$shared/cn.js";
   import {
     Paperclip,
-    PlusCircle,
+    CirclePlus,
     FileCode,
     Globe,
     ArrowUp,
@@ -559,7 +559,7 @@
                     type="button"
                     class="flex w-full cursor-pointer items-center gap-3 rounded-lg border-none bg-transparent px-3.5 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-white/8"
                   >
-                    <PlusCircle size={18} />
+                    <CirclePlus size={18} />
                     <span>Upload from computer</span>
                   </button>
                   <button

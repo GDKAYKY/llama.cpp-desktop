@@ -1,7 +1,7 @@
 <script lang="ts">
   import { serverStore } from "$lib/stores/server.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
-  import { Power, AlertCircle, CheckCircle } from "lucide-svelte";
+  import { Power, CircleAlert, CircleCheck } from "lucide-svelte";
 
   let binary_directory = $state("");
   let models_directory = $state("");
@@ -60,10 +60,10 @@
     >
       {#if serverStore.isRunning}
         {#if serverStore.isHealthy}
-          <CheckCircle size={20} class="text-green-500" />
+          <CircleCheck size={20} class="text-green-500" />
           <span>Running & Healthy</span>
         {:else}
-          <AlertCircle size={20} class="text-yellow-500" />
+          <CircleAlert size={20} class="text-yellow-500" />
           <span>Running (Unhealthy)</span>
         {/if}
       {:else}

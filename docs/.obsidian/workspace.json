@@ -4,17 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "07653d10cc937f54",
+        "id": "2bfa38f5ee87a83a",
         "type": "tabs",
         "children": [
           {
-            "id": "0bb061a9d59ae295",
+            "id": "c09aaf2cf14567c1",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Visualização em gráfico"
+              "type": "markdown",
+              "state": {
+                "file": "architecture/HIGH_LEVEL_ARCHITECTURE.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "HIGH_LEVEL_ARCHITECTURE"
             }
           }
         ]
@@ -179,8 +183,11 @@
       "bases:Criar nova base": false
     }
   },
-  "active": "0bb061a9d59ae295",
+  "active": "c09aaf2cf14567c1",
   "lastOpenFiles": [
+    "architecture/FILE_RESPONSIBILITIES.md",
+    "architecture/PROJECT_STRUCTURE.md",
+    "architecture/ARCHITECTURE_DIAGRAMS.md",
     "architecture/DATA_FLOWS.md",
     "frontend/CHAT_HISTORY.md",
     "backend/BACKEND_ARCHITECTURE.md"
