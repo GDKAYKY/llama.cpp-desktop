@@ -10,6 +10,7 @@
     Box,
     Bot,
     Square,
+    ChevronDown,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
@@ -29,6 +30,7 @@
   let showDeleteSuccess = $state(false);
   let showAddModal = $state(false);
   let downloadReference = $state("");
+  let showModels = $state(true);
 
   function toggleDropdown(id: string, e: MouseEvent) {
     e.stopPropagation();
@@ -159,7 +161,7 @@
           <button
             onclick={() => (showAddModal = true)}
             disabled={modelsStore.isLoading || modelsStore.isDownloading}
-            class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted/50 disabled:opacity-50"
+            class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-[#171717] px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
           >
             <Plus size={16} />
             Add New
@@ -168,7 +170,7 @@
           <button
             onclick={handleSelectDirectory}
             disabled={modelsStore.isLoading || modelsStore.isDownloading}
-            class="cursor-pointer inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-white/5 disabled:opacity-50"
+            class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-[#171717] px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
           >
             <FolderOpen size={16} />
             Select Models Directory
@@ -194,14 +196,14 @@
 
   {#if modelsStore.modelsRoot}
     <div
-      class="mt-4 mb-6 flex items-center justify-between gap-3 rounded-lg border border-border bg-white/0.02 p-3 font-mono text-sm text-muted-foreground"
+      class="mt-4 mb-6 flex items-center justify-between gap-3 rounded-lg bg-[#171717] p-3 font-mono text-sm text-muted-foreground"
     >
       <div class="min-w-0 flex-1 break-all">
         <span class="mr-2 font-bold text-foreground">Path:</span
         >{modelsStore.modelsRoot}
       </div>
       <button
-        class="bg-neutral-900 size-8 flex items-center justify-center rounded-md"
+        class="bg-[#171717] size-8 flex items-center justify-center rounded-md hover:bg-white/10"
         onclick={handleCopyModelsRoot}
         aria-label="Copy models path"
         title="Copy path"
@@ -214,7 +216,7 @@
 
   {#if modelsStore.successMessage}
     <div
-      class="mb-6 flex animate-in fade-in slide-in-from-top-2 duration-300 items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary"
+      class="mb-6 flex animate-in fade-in slide-in-from-top-2 duration-300 items-center justify-between gap-3 rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary"
     >
       <div class="flex items-center gap-3">
         <div
@@ -240,7 +242,7 @@
 
   {#if modelsStore.error}
     <div
-      class="mb-6 flex animate-in fade-in slide-in-from-top-2 duration-300 items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
+      class="mb-6 flex animate-in fade-in slide-in-from-top-2 duration-300 items-center gap-3 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-400"
     >
       <TriangleAlert size={18} />
       <div class="flex-1">
@@ -265,7 +267,7 @@
       </h3>
       {#each Object.values(modelsStore.downloads) as download}
         {@const d = download as any}
-        <div class="rounded-xl border border-border bg-white/0.02 p-4">
+        <div class="rounded-xl bg-[#171717] p-4">
           <div class="flex items-center justify-between mb-2">
             <span class="font-mono text-sm text-foreground">{d.reference}</span>
             <span class="text-xs text-muted-foreground">
@@ -289,28 +291,44 @@
 
   {#if modelsStore.models.length > 0}
     <div class="space-y-6">
-      <div
-        class="flex items-center justify-between border-b border-border pb-4"
+      <button
+        class="flex w-full items-center justify-between pb-4 cursor-pointer group"
+        onclick={() => (showModels = !showModels)}
       >
         <h3 class="flex items-center gap-2 text-lg font-medium">
           <Bot size={20} class="text-muted-foreground" />
           Available Models ({modelsStore.models.length})
         </h3>
-      </div>
-
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {#each modelsStore.models as model}
-          <ModelCard
-            {model}
-            isSelected={modelsStore.selectedModel?.full_identifier ===
-              model.full_identifier}
-            {activeDropdown}
-            onSelect={handleSelectModel}
-            onToggleDropdown={toggleDropdown}
-            onAction={handleAction}
+        <div
+          class={cn(
+            "flex h-[33px] w-[33px] items-center justify-center rounded-[7px] bg-[#27272A] transition-all duration-200 group-hover:bg-[#2f2f33]"
+          )}
+        >
+          <ChevronDown
+            size={16}
+            class={cn(
+              "text-muted-foreground transition-transform duration-200 group-hover:text-foreground",
+              showModels && "rotate-180"
+            )}
           />
-        {/each}
-      </div>
+        </div>
+      </button>
+
+      {#if showModels}
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {#each modelsStore.models as model}
+            <ModelCard
+              {model}
+              isSelected={modelsStore.selectedModel?.full_identifier ===
+                model.full_identifier}
+              {activeDropdown}
+              onSelect={handleSelectModel}
+              onToggleDropdown={toggleDropdown}
+              onAction={handleAction}
+            />
+          {/each}
+        </div>
+      {/if}
     </div>
   {/if}
 

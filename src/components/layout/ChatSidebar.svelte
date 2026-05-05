@@ -229,18 +229,18 @@
       )}
     >
       <div class="flex flex-col gap-2">
-        <button
-          class="flex cursor-pointer items-center justify-between p-2 px-6 text-xs font-medium text-[#999] transition-colors hover:text-[#ccc]"
-          onclick={toggleChatHistory}
-        >
+      <button
+        class="group flex cursor-pointer items-center justify-between p-2 px-6 text-xs font-medium text-[#999] transition-colors hover:text-[#ccc]"
+        onclick={toggleChatHistory}
+      >
           <span class="whitespace-nowrap uppercase tracking-wider"
             >Your chats</span
           >
-          <ChevronDown
-            size={14}
-            strokeWidth={1.5}
-            class={cn("transition-transform", showChatHistory && "rotate-180")}
-          />
+        <ChevronDown
+          size={14}
+          strokeWidth={1.5}
+          class={cn("transition-all opacity-0 group-hover:opacity-100 -rotate-90", showChatHistory && "rotate-0")}
+        />
         </button>
 
         {#if showChatHistory}
