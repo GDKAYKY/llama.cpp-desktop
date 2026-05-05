@@ -178,13 +178,10 @@
     isSelected
       ? "bg-primary/5 active:duration-0"
       : isModelRunning(model)
-        ? "bg-white/2 hover:bg-white/5 active:duration-0"
-        : "bg-white/2 hover:bg-white/5 active:duration-0",
+        ? "bg-[#171717] hover:bg-[#1a1a1a] active:duration-0"
+        : "bg-[#171717] hover:bg-[#1a1a1a] active:duration-0",
   )}
   onclick={() => onSelect(model)}
-  role="button"
-  tabindex="0"
-  onkeydown={(e) => e.key === "Enter" && onSelect(model)}
 >
   <div
     class={cn(
