@@ -27,6 +27,7 @@
     Cpu,
     Search,
     FileCode,
+    Copy,
     Moon,
     Sun,
   } from "lucide-svelte";
@@ -38,17 +39,16 @@
   let message = $state({ type: "", text: "" });
   let unsavedChanges = $state(false);
 
-  // Slider values as arrays for bits-ui
-  let maxTokensValue = $state([settingsStore.settings.maxTokens]);
-  let temperatureValue = $state([settingsStore.settings.temperature]);
-  let contextSizeValue = $state([settingsStore.settings.contextSize]);
-  let historyLimitValue = $state([settingsStore.settings.chatHistoryLimit]);
+  let maxTokensValue = $state(settingsStore.settings.maxTokens);
+  let temperatureValue = $state(settingsStore.settings.temperature);
+  let contextSizeValue = $state(settingsStore.settings.contextSize);
+  let historyLimitValue = $state(settingsStore.settings.chatHistoryLimit);
 
   $effect(() => {
-    maxTokensValue = [settingsStore.settings.maxTokens];
-    temperatureValue = [settingsStore.settings.temperature];
-    contextSizeValue = [settingsStore.settings.contextSize];
-    historyLimitValue = [settingsStore.settings.chatHistoryLimit];
+    maxTokensValue = settingsStore.settings.maxTokens;
+    temperatureValue = settingsStore.settings.temperature;
+    contextSizeValue = settingsStore.settings.contextSize;
+    historyLimitValue = settingsStore.settings.chatHistoryLimit;
   });
 
   const themeItems = [
@@ -97,11 +97,11 @@
         llamaDirectory: settingsStore.settings.llamaDirectory,
         theme: settingsStore.settings.theme,
         language: settingsStore.settings.language,
-        maxTokens: maxTokensValue[0],
-        contextSize: contextSizeValue[0],
-        temperature: temperatureValue[0],
+        maxTokens: maxTokensValue,
+        contextSize: contextSizeValue,
+        temperature: temperatureValue,
         autoSaveChat: settingsStore.settings.autoSaveChat,
-        chatHistoryLimit: historyLimitValue[0],
+        chatHistoryLimit: historyLimitValue,
         serverPort: settingsStore.settings.serverPort,
         webSearchProvider: settingsStore.settings.webSearchProvider,
         webSearchMcpId: settingsStore.settings.webSearchMcpId,
@@ -149,6 +149,18 @@
     }
   }
 
+  async function handleCopyPath(path, label) {
+    if (!path) return;
+
+    try {
+      await navigator.clipboard.writeText(path);
+      showMessage("success", `${label} copied to clipboard`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      showMessage("error", `Failed to copy ${label}: ${errorMessage}`);
+    }
+  }
+
   async function handleSelectLlamaDirectory() {
     try {
       const selected = await selectLlamaDirectory();
@@ -184,8 +196,8 @@
   }
 </script>
 
-<div class="p-6">
-  <div class="mb-8 flex items-center justify-between pb-6">
+<div class="p-6 pt-8">
+  <div class="mb-4 flex items-center justify-between pb-6">
     <div>
       <div class="flex items-center gap-3">
         <div
@@ -222,12 +234,6 @@
         {/if}
         {saving ? "Saving..." : "Save"}
       </button>
-      <a
-        href="/"
-        class="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-      >
-        <X size={18} />
-      </a>
     </div>
   </div>
 
@@ -287,6 +293,19 @@
                 class="flex-1 rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
               />
               <button
+                class="inline-flex aspect-square h-9 items-center justify-center rounded-md bg-background text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                onclick={() =>
+                  handleCopyPath(
+                    settingsStore.settings.modelsDirectory,
+                    "Models directory",
+                  )}
+                disabled={!settingsStore.settings.modelsDirectory}
+                aria-label="Copy models directory path"
+                title="Copy path"
+              >
+                <Copy size={14} />
+              </button>
+              <button
                 class="inline-flex items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
                 onclick={handleSelectModelsDirectory}
               >
@@ -312,6 +331,19 @@
                 readonly
                 class="flex-1 rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
               />
+              <button
+                class="inline-flex aspect-square h-9 items-center justify-center rounded-md bg-background text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                onclick={() =>
+                  handleCopyPath(
+                    settingsStore.settings.llamaDirectory,
+                    "Llama.cpp binary directory",
+                  )}
+                disabled={!settingsStore.settings.llamaDirectory}
+                aria-label="Copy llama.cpp binary directory path"
+                title="Copy path"
+              >
+                <Copy size={14} />
+              </button>
               <button
                 class="inline-flex items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
                 onclick={handleSelectLlamaDirectory}
@@ -386,24 +418,24 @@
                 Max Tokens
               </label>
               <span class="rounded bg-muted px-2 py-0.5 text-xs font-mono">
-                {maxTokensValue[0]}
+                {maxTokensValue}
               </span>
             </div>
             <Slider.Root
+              type="single"
               bind:value={maxTokensValue}
               min={128}
               max={8192}
               step={128}
               onValueChange={handleChange}
-              class="relative flex w-full touch-none select-none items-center"
+              class="relative block h-5 w-full touch-none select-none before:absolute before:top-1/2 before:h-2 before:w-full before:-translate-y-1/2 before:rounded-full before:bg-secondary"
             >
-              <Slider.Track
-                class="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary"
-              >
-                <Slider.Range class="absolute h-full bg-primary" />
-              </Slider.Track>
+              <Slider.Range
+                class="absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-orange-500"
+              />
               <Slider.Thumb
-                class="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                index={0}
+                class="top-1/2 -mt-2.5 block h-5 w-5 rounded-full border-2 border-orange-500 bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
               />
             </Slider.Root>
             <p class="text-xs text-muted-foreground">
@@ -418,30 +450,30 @@
                 Temperature
               </label>
               <span class="rounded bg-muted px-2 py-0.5 text-xs font-mono">
-                {temperatureValue[0].toFixed(1)}
+                {temperatureValue.toFixed(1)}
               </span>
             </div>
             <Slider.Root
+              type="single"
               bind:value={temperatureValue}
               min={0}
               max={2}
               step={0.1}
               onValueChange={handleChange}
-              class="relative flex w-full touch-none select-none items-center"
+              class="relative block h-5 w-full touch-none select-none before:absolute before:top-1/2 before:h-2 before:w-full before:-translate-y-1/2 before:rounded-full before:bg-secondary"
             >
-              <Slider.Track
-                class="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary"
-              >
-                <Slider.Range class="absolute h-full bg-primary" />
-              </Slider.Track>
+              <Slider.Range
+                class="absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-orange-500"
+              />
               <Slider.Thumb
-                class="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                index={0}
+                class="top-1/2 -mt-2.5 block h-5 w-5 rounded-full border-2 border-orange-500 bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
               />
             </Slider.Root>
             <p class="text-xs text-muted-foreground">
-              Creativity vs Focus ({temperatureValue[0] < 0.7
+              Creativity vs Focus ({temperatureValue < 0.7
                 ? "Precise"
-                : temperatureValue[0] > 1.2
+                : temperatureValue > 1.2
                   ? "Creative"
                   : "Balanced"})
             </p>
@@ -454,24 +486,24 @@
                 Context Size
               </label>
               <span class="rounded bg-muted px-2 py-0.5 text-xs font-mono">
-                {contextSizeValue[0]}
+                {contextSizeValue}
               </span>
             </div>
             <Slider.Root
+              type="single"
               bind:value={contextSizeValue}
               min={1024}
               max={32768}
               step={1024}
               onValueChange={handleChange}
-              class="relative flex w-full touch-none select-none items-center"
+              class="relative block h-5 w-full touch-none select-none before:absolute before:top-1/2 before:h-2 before:w-full before:-translate-y-1/2 before:rounded-full before:bg-secondary"
             >
-              <Slider.Track
-                class="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary"
-              >
-                <Slider.Range class="absolute h-full bg-primary" />
-              </Slider.Track>
+              <Slider.Range
+                class="absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-orange-500"
+              />
               <Slider.Thumb
-                class="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                index={0}
+                class="top-1/2 -mt-2.5 block h-5 w-5 rounded-full border-2 border-orange-500 bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
               />
             </Slider.Root>
             <p class="text-xs text-muted-foreground">
@@ -526,24 +558,24 @@
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium">Chat History Retention</span>
               <span class="rounded bg-muted px-2 py-0.5 text-xs font-mono">
-                {historyLimitValue[0]} items
+                {historyLimitValue} items
               </span>
             </div>
             <Slider.Root
+              type="single"
               bind:value={historyLimitValue}
               min={10}
               max={100}
               step={5}
               onValueChange={handleChange}
-              class="relative flex w-full touch-none select-none items-center"
+              class="relative block h-5 w-full touch-none select-none before:absolute before:top-1/2 before:h-2 before:w-full before:-translate-y-1/2 before:rounded-full before:bg-secondary"
             >
-              <Slider.Track
-                class="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary"
-              >
-                <Slider.Range class="absolute h-full bg-primary" />
-              </Slider.Track>
+              <Slider.Range
+                class="absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-green-500"
+              />
               <Slider.Thumb
-                class="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                index={0}
+                class="top-1/2 -mt-2.5 block h-5 w-5 rounded-full border-2 border-green-500 bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
               />
             </Slider.Root>
             <p class="text-xs text-muted-foreground">
@@ -635,13 +667,25 @@
                 >
                   Configuration File
                 </span>
-                <button
-                  class="inline-flex items-center gap-2 rounded-md bg-transparent px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
-                  onclick={handleOpenConfigFile}
-                >
-                  <FileCode size={12} />
-                  Open File
-                </button>
+                <div class="flex items-center gap-2">
+                  <button
+                    class="inline-flex items-center gap-2 rounded-md bg-transparent px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+                    onclick={() =>
+                      handleCopyPath(configPath, "Configuration file path")}
+                    aria-label="Copy configuration file path"
+                    title="Copy path"
+                  >
+                    <Copy size={12} />
+                    Copy Path
+                  </button>
+                  <button
+                    class="inline-flex items-center gap-2 rounded-md bg-transparent px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+                    onclick={handleOpenConfigFile}
+                  >
+                    <FileCode size={12} />
+                    Open File
+                  </button>
+                </div>
               </div>
               <code
                 class="block break-all rounded-md bg-muted px-3 py-2 text-xs font-mono"

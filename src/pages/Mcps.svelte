@@ -421,11 +421,6 @@
         {message.text}
       </div>
     {/if}
-    {#if initializing}
-      <div class="mt-4 text-sm text-muted-foreground">
-        Loading MCP servers...
-      </div>
-    {/if}
   </div>
 </div>
 
