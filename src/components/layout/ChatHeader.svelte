@@ -80,7 +80,7 @@
           strokeWidth={2}
           class={cn(
             "shrink-0 transition-transform duration-200",
-            isDropdownOpen && "rotate-180",
+            !isDropdownOpen && "-rotate-90",
           )}
         />
       </button>

@@ -139,7 +139,7 @@
 
 <div class="mx-auto max-w-7xl p-6 text-foreground">
   <div class="w-full bg-background text-foreground">
-    <div class="mx-auto max-w-[1200px]">
+    <div class="mx-auto">
       <div class="flex items-start justify-between">
         <div>
           <div class="flex items-center gap-3">
@@ -301,14 +301,14 @@
         </h3>
         <div
           class={cn(
-            "flex h-[33px] w-[33px] items-center justify-center rounded-[7px] bg-[#27272A] transition-all duration-200 group-hover:bg-[#2f2f33]"
+            "flex h-[33px] w-[33px] items-center justify-center rounded-[7px] bg-[#27272A] transition-all duration-200 group-hover:bg-[#2f2f33]",
           )}
         >
           <ChevronDown
             size={16}
             class={cn(
               "text-muted-foreground transition-transform duration-200 group-hover:text-foreground",
-              showModels && "rotate-180"
+              !showModels && "-rotate-90",
             )}
           />
         </div>

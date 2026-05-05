@@ -356,7 +356,7 @@
 </script>
 
 <div class="w-full bg-background text-foreground">
-  <div class="mx-auto max-w-[1200px] px-6 pt-8">
+  <div class="px-6 pt-8">
     <div class="flex items-start justify-between">
       <div>
         <div class="flex items-center gap-3">
@@ -426,7 +426,7 @@
 
 <div class="mt-3 flex w-full justify-center">
   <div
-    class="flex w-[min(1200px,100%)] min-h-[calc(100vh-160px)] flex-col gap-6 px-6 pb-10 text-foreground"
+    class="flex min-h-[calc(100vh-160px)] flex-col gap-6 px-6 pb-10 text-foreground"
   >
     {#if message.text}
       <div

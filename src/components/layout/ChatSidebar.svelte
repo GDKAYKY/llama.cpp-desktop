@@ -95,9 +95,9 @@
 
 <svelte:window onclick={handleGlobalClick} />
 
-<aside
+  <aside
   class={cn(
-    "z-[100] flex h-screen shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-300",
+    "z-[100] flex h-screen shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-300 ease-in-out",
     isSidebarOpen ? "w-[260px]" : "w-[60px]",
   )}
 >
@@ -135,10 +135,10 @@
         <!-- Background Highlight -->
         <div
           class={cn(
-            "absolute transition-all duration-200 rounded-lg z-0",
+            "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-300 ease-in-out origin-left",
             isSidebarOpen
-              ? "inset-y-1 inset-x-2.5"
-              : "inset-y-1 left-[10px] w-10 h-10",
+              ? "w-[calc(100%-20px)]"
+              : "w-10",
             "bg-transparent group-hover:bg-[#2f2f2f]",
           )}
         ></div>
@@ -154,7 +154,7 @@
         </div>
         <div
           class={cn(
-            "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300 text-left",
+            "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out text-left",
             isSidebarOpen ? "opacity-100 flex-1" : "w-0 opacity-0",
           )}
         >
@@ -176,10 +176,10 @@
           <!-- Background Highlight -->
           <div
             class={cn(
-              "absolute transition-all duration-200 rounded-lg z-0",
+              "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-300 ease-in-out origin-left",
               isSidebarOpen
-                ? "inset-y-1 inset-x-2.5"
-                : "inset-y-1 left-[10px] w-10 h-10",
+                ? "w-[calc(100%-20px)]"
+                : "w-10",
               isActive
                 ? "bg-[#3f3f3f]"
                 : "bg-transparent group-hover:bg-[#2f2f2f]",
@@ -202,7 +202,7 @@
           </div>
           <div
             class={cn(
-              "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300 text-left",
+              "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out text-left",
               isSidebarOpen ? "opacity-100 flex-1" : "w-0 opacity-0",
             )}
           >
@@ -224,7 +224,7 @@
     <!-- CENTRAL AREA (SCROLLABLE) -->
     <div
       class={cn(
-        "mt-4 flex grow flex-col overflow-y-auto transition-opacity duration-300",
+        "mt-4 flex grow flex-col overflow-y-auto transition-opacity duration-300 ease-in-out",
         !isSidebarOpen && "pointer-events-none opacity-0",
       )}
     >
@@ -244,11 +244,11 @@
         </button>
 
         {#if showChatHistory}
-          <div class="flex flex-col gap-0.5 px-3">
+          <div class="flex flex-col gap-0.5 px-3 transition-all duration-300 ease-in-out">
             {#each chatStore.history as chat}
               <div
                 class={cn(
-                  "group relative flex h-9 w-full items-center justify-between overflow-hidden rounded-lg px-3 text-left text-sm text-[#ececec] transition-colors hover:bg-[#2f2f2f]",
+                  "group relative flex h-9 w-full items-center justify-between overflow-hidden rounded-lg px-3 text-left text-sm text-[#ececec] transition-all duration-300 ease-in-out hover:bg-[#2f2f2f]",
                   chatStore.activeConversationId === chat.id &&
                     "bg-[#242424] text-white font-medium",
                 )}
@@ -339,10 +339,10 @@
           <!-- Background Highlight -->
           <div
             class={cn(
-              "absolute transition-all duration-200 rounded-lg z-0",
+              "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-300 ease-in-out origin-left",
               isSidebarOpen
-                ? "inset-y-1 inset-x-2"
-                : "inset-y-1 left-[10px] w-10 h-10",
+                ? "w-[calc(100%-16px)]"
+                : "w-10",
               showProfileMenu
                 ? "bg-[#3f3f3f]"
                 : "bg-transparent group-hover:bg-[#2f2f2f]",
@@ -369,7 +369,7 @@
           </div>
           <div
             class={cn(
-              "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300 text-left",
+              "relative z-10 overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out text-left",
               isSidebarOpen ? "opacity-100 flex-1" : "w-0 opacity-0",
             )}
           >

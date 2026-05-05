@@ -174,7 +174,7 @@
 
 <div
   class={cn(
-    "group relative flex h-[400px] cursor-pointer flex-col gap-2 rounded-xl p-4 transition-all",
+    "group relative flex w-full aspect-[335/400] cursor-pointer flex-col gap-2 rounded-xl p-4 transition-all",
     isSelected
       ? "bg-primary/5 active:duration-0"
       : isModelRunning(model)
