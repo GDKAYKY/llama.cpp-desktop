@@ -9,19 +9,19 @@
   import { modelsStore } from "$lib/stores/models.svelte";
   import { cn } from "$shared/cn.js";
   import { openPath } from "@tauri-apps/plugin-opener";
+  import { Switch, Slider } from "bits-ui";
   import {
     X,
     Save,
     RotateCcw,
     Box,
     Palette,
-    Sliders,
+    Sliders as SlidersIcon,
     MessageSquare,
     Info,
     FolderOpen,
     Globe,
     Monitor,
-    Zap,
     Thermometer,
     Hash,
     Cpu,
@@ -31,14 +31,25 @@
     Sun,
   } from "lucide-svelte";
   import Dropdown from "../components/ui/Dropdown.svelte";
-  import Checkbox from "../components/ui/Checkbox.svelte";
 
   let configPath = $state("");
   let loading = $state(false);
   let saving = $state(false);
-  /** @type {{ type: string, text: string }} */
   let message = $state({ type: "", text: "" });
   let unsavedChanges = $state(false);
+
+  // Slider values as arrays for bits-ui
+  let maxTokensValue = $state([settingsStore.settings.maxTokens]);
+  let temperatureValue = $state([settingsStore.settings.temperature]);
+  let contextSizeValue = $state([settingsStore.settings.contextSize]);
+  let historyLimitValue = $state([settingsStore.settings.chatHistoryLimit]);
+
+  $effect(() => {
+    maxTokensValue = [settingsStore.settings.maxTokens];
+    temperatureValue = [settingsStore.settings.temperature];
+    contextSizeValue = [settingsStore.settings.contextSize];
+    historyLimitValue = [settingsStore.settings.chatHistoryLimit];
+  });
 
   const themeItems = [
     { label: "Dark Mode", value: "dark", icon: Moon },
@@ -86,11 +97,11 @@
         llamaDirectory: settingsStore.settings.llamaDirectory,
         theme: settingsStore.settings.theme,
         language: settingsStore.settings.language,
-        maxTokens: settingsStore.settings.maxTokens,
-        contextSize: settingsStore.settings.contextSize,
-        temperature: settingsStore.settings.temperature,
+        maxTokens: maxTokensValue[0],
+        contextSize: contextSizeValue[0],
+        temperature: temperatureValue[0],
         autoSaveChat: settingsStore.settings.autoSaveChat,
-        chatHistoryLimit: settingsStore.settings.chatHistoryLimit,
+        chatHistoryLimit: historyLimitValue[0],
         serverPort: settingsStore.settings.serverPort,
         webSearchProvider: settingsStore.settings.webSearchProvider,
         webSearchMcpId: settingsStore.settings.webSearchMcpId,
@@ -151,10 +162,6 @@
     }
   }
 
-  /**
-   * @param {string} type
-   * @param {string} text
-   */
   function showMessage(type, text) {
     message = { type, text };
     setTimeout(() => {
@@ -177,33 +184,26 @@
   }
 </script>
 
-<div class="mx-auto max-w-[900px] px-5 py-10 text-foreground">
-  <div
-    class="mb-8 flex items-center justify-between border-b border-border/60 pb-6"
-  >
+<div class="p-6">
+  <div class="mb-8 flex items-center justify-between pb-6">
     <div>
       <div class="flex items-center gap-3">
         <div
-          class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500"
+          class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"
         >
-          <Sliders size={20} />
+          <SlidersIcon size={20} />
         </div>
-        <h1
-          class="text-3xl font-bold tracking-tight leading-none text-foreground"
-        >
-          Settings
-        </h1>
+        <h1 class="text-3xl font-bold tracking-tight">Settings</h1>
       </div>
-      <p class="mt-1 text-sm text-muted-foreground leading-normal">
+      <p class="mt-1 text-sm text-muted-foreground">
         Manage your preferences and application configuration
       </p>
     </div>
     <div class="flex items-center gap-2">
       <button
-        class="inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
+        class="inline-flex items-center gap-2 rounded-lg bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
         onclick={handleReset}
         disabled={loading || saving}
-        aria-label="Reset to Defaults"
       >
         <RotateCcw size={16} />
         <span class="hidden sm:inline">Reset</span>
@@ -212,7 +212,6 @@
         class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         onclick={handleSave}
         disabled={loading || saving || !unsavedChanges}
-        aria-label="Save Changes"
       >
         {#if saving}
           <div
@@ -221,13 +220,11 @@
         {:else}
           <Save size={16} />
         {/if}
-        <span>{saving ? "Saving..." : "Save Changes"}</span>
+        {saving ? "Saving..." : "Save"}
       </button>
       <a
         href="/"
-        class="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-destructive hover:bg-destructive/10 hover:text-destructive"
-        title="Exit Settings"
-        aria-label="Exit Settings"
+        class="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
       >
         <X size={18} />
       </a>
@@ -237,10 +234,10 @@
   {#if message.text}
     <div
       class={cn(
-        "mb-5 rounded-lg border px-4 py-3 text-sm",
+        "mb-5 rounded-lg px-4 py-3 text-sm",
         message.type === "success"
-          ? "border-green-500/30 bg-green-500/10 text-green-400"
-          : "border-red-500/30 bg-red-500/10 text-red-400",
+          ? "bg-green-500/10 text-green-400"
+          : "bg-red-500/10 text-red-400",
       )}
     >
       {message.text}
@@ -252,12 +249,10 @@
       Loading configuration...
     </div>
   {:else}
-    <div class="flex flex-col gap-8">
+    <div class="flex flex-col gap-6">
       <!-- Models Section -->
-      <section class="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
-        <div
-          class="mb-6 flex items-center gap-3 border-b border-border/40 pb-4"
-        >
+      <section class="rounded-xl bg-card p-6 shadow-sm">
+        <div class="mb-6 flex items-center gap-3 pb-4">
           <div
             class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500"
           >
@@ -274,14 +269,13 @@
         </div>
 
         <div class="flex flex-col gap-5">
-          <div class="space-y-1.5">
-            <label for="models-dir" class="block cursor-pointer">
-              <span
-                class="flex items-center gap-2 text-sm font-medium leading-none"
-              >
-                <FolderOpen size={14} class="text-muted-foreground" />
-                Models Directory
-              </span>
+          <div class="space-y-2">
+            <label
+              for="models-dir"
+              class="flex items-center gap-2 text-sm font-medium"
+            >
+              <FolderOpen size={14} class="text-muted-foreground" />
+              Models Directory
             </label>
             <div class="flex gap-2">
               <input
@@ -290,10 +284,10 @@
                 value={settingsStore.settings.modelsDirectory || ""}
                 placeholder="Select models directory..."
                 readonly
-                class="grow rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20"
+                class="flex-1 rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
               />
               <button
-                class="inline-flex cursor-pointer items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                class="inline-flex items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
                 onclick={handleSelectModelsDirectory}
               >
                 Browse
@@ -301,14 +295,13 @@
             </div>
           </div>
 
-          <div class="space-y-1.5">
-            <label for="llama_directory" class="block cursor-pointer">
-              <span
-                class="flex items-center gap-2 text-sm font-medium leading-none"
-              >
-                <Cpu size={14} class="text-muted-foreground" />
-                Llama.cpp Binary Directory
-              </span>
+          <div class="space-y-2">
+            <label
+              for="llama_directory"
+              class="flex items-center gap-2 text-sm font-medium"
+            >
+              <Cpu size={14} class="text-muted-foreground" />
+              Llama.cpp Binary Directory
             </label>
             <div class="flex gap-2">
               <input
@@ -317,16 +310,16 @@
                 value={settingsStore.settings.llamaDirectory || ""}
                 placeholder="Select llama-server binary path..."
                 readonly
-                class="grow rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20"
+                class="flex-1 rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
               />
               <button
-                class="inline-flex cursor-pointer items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                class="inline-flex items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
                 onclick={handleSelectLlamaDirectory}
               >
                 Browse
               </button>
             </div>
-            <p class="text-xs text-muted-foreground leading-relaxed pl-1">
+            <p class="text-xs text-muted-foreground">
               Path to the backend executable (llama-server)
             </p>
           </div>
@@ -334,10 +327,8 @@
       </section>
 
       <!-- Appearance Section -->
-      <section class="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
-        <div
-          class="mb-6 flex items-center gap-3 border-b border-border/40 pb-4"
-        >
+      <section class="rounded-xl bg-card p-6 shadow-sm">
+        <div class="mb-6 flex items-center gap-3 pb-4">
           <div
             class="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500"
           >
@@ -351,38 +342,31 @@
           </div>
         </div>
 
-        <div class="grid gap-6 sm:grid-cols-2">
-          <div class="space-y-2">
-            <Dropdown
-              label="Theme"
-              items={themeItems}
-              bind:value={settingsStore.settings.theme}
-              onSelect={handleChange}
-              placeholder="Select theme"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <Dropdown
-              label="Language"
-              items={languageItems}
-              bind:value={settingsStore.settings.language}
-              onSelect={handleChange}
-              placeholder="Select language"
-            />
-          </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <Dropdown
+            label="Theme"
+            items={themeItems}
+            bind:value={settingsStore.settings.theme}
+            onSelect={handleChange}
+            placeholder="Select theme"
+          />
+          <Dropdown
+            label="Language"
+            items={languageItems}
+            bind:value={settingsStore.settings.language}
+            onSelect={handleChange}
+            placeholder="Select language"
+          />
         </div>
       </section>
 
       <!-- Model Parameters Section -->
-      <section class="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
-        <div
-          class="mb-6 flex items-center gap-3 border-b border-border/40 pb-4"
-        >
+      <section class="rounded-xl bg-card p-6 shadow-sm">
+        <div class="mb-6 flex items-center gap-3 pb-4">
           <div
             class="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500"
           >
-            <Sliders size={18} />
+            <SlidersIcon size={18} />
           </div>
           <div>
             <h2 class="text-lg font-semibold leading-tight">
@@ -394,100 +378,103 @@
           </div>
         </div>
 
-        <div class="grid gap-8 sm:grid-cols-2">
+        <div class="space-y-6">
           <div class="space-y-4">
             <div class="flex items-center justify-between">
-              <label for="max-tokens" class="block cursor-pointer">
-                <span
-                  class="flex items-center gap-2 text-sm font-medium leading-none"
-                >
-                  <Hash size={14} class="text-muted-foreground" />
-                  Max Tokens
-                </span>
+              <label class="flex items-center gap-2 text-sm font-medium">
+                <Hash size={14} class="text-muted-foreground" />
+                Max Tokens
               </label>
-              <span
-                class="rounded bg-muted px-2 py-0.5 text-xs font-mono text-foreground"
-              >
-                {settingsStore.settings.maxTokens}
+              <span class="rounded bg-muted px-2 py-0.5 text-xs font-mono">
+                {maxTokensValue[0]}
               </span>
             </div>
-            <input
-              id="max-tokens"
-              type="range"
-              min="128"
-              max="8192"
-              step="128"
-              bind:value={settingsStore.settings.maxTokens}
-              oninput={handleChange}
-              class="h-2 w-full cursor-pointer appearance-none rounded-full bg-secondary accent-primary outline-none"
-            />
-            <p class="text-xs text-muted-foreground leading-relaxed">
+            <Slider.Root
+              bind:value={maxTokensValue}
+              min={128}
+              max={8192}
+              step={128}
+              onValueChange={handleChange}
+              class="relative flex w-full touch-none select-none items-center"
+            >
+              <Slider.Track
+                class="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary"
+              >
+                <Slider.Range class="absolute h-full bg-primary" />
+              </Slider.Track>
+              <Slider.Thumb
+                class="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+              />
+            </Slider.Root>
+            <p class="text-xs text-muted-foreground">
               Upper limit on generated response length (128-8192)
             </p>
           </div>
 
           <div class="space-y-4">
             <div class="flex items-center justify-between">
-              <label for="temperature" class="block cursor-pointer">
-                <span
-                  class="flex items-center gap-2 text-sm font-medium leading-none"
-                >
-                  <Thermometer size={14} class="text-muted-foreground" />
-                  Temperature
-                </span>
+              <label class="flex items-center gap-2 text-sm font-medium">
+                <Thermometer size={14} class="text-muted-foreground" />
+                Temperature
               </label>
-              <span
-                class="rounded bg-muted px-2 py-0.5 text-xs font-mono text-foreground"
-              >
-                {settingsStore.settings.temperature.toFixed(1)}
+              <span class="rounded bg-muted px-2 py-0.5 text-xs font-mono">
+                {temperatureValue[0].toFixed(1)}
               </span>
             </div>
-            <input
-              id="temperature"
-              type="range"
-              min="0"
-              max="2"
-              step="0.1"
-              bind:value={settingsStore.settings.temperature}
-              oninput={handleChange}
-              class="h-2 w-full cursor-pointer appearance-none rounded-full bg-secondary accent-primary outline-none"
-            />
-            <p class="text-xs text-muted-foreground leading-relaxed">
-              Creativity vs Focus ({settingsStore.settings.temperature < 0.7
+            <Slider.Root
+              bind:value={temperatureValue}
+              min={0}
+              max={2}
+              step={0.1}
+              onValueChange={handleChange}
+              class="relative flex w-full touch-none select-none items-center"
+            >
+              <Slider.Track
+                class="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary"
+              >
+                <Slider.Range class="absolute h-full bg-primary" />
+              </Slider.Track>
+              <Slider.Thumb
+                class="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+              />
+            </Slider.Root>
+            <p class="text-xs text-muted-foreground">
+              Creativity vs Focus ({temperatureValue[0] < 0.7
                 ? "Precise"
-                : settingsStore.settings.temperature > 1.2
+                : temperatureValue[0] > 1.2
                   ? "Creative"
                   : "Balanced"})
             </p>
           </div>
 
-          <div class="space-y-4 sm:col-span-2">
+          <div class="space-y-4">
             <div class="flex items-center justify-between">
-              <label for="context-size" class="block cursor-pointer">
-                <span
-                  class="flex items-center gap-2 text-sm font-medium leading-none"
-                >
-                  <Hash size={14} class="text-muted-foreground" />
-                  Context Size
-                </span>
+              <label class="flex items-center gap-2 text-sm font-medium">
+                <Hash size={14} class="text-muted-foreground" />
+                Context Size
               </label>
-              <span
-                class="rounded bg-muted px-2 py-0.5 text-xs font-mono text-foreground"
-              >
-                {settingsStore.settings.contextSize}
+              <span class="rounded bg-muted px-2 py-0.5 text-xs font-mono">
+                {contextSizeValue[0]}
               </span>
             </div>
-            <input
-              id="context-size"
-              type="range"
-              min="1024"
-              max="32768"
-              step="1024"
-              bind:value={settingsStore.settings.contextSize}
-              oninput={handleChange}
-              class="h-2 w-full cursor-pointer appearance-none rounded-full bg-secondary accent-primary outline-none"
-            />
-            <p class="text-xs text-muted-foreground leading-relaxed">
+            <Slider.Root
+              bind:value={contextSizeValue}
+              min={1024}
+              max={32768}
+              step={1024}
+              onValueChange={handleChange}
+              class="relative flex w-full touch-none select-none items-center"
+            >
+              <Slider.Track
+                class="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary"
+              >
+                <Slider.Range class="absolute h-full bg-primary" />
+              </Slider.Track>
+              <Slider.Thumb
+                class="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+              />
+            </Slider.Root>
+            <p class="text-xs text-muted-foreground">
               Total context window size for the model (1024-32768)
             </p>
           </div>
@@ -495,10 +482,8 @@
       </section>
 
       <!-- Chat & System Section -->
-      <section class="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
-        <div
-          class="mb-6 flex items-center gap-3 border-b border-border/40 pb-4"
-        >
+      <section class="rounded-xl bg-card p-6 shadow-sm">
+        <div class="mb-6 flex items-center gap-3 pb-4">
           <div
             class="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10 text-green-500"
           >
@@ -512,52 +497,56 @@
           </div>
         </div>
 
-        <div class="flex flex-col gap-6">
-          <div
-            class="flex items-start gap-3 rounded-lg border border-border/40 bg-muted/20 p-4 transition-colors hover:bg-muted/40"
-          >
-            <Checkbox
-              id="auto-save"
-              bind:checked={settingsStore.settings.autoSaveChat}
-              on:change={handleChange}
-              ariaLabel="Auto-save Chat History"
-              className="mt-1"
-            />
-            <label for="auto-save" class="block cursor-pointer">
-              <span class="block text-sm font-medium leading-none"
-                >Auto-save Chat History</span
-              >
-              <span
-                class="mt-1 block text-xs text-muted-foreground leading-relaxed"
-                >Automatically save conversations locally for continuity.</span
-              >
+        <div class="space-y-6">
+          <div class="flex items-center justify-between space-x-4">
+            <label for="auto-save" class="flex flex-col space-y-1">
+              <span class="text-sm font-medium">Auto-save Chat History</span>
+              <span class="text-xs text-muted-foreground">
+                Automatically save conversations locally for continuity
+              </span>
             </label>
+            <Switch.Root
+              id="auto-save"
+              checked={settingsStore.settings.autoSaveChat}
+              onCheckedChange={(checked) => {
+                settingsStore.settings.autoSaveChat = checked;
+                handleChange();
+              }}
+              class="peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
+            >
+              <Switch.Thumb
+                class="pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
+              />
+            </Switch.Root>
           </div>
+
+          <div class="h-px bg-border"></div>
 
           <div class="space-y-4">
             <div class="flex items-center justify-between">
-              <label for="history-limit" class="block cursor-pointer">
-                <span class="block text-sm font-medium leading-none"
-                  >Chat History Retention</span
-                >
-              </label>
-              <span
-                class="rounded bg-muted px-2 py-0.5 text-xs font-mono text-foreground"
-              >
-                {settingsStore.settings.chatHistoryLimit} items
+              <span class="text-sm font-medium">Chat History Retention</span>
+              <span class="rounded bg-muted px-2 py-0.5 text-xs font-mono">
+                {historyLimitValue[0]} items
               </span>
             </div>
-            <input
-              id="history-limit"
-              type="range"
-              min="10"
-              max="100"
-              step="5"
-              bind:value={settingsStore.settings.chatHistoryLimit}
-              oninput={handleChange}
-              class="h-2 w-full cursor-pointer appearance-none rounded-full bg-secondary accent-primary outline-none"
-            />
-            <p class="text-xs text-muted-foreground leading-relaxed">
+            <Slider.Root
+              bind:value={historyLimitValue}
+              min={10}
+              max={100}
+              step={5}
+              onValueChange={handleChange}
+              class="relative flex w-full touch-none select-none items-center"
+            >
+              <Slider.Track
+                class="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary"
+              >
+                <Slider.Range class="absolute h-full bg-primary" />
+              </Slider.Track>
+              <Slider.Thumb
+                class="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+              />
+            </Slider.Root>
+            <p class="text-xs text-muted-foreground">
               Limit the number of recent chats stored (10-100)
             </p>
           </div>
@@ -565,10 +554,8 @@
       </section>
 
       <!-- Web Search Section -->
-      <section class="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
-        <div
-          class="mb-6 flex items-center gap-3 border-b border-border/40 pb-4"
-        >
+      <section class="rounded-xl bg-card p-6 shadow-sm">
+        <div class="mb-6 flex items-center gap-3 pb-4">
           <div
             class="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-500"
           >
@@ -582,7 +569,7 @@
           </div>
         </div>
 
-        <div class="grid gap-6 sm:grid-cols-2">
+        <div class="grid gap-4 sm:grid-cols-2">
           <div class="space-y-2">
             <Dropdown
               label="Default Provider"
@@ -591,19 +578,18 @@
               onSelect={handleChange}
               placeholder="Select provider"
             />
-            <p class="text-xs text-muted-foreground leading-relaxed pl-1">
-              Tavily uses MCP server id <span class="font-mono">tavily</span>.
+            <p class="text-xs text-muted-foreground">
+              Tavily uses MCP server id <span class="font-mono">tavily</span>
             </p>
           </div>
 
           <div class="space-y-2">
-            <label for="web-search-mcp" class="block cursor-pointer">
-              <span
-                class="flex items-center gap-2 text-sm font-medium leading-none"
-              >
-                <Globe size={14} class="text-muted-foreground" />
-                Custom MCP ID
-              </span>
+            <label
+              for="web-search-mcp"
+              class="flex items-center gap-2 text-sm font-medium"
+            >
+              <Globe size={14} class="text-muted-foreground" />
+              Custom MCP ID
             </label>
             <input
               id="web-search-mcp"
@@ -616,17 +602,17 @@
               }}
               placeholder="my-web-search-mcp"
               disabled={settingsStore.settings.webSearchProvider !== "custom"}
-              class="w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/20 disabled:opacity-60"
+              class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20 disabled:opacity-60"
             />
-            <p class="text-xs text-muted-foreground leading-relaxed pl-1">
-              When custom is selected, this MCP server id will be used.
+            <p class="text-xs text-muted-foreground">
+              When custom is selected, this MCP server id will be used
             </p>
           </div>
         </div>
       </section>
 
       <!-- About Section -->
-      <section class="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
+      <section class="rounded-xl bg-card p-6 shadow-sm">
         <div class="mb-4 flex items-center gap-3">
           <div
             class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-500/10 text-slate-500"
@@ -636,21 +622,21 @@
           <h2 class="text-lg font-semibold leading-tight">About</h2>
         </div>
 
-        <div class="space-y-4 text-sm text-muted-foreground">
-          <div class="flex justify-between border-b border-border/40 pb-2">
-            <span class="font-medium text-foreground">Llama Desktop</span>
-            <span>v0.1.0</span>
+        <div class="space-y-4">
+          <div class="flex justify-between pb-2">
+            <span class="font-medium">Llama Desktop</span>
+            <span class="text-sm text-muted-foreground">v0.1.0</span>
           </div>
           {#if configPath}
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <p
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span
                   class="text-xs font-medium uppercase tracking-wider text-muted-foreground"
                 >
                   Configuration File
-                </p>
+                </span>
                 <button
-                  class="inline-flex items-center gap-2 rounded-md border border-border bg-transparent px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+                  class="inline-flex items-center gap-2 rounded-md bg-transparent px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
                   onclick={handleOpenConfigFile}
                 >
                   <FileCode size={12} />
@@ -658,9 +644,10 @@
                 </button>
               </div>
               <code
-                class="block break-all rounded-md bg-muted px-3 py-2 text-xs font-mono text-foreground"
-                >{configPath}</code
+                class="block break-all rounded-md bg-muted px-3 py-2 text-xs font-mono"
               >
+                {configPath}
+              </code>
             </div>
           {/if}
         </div>

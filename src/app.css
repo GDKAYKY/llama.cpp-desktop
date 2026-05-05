@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap");
+@import "tw-animate-css";
+@import "shadcn-svelte/tailwind.css";
+@import "@fontsource-variable/inter";
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -40,6 +43,10 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-code-background: var(--code-background);
   --color-code-foreground: var(--code-foreground);
+  --font-sans: 'Inter Variable', sans-serif;
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -95,6 +102,11 @@
   --color-accent: var(--primary);
   --color-border: var(--border);
   --color-input-bg: var(--input);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
 }
 
 .dark {
@@ -134,6 +146,11 @@
   --code-block-muted: #bbbbbb;
   --code-block-hover: #a7a7a7;
   --theme-entity-accent: #339cff;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
 }
 
 @layer base {
@@ -160,6 +177,13 @@
 
   button:disabled {
     cursor: default; /* Optional nice-to-have */
+  }
+
+
+	html {
+
+
+		@apply font-sans;
   }
 }
 
@@ -338,4 +362,3 @@
   background: var(--code-block-hover);
   color: var(--code-block-text);
 }
-
