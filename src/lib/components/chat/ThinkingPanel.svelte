@@ -2,7 +2,7 @@
   import { ChevronDown, Wrench } from "lucide-svelte";
   import TextShimmer from "$components/ui/TextShimmer.svelte";
   import { cn } from "$shared/cn.js";
-  import ToolContextItem from "./ToolContextItem.svelte";
+  import ToolContextItem from "$components/ui/tools/ToolContextItem.svelte";
   import {
     groupThinkingSteps,
     isToolStep,

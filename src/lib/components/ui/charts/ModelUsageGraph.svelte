@@ -64,9 +64,9 @@
     {/each}
   </div>
 
-  <div class="flex items-center justify-between border-t border-white/5 pt-2">
+  <div class="flex items-center justify-between">
     <span
-      class="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/60"
+      class="text-[8px] font-bold uppercase tracking-widest text-muted-foreground"
       >Model Usage</span
     >
     <div class="flex gap-4 items-center">

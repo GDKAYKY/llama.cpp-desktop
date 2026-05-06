@@ -15,7 +15,7 @@
   import { serverStore } from "$lib/stores/server.svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
-  import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
+  import ModelUsageGraph from "$components/ui/charts/ModelUsageGraph.svelte";
   import ModelLogo from "./ModelLogo.svelte";
   import { Play, Rocket, Plus, Copy } from "lucide-svelte";
 

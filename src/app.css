@@ -43,7 +43,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-code-background: var(--code-background);
   --color-code-foreground: var(--code-foreground);
-  --font-sans: 'Inter Variable', sans-serif;
+  --font-sans: "Inter Variable", sans-serif;
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
@@ -179,11 +179,8 @@
     cursor: default; /* Optional nice-to-have */
   }
 
-
-	html {
-
-
-		@apply font-sans;
+  html {
+    @apply font-sans;
   }
 }
 
@@ -365,12 +362,10 @@
 
 /* Scrollbar transparent background */
 
-
 /* Scrollbar styles */
 * {
   scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
 }
-
 
 *::-webkit-scrollbar-track {
   background: transparent;

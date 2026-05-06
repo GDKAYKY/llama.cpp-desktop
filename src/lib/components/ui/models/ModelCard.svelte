@@ -20,8 +20,9 @@
     Trash2,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
-  import ModelUsageGraph from "$components/chat/ModelUsageGraph.svelte";
+  import ModelUsageGraph from "$components/ui/charts/ModelUsageGraph.svelte";
   import ModelLogo from "./ModelLogo.svelte";
+  import MetaRow from "./MetaRow.svelte";
 
   interface Props {
     model: Model;
@@ -170,6 +171,52 @@
       return "border-[#416b418f] group-hover:border-[#347034] group-active:!border-[#8fff94]";
     return "border-border group-hover:border-white/20";
   });
+
+  const metaItems = $derived.by(() => {
+    const items = [
+      {
+        icon: Binary,
+        label: "Quantization",
+        value: metadata.quant || "None",
+        mono: true,
+      },
+      {
+        icon: Box,
+        label: "Provider",
+        value: model.provider,
+        mono: false,
+      },
+      {
+        icon: Library,
+        label: "Architecture",
+        value: model.library,
+        mono: false,
+      },
+      ...(metadata.type
+        ? [
+            {
+              icon: Tag,
+              label: "Type",
+              value: metadata.type,
+              mono: false,
+            },
+          ]
+        : []),
+      {
+        icon: Layers,
+        label: "Layers",
+        value: `${model.manifest_data.layers.length} files`,
+        mono: false,
+      },
+      {
+        icon: Fingerprint,
+        label: "Digest",
+        value: getShortDigest(model.manifest_data.config.digest),
+        mono: true,
+      },
+    ];
+    return items;
+  });
 </script>
 
 <div
@@ -285,7 +332,7 @@
 
   <div
     class={!isModelRunning(model)
-      ? "opacity-50 pointer-events-none select-none transition-all duration-500"
+      ? "pointer-events-none select-none transition-all duration-500"
       : "transition-all duration-500"}
   >
     <ModelUsageGraph
@@ -333,58 +380,14 @@
   </div>
 
   <div class="mt-auto space-y-1 pt-2">
-    <div class="flex items-center justify-between text-[10px]">
-      <div class="flex items-center gap-1.5 text-muted-foreground">
-        <Binary size={10} />
-        <span>Quantization</span>
-      </div>
-      <span class="font-mono font-medium text-foreground/80"
-        >{metadata.quant || "None"}</span
-      >
-    </div>
-    <div class="flex items-center justify-between text-[10px]">
-      <div class="flex items-center gap-1.5 text-muted-foreground">
-        <Box size={10} />
-        <span>Provider</span>
-      </div>
-      <span class="font-medium text-foreground/80">{model.provider}</span>
-    </div>
-    <div class="flex items-center justify-between text-[10px]">
-      <div class="flex items-center gap-1.5 text-muted-foreground">
-        <Library size={10} />
-        <span>Architecture</span>
-      </div>
-      <span class="font-medium text-foreground/80">{model.library}</span>
-    </div>
-    {#if metadata.type}
-      <div class="flex items-center justify-between text-[10px]">
-        <div class="flex items-center gap-1.5 text-muted-foreground">
-          <Tag size={10} />
-          <span>Type</span>
-        </div>
-        <span class="font-medium text-foreground/80 uppercase"
-          >{metadata.type}</span
-        >
-      </div>
-    {/if}
-    <div class="flex items-center justify-between text-[10px]">
-      <div class="flex items-center gap-1.5 text-muted-foreground">
-        <Layers size={10} />
-        <span>Layers</span>
-      </div>
-      <span class="font-medium text-foreground/80"
-        >{model.manifest_data.layers.length} files</span
-      >
-    </div>
-    <div class="flex items-center justify-between text-[10px]">
-      <div class="flex items-center gap-1.5 text-muted-foreground">
-        <Fingerprint size={10} />
-        <span>Digest</span>
-      </div>
-      <span class="font-mono font-medium text-foreground/80"
-        >{getShortDigest(model.manifest_data.config.digest)}</span
-      >
-    </div>
+    {#each metaItems as item (item.label)}
+      <MetaRow
+        icon={item.icon}
+        label={item.label}
+        value={item.value}
+        mono={item.mono}
+      />
+    {/each}
   </div>
 
   {#if currentStatus}

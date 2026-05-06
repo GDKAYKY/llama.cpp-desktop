@@ -31,7 +31,7 @@
     Moon,
     Sun,
   } from "lucide-svelte";
-  import Dropdown from "../components/ui/Dropdown.svelte";
+  import Dropdown from "$components/ui/Dropdown.svelte";
 
   let configPath = $state("");
   let loading = $state(false);
@@ -483,7 +483,7 @@
             <div class="flex items-center justify-between">
               <label class="flex items-center gap-2 text-sm font-medium">
                 <Hash size={14} class="text-muted-foreground" />
-                Context Size
+                Context Length
               </label>
               <span class="rounded bg-muted px-2 py-0.5 text-xs font-mono">
                 {contextSizeValue}

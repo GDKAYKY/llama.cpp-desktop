@@ -11,7 +11,7 @@ const config = {
       fallback: "index.html",
     }),
     alias: {
-      $components: "src/components",
+      $components: "src/lib/components",
       $infrastructure: "src/lib/infrastructure",
       $shared: "src/lib/shared",
     },

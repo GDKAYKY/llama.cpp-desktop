@@ -1,6 +1,6 @@
 <script lang="ts">
   import { cn } from "$shared/cn.js";
-  import ModelLogo from "$components/layout/ModelLogo.svelte";
+  import ModelLogo from "$components/ui/models/ModelLogo.svelte";
 
   interface Props {
     role: "user" | "assistant" | "system";

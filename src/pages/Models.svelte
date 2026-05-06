@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ModelSelector from "$components/layout/ModelSelector.svelte";
+  import ModelSelector from "$components/ui/models/ModelSelector.svelte";
   import { X, Square } from "lucide-svelte";
   import { modelsStore, type Model } from "$lib/stores/models.svelte";
   import { serverStore } from "$lib/stores/server.svelte";

@@ -9,7 +9,7 @@
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
-  import ModelLogo from "./ModelLogo.svelte";
+  import ModelLogo from "../../ui/models/ModelLogo.svelte";
 
   /** @type {{
    *   isSidebarOpen: boolean,

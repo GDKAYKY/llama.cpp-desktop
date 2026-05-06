@@ -95,7 +95,7 @@
 
 <svelte:window onclick={handleGlobalClick} />
 
-  <aside
+<aside
   class={cn(
     "z-[100] flex h-screen shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-300 ease-in-out",
     isSidebarOpen ? "w-[260px]" : "w-[60px]",
@@ -136,9 +136,7 @@
         <div
           class={cn(
             "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-300 ease-in-out origin-left",
-            isSidebarOpen
-              ? "w-[calc(100%-20px)]"
-              : "w-10",
+            isSidebarOpen ? "w-[calc(100%-20px)]" : "w-10",
             "bg-transparent group-hover:bg-[#2f2f2f]",
           )}
         ></div>
@@ -177,9 +175,7 @@
           <div
             class={cn(
               "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-300 ease-in-out origin-left",
-              isSidebarOpen
-                ? "w-[calc(100%-20px)]"
-                : "w-10",
+              isSidebarOpen ? "w-[calc(100%-20px)]" : "w-10",
               isActive
                 ? "bg-[#3f3f3f]"
                 : "bg-transparent group-hover:bg-[#2f2f2f]",
@@ -229,22 +225,27 @@
       )}
     >
       <div class="flex flex-col gap-2">
-      <button
-        class="group flex cursor-pointer items-center justify-between p-2 px-6 text-xs font-medium text-[#999] transition-colors hover:text-[#ccc]"
-        onclick={toggleChatHistory}
-      >
+        <button
+          class="group flex cursor-pointer items-center justify-between p-2 px-6 text-xs font-medium text-[#999] transition-colors hover:text-[#ccc]"
+          onclick={toggleChatHistory}
+        >
           <span class="whitespace-nowrap uppercase tracking-wider"
             >Your chats</span
           >
-        <ChevronDown
-          size={14}
-          strokeWidth={1.5}
-          class={cn("transition-all opacity-0 group-hover:opacity-100 -rotate-90", showChatHistory && "rotate-0")}
-        />
+          <ChevronDown
+            size={14}
+            strokeWidth={1.5}
+            class={cn(
+              "transition-all opacity-0 group-hover:opacity-100 -rotate-90",
+              showChatHistory && "rotate-0",
+            )}
+          />
         </button>
 
         {#if showChatHistory}
-          <div class="flex flex-col gap-0.5 px-3 transition-all duration-300 ease-in-out">
+          <div
+            class="flex flex-col gap-0.5 px-3 transition-all duration-300 ease-in-out"
+          >
             {#each chatStore.history as chat}
               <div
                 class={cn(
@@ -340,9 +341,7 @@
           <div
             class={cn(
               "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-300 ease-in-out origin-left",
-              isSidebarOpen
-                ? "w-[calc(100%-16px)]"
-                : "w-10",
+              isSidebarOpen ? "w-[calc(100%-16px)]" : "w-10",
               showProfileMenu
                 ? "bg-[#3f3f3f]"
                 : "bg-transparent group-hover:bg-[#2f2f2f]",
