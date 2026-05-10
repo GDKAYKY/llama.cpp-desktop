@@ -45,3 +45,11 @@ pub struct ServerMetrics {
     pub gpu_usage: Option<f32>,
     pub vram_usage: Option<f32>, // VRAM usage percentage (0-100%)
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunningServerInfo {
+    pub model_id: ModelId,
+    pub pid: u32,
+    pub config: LlamaCppConfig,
+    pub metrics: Option<ServerMetrics>,
+}

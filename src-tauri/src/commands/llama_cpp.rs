@@ -1,4 +1,4 @@
-use crate::models::{LlamaCppConfig, ServerMetrics};
+use crate::models::{LlamaCppConfig, RunningServerInfo, ServerMetrics};
 use crate::services::llama::LlamaCppService;
 use crate::state::AppState;
 use serde::Serialize;
@@ -62,6 +62,14 @@ pub async fn stop_llama_server(state: State<'_, AppState>) -> Result<String, Str
 }
 
 #[command]
+pub async fn stop_llama_server_instance(
+    model_path: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    stop_llama_server_instance_with_service(&state.llama_service, model_path).await
+}
+
+#[command]
 pub async fn is_server_running(state: State<'_, AppState>) -> Result<bool, String> {
     is_server_running_with_service(&state.llama_service).await
 }
@@ -97,6 +105,13 @@ pub async fn get_server_metrics(
     state: State<'_, AppState>,
 ) -> Result<Option<ServerMetrics>, String> {
     get_server_metrics_with_service(&state.llama_service).await
+}
+
+#[command]
+pub async fn get_running_llama_servers(
+    state: State<'_, AppState>,
+) -> Result<Vec<RunningServerInfo>, String> {
+    get_running_llama_servers_with_service(&state.llama_service).await
 }
 
 pub async fn start_llama_server_with_service(
@@ -171,6 +186,14 @@ fn resolve_chat_template(
 
 pub async fn stop_llama_server_with_service(service: &LlamaCppService) -> Result<String, String> {
     service.stop().await?;
+    Ok("Server stopped".to_string())
+}
+
+pub async fn stop_llama_server_instance_with_service(
+    service: &LlamaCppService,
+    model_path: String,
+) -> Result<String, String> {
+    service.stop_model(model_path).await?;
     Ok("Server stopped".to_string())
 }
 
@@ -249,4 +272,10 @@ pub async fn get_server_metrics_with_service(
     service: &LlamaCppService,
 ) -> Result<Option<ServerMetrics>, String> {
     Ok(service.get_metrics().await)
+}
+
+pub async fn get_running_llama_servers_with_service(
+    service: &LlamaCppService,
+) -> Result<Vec<RunningServerInfo>, String> {
+    Ok(service.get_running_servers().await)
 }

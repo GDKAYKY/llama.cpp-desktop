@@ -21,18 +21,23 @@
   <div
     class="fixed bottom-8 left-1/2 z-100 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none"
   >
-    <div
-      class="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg"
-    >
-      <div class="inline-flex items-center gap-2">
-        {#if isLoading}
-          <span
-            class="size-3 animate-spin rounded-full border-2 border-current border-t-transparent"
-            aria-hidden="true"
-          ></span>
-        {/if}
-        <span>{content}</span>
+    {#if isLoading}
+      <div
+        class="rounded-full bg-primary w-12 h-12 shadow-lg flex items-center justify-center"
+      >
+        <span
+          class="size-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent"
+          aria-hidden="true"
+        ></span>
       </div>
-    </div>
+    {:else}
+      <div
+        class="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg"
+      >
+        <div class="inline-flex items-center gap-2">
+          <span>{content}</span>
+        </div>
+      </div>
+    {/if}
   </div>
 {/if}

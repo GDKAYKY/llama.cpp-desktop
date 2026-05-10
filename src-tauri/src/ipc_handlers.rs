@@ -50,11 +50,13 @@ pub fn configure_ipc(builder: Builder<Wry>) -> Builder<Wry> {
         commands::llama_cpp::ensure_chat_template,
         commands::llama_cpp::start_llama_server,
         commands::llama_cpp::stop_llama_server,
+        commands::llama_cpp::stop_llama_server_instance,
         commands::llama_cpp::check_server_health,
         commands::llama_cpp::is_server_running,
         commands::llama_cpp::check_server_health_detail,
         commands::llama_cpp::get_llama_config,
         commands::llama_cpp::get_server_metrics,
+        commands::llama_cpp::get_running_llama_servers,
         commands::chat::load_history_context,
         commands::chat::generate_chat_title,
     ])

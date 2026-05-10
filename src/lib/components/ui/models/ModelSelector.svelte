@@ -15,7 +15,6 @@
   import { serverStore } from "$lib/stores/server.svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
-  import ModelUsageGraph from "$components/ui/charts/ModelUsageGraph.svelte";
   import ModelLogo from "./ModelLogo.svelte";
   import { Play, Rocket, Plus, Copy } from "lucide-svelte";
   import { notifications } from "$lib/shared/notifications";
@@ -56,7 +55,9 @@
     } else if (action === "start-model") {
       handleLaunchModel(model, e);
     } else if (action === "stop-model") {
-      serverStore.stopServer();
+      if (model.model_file_path) {
+        await serverStore.stopModel(model.model_file_path);
+      }
     }
   }
 
@@ -154,7 +155,10 @@
             >
               <Box size={20} />
             </div>
-            <h2 class="text-3xl font-bold tracking-tight leading-none">
+            <h2
+              class="text-3xl font-bold tracking-tight leading-none"
+              style="font-family: 'Inter', sans-serif;"
+            >
               Model Library
             </h2>
           </div>

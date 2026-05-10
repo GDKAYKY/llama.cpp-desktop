@@ -1,12 +1,18 @@
-use super::actor::{ActorMessage, LlamaActor};
+use super::actor::{ ActorMessage, LlamaActor };
 use crate::infrastructure::llama::process::LlamaProcessManager;
 use crate::infrastructure::metrics::SystemMetricsProvider;
 use crate::models::{
-    ChatMessage, ChatRequest, LlamaCppConfig, ModelId, ModelLibrary, ServerMetrics,
+    ChatMessage,
+    ChatRequest,
+    LlamaCppConfig,
+    ModelId,
+    ModelLibrary,
+    RunningServerInfo,
+    ServerMetrics,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{ mpsc, oneshot };
 
 #[derive(Clone)]
 pub struct LlamaCppService {
@@ -17,7 +23,8 @@ impl LlamaCppService {
     pub fn new(models_path: PathBuf) -> Self {
         let registry_path = models_path.join("modelLibrary.json");
         let initial_registry = if registry_path.exists() {
-            std::fs::File::open(&registry_path)
+            std::fs::File
+                ::open(&registry_path)
                 .ok()
                 .and_then(|file| {
                     let reader = std::io::BufReader::new(file);
@@ -43,7 +50,7 @@ impl LlamaCppService {
             tx_clone,
             initial_registry,
             process_manager,
-            metrics_provider,
+            metrics_provider
         );
 
         tauri::async_runtime::spawn(async move {
@@ -65,8 +72,7 @@ impl LlamaCppService {
                 model_id: id,
                 config,
                 respond_to: tx,
-            })
-            .await
+            }).await
             .map_err(|e| e.to_string())?;
 
         rx.await.map_err(|_| "Actor dropped".to_string())?
@@ -74,29 +80,29 @@ impl LlamaCppService {
 
     pub async fn stop(&self) -> Result<(), String> {
         if let Some(config) = self.get_config().await {
-            let id = ModelId(config.model_path);
-            let (tx, rx) = oneshot::channel();
-            self.sender
-                .send(ActorMessage::Stop {
-                    model_id: id,
-                    respond_to: tx,
-                })
-                .await
-                .map_err(|e| e.to_string())?;
-            return rx.await.map_err(|_| "Actor dropped".to_string())?;
+            return self.stop_model(config.model_path).await;
         }
         Ok(())
     }
 
+    pub async fn stop_model(&self, model_path: String) -> Result<(), String> {
+        let id = ModelId(model_path);
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(ActorMessage::Stop {
+                model_id: id,
+                respond_to: tx,
+            }).await
+            .map_err(|e| e.to_string())?;
+        rx.await.map_err(|_| "Actor dropped".to_string())?
+    }
+
     pub async fn is_running(&self) -> bool {
         let (tx, rx) = oneshot::channel();
-        let _ = self
-            .sender
-            .send(ActorMessage::IsRunning {
-                model_id: None,
-                respond_to: tx,
-            })
-            .await;
+        let _ = self.sender.send(ActorMessage::IsRunning {
+            model_id: None,
+            respond_to: tx,
+        }).await;
         rx.await.unwrap_or(false)
     }
 
@@ -107,19 +113,23 @@ impl LlamaCppService {
         temperature: f32,
         top_p: f32,
         top_k: i32,
-        max_tokens: i32,
+        max_tokens: i32
     ) -> Result<mpsc::Receiver<String>, String> {
         let config = self.get_config().await.ok_or("No model running")?;
         let id = ModelId(config.model_path);
-        let chat_template_kwargs =
-            if config.chat_template.is_some() || config.chat_template_file.is_some() {
-                Some(serde_json::json!({
+        let chat_template_kwargs = if
+            config.chat_template.is_some() ||
+            config.chat_template_file.is_some()
+        {
+            Some(
+                serde_json::json!({
                     "enable_thinking": true,
                     "add_generation_prompt": true
-                }))
-            } else {
-                None
-            };
+                })
+            )
+        } else {
+            None
+        };
         let request = ChatRequest {
             model: "unknown".to_string(),
             session_id,
@@ -143,28 +153,27 @@ impl LlamaCppService {
                 model_id: id,
                 request,
                 respond_to: tx,
-            })
-            .await
+            }).await
             .map_err(|e| e.to_string())?;
         rx.await.map_err(|_| "Actor dropped".to_string())?
     }
 
     pub async fn get_config(&self) -> Option<LlamaCppConfig> {
         let (tx, rx) = oneshot::channel();
-        let _ = self
-            .sender
-            .send(ActorMessage::GetConfig { respond_to: tx })
-            .await;
+        let _ = self.sender.send(ActorMessage::GetConfig { respond_to: tx }).await;
         rx.await.unwrap_or(None)
     }
 
     pub async fn get_metrics(&self) -> Option<ServerMetrics> {
         let (tx, rx) = oneshot::channel();
-        let _ = self
-            .sender
-            .send(ActorMessage::GetMetrics { respond_to: tx })
-            .await;
+        let _ = self.sender.send(ActorMessage::GetMetrics { respond_to: tx }).await;
         rx.await.unwrap_or(None)
+    }
+
+    pub async fn get_running_servers(&self) -> Vec<RunningServerInfo> {
+        let (tx, rx) = oneshot::channel();
+        let _ = self.sender.send(ActorMessage::GetRunningServers { respond_to: tx }).await;
+        rx.await.unwrap_or_default()
     }
 
     pub async fn complete_chat(
@@ -179,17 +188,19 @@ impl LlamaCppService {
         reasoning_budget: Option<i32>,
         chat_template_kwargs: Option<serde_json::Value>,
         tools: Option<Vec<serde_json::Value>>,
-        tool_choice: Option<serde_json::Value>,
+        tool_choice: Option<serde_json::Value>
     ) -> Result<serde_json::Value, String> {
         let config = self.get_config().await.ok_or("No model running")?;
         let id = ModelId(config.model_path);
         let template_kwargs = if chat_template_kwargs.is_some() {
             chat_template_kwargs
         } else if config.chat_template.is_some() || config.chat_template_file.is_some() {
-            Some(serde_json::json!({
+            Some(
+                serde_json::json!({
                 "enable_thinking": true,
                 "add_generation_prompt": true
-            }))
+            })
+            )
         } else {
             None
         };
@@ -216,8 +227,7 @@ impl LlamaCppService {
                 model_id: id,
                 request,
                 respond_to: tx,
-            })
-            .await
+            }).await
             .map_err(|e| e.to_string())?;
         rx.await.map_err(|_| "Actor dropped".to_string())?
     }

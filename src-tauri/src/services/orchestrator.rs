@@ -1,9 +1,9 @@
 use crate::models::ChatMessage;
-use crate::services::capability_registry::{CapabilityRegistry, LlmToolSpecBundle, ResolvedCall};
+use crate::services::capability_registry::{ CapabilityRegistry, LlmToolSpecBundle, ResolvedCall };
 use crate::services::llama::service::LlamaCppService;
 use crate::services::mcp::McpService;
-use crate::services::thinking_parser::{ParsedChunk, ThinkingStreamParser};
-use std::collections::{HashMap, HashSet};
+use crate::services::thinking_parser::{ ParsedChunk, ThinkingStreamParser };
+use std::collections::{ HashMap, HashSet };
 use std::sync::Arc;
 use tauri::ipc::Channel;
 use tokio::sync::Mutex;
@@ -41,23 +41,21 @@ impl ChatOrchestrator {
         max_tokens: i32,
         reasoning_format: Option<String>,
         reasoning_budget: Option<i32>,
-        chat_template_kwargs: Option<serde_json::Value>,
+        chat_template_kwargs: Option<serde_json::Value>
     ) -> Result<serde_json::Value, String> {
-        self.service
-            .complete_chat(
-                None,
-                messages,
-                temperature,
-                top_p,
-                top_k,
-                max_tokens,
-                reasoning_format,
-                reasoning_budget,
-                chat_template_kwargs,
-                None,
-                None,
-            )
-            .await
+        self.service.complete_chat(
+            None,
+            messages,
+            temperature,
+            top_p,
+            top_k,
+            max_tokens,
+            reasoning_format,
+            reasoning_budget,
+            chat_template_kwargs,
+            None,
+            None
+        ).await
     }
 
     fn try_send(on_event: &Channel<serde_json::Value>, payload: serde_json::Value) -> bool {
@@ -79,7 +77,7 @@ impl ChatOrchestrator {
         user_input: String,
         temperature: f32,
         max_tokens: i32,
-        on_event: Channel<serde_json::Value>,
+        on_event: Channel<serde_json::Value>
     ) -> Result<(), String> {
         // Guard against race condition: if registry is empty (startup refresh still running),
         // attempt a blocking refresh before processing.
@@ -94,35 +92,40 @@ impl ChatOrchestrator {
             self.registry.available_server_ids().await
         };
 
-        self.append_message(
-            session_id,
-            ChatMessage {
-                role: "user".to_string(),
-                content: cleaned_input.clone(),
-                name: None,
-                tool_call_id: None,
-                tool_calls: None,
-            },
-        )
-        .await;
+        self.append_message(session_id, ChatMessage {
+            role: "user".to_string(),
+            content: cleaned_input.clone(),
+            name: None,
+            tool_call_id: None,
+            tool_calls: None,
+        }).await;
 
         if allowed_servers.is_empty() {
             let messages = self.get_history(session_id).await;
-            return self
-                .run_streaming(session_id, messages, temperature, max_tokens, on_event)
-                .await;
+            return self.run_streaming(
+                session_id,
+                messages,
+                temperature,
+                max_tokens,
+                on_event
+            ).await;
         }
 
-        let tool_bundle = self
-            .registry
-            .llm_tools_for_query(&cleaned_input, &allowed_servers, 0)
-            .await;
+        let tool_bundle = self.registry.llm_tools_for_query(
+            &cleaned_input,
+            &allowed_servers,
+            0
+        ).await;
 
         if tool_bundle.tools.is_empty() {
             let messages = self.get_history(session_id).await;
-            return self
-                .run_streaming(session_id, messages, temperature, max_tokens, on_event)
-                .await;
+            return self.run_streaming(
+                session_id,
+                messages,
+                temperature,
+                max_tokens,
+                on_event
+            ).await;
         }
 
         let mut iteration = 0usize;
@@ -132,119 +135,129 @@ impl ChatOrchestrator {
         loop {
             iteration += 1;
             if iteration > MAX_TOOL_ITERATIONS {
-                if !Self::try_send(
-                    &on_event,
-                    serde_json::json!({
+                if
+                    !Self::try_send(
+                        &on_event,
+                        serde_json::json!({
                         "thinking": format!(
                             "Tool loop exceeded max iterations ({}). Streaming final answer.",
                             MAX_TOOL_ITERATIONS
                         )
-                    }),
-                ) {
+                    })
+                    )
+                {
                     return Ok(());
                 }
                 let messages = self.get_history(session_id).await;
-                return self
-                    .run_streaming(session_id, messages, temperature, max_tokens, on_event)
-                    .await;
+                return self.run_streaming(
+                    session_id,
+                    messages,
+                    temperature,
+                    max_tokens,
+                    on_event
+                ).await;
             }
 
             let ctx_size = self.current_ctx_size().await.unwrap_or(4096) as usize;
             let tool_max_tokens = clamp_max_tokens(ctx_size, TOOL_CALL_MAX_TOKENS);
             let prompt_budget = compute_prompt_budget(ctx_size, tool_max_tokens);
             let history = self.get_history(session_id).await;
-            let request_messages =
-                sanitize_messages_for_request(trim_messages_to_budget(&history, prompt_budget));
+            let request_messages = sanitize_messages_for_request(
+                trim_messages_to_budget(&history, prompt_budget)
+            );
 
-            if !Self::try_send(
-                &on_event,
-                serde_json::json!({
+            if
+                !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
                     "thinking": format!("Tool loop iteration {}", iteration)
-                }),
-            ) {
+                })
+                )
+            {
                 return Ok(());
             }
 
-            let response = self
-                .service
-                .complete_chat(
-                    None,
-                    request_messages,
-                    temperature.min(0.5),
-                    0.95,
-                    40,
-                    tool_max_tokens,
-                    None,
-                    None,
-                    None,
-                    Some(tool_bundle.tools.clone()),
-                    None,
-                )
-                .await?;
+            let response = self.service.complete_chat(
+                None,
+                request_messages,
+                temperature.min(0.5),
+                0.95,
+                40,
+                tool_max_tokens,
+                None,
+                None,
+                None,
+                Some(tool_bundle.tools.clone()),
+                None
+            ).await?;
 
             let parsed = parse_tool_calls_from_response(&response)?;
             if parsed.tool_calls.is_empty() {
-                if !Self::try_send(
-                    &on_event,
-                    serde_json::json!({
+                if
+                    !Self::try_send(
+                        &on_event,
+                        serde_json::json!({
                         "thinking": "No tool calls detected. Streaming final answer."
-                    }),
-                ) {
+                    })
+                    )
+                {
                     return Ok(());
                 }
                 let messages = self.get_history(session_id).await;
-                return self
-                    .run_streaming(session_id, messages, temperature, max_tokens, on_event)
-                    .await;
+                return self.run_streaming(
+                    session_id,
+                    messages,
+                    temperature,
+                    max_tokens,
+                    on_event
+                ).await;
             }
 
-            self.append_message(
-                session_id,
-                ChatMessage {
-                    role: "assistant".to_string(),
-                    content: parsed.content,
-                    name: None,
-                    tool_call_id: None,
-                    tool_calls: Some(parsed.raw_tool_calls),
-                },
-            )
-            .await;
+            self.append_message(session_id, ChatMessage {
+                role: "assistant".to_string(),
+                content: parsed.content,
+                name: None,
+                tool_call_id: None,
+                tool_calls: Some(parsed.raw_tool_calls),
+            }).await;
 
-            let repeat_detected = self
-                .execute_tool_calls(
-                    session_id,
-                    &cleaned_input,
-                    &allowed_servers,
-                    &tool_bundle,
-                    &parsed.tool_calls,
-                    &mut seen_calls,
-                    &mut tool_call_counts,
-                    &on_event,
-                )
-                .await?;
+            let repeat_detected = self.execute_tool_calls(
+                session_id,
+                &cleaned_input,
+                &allowed_servers,
+                &tool_bundle,
+                &parsed.tool_calls,
+                &mut seen_calls,
+                &mut tool_call_counts,
+                &on_event
+            ).await?;
 
             if repeat_detected {
-                if !Self::try_send(
-                    &on_event,
-                    serde_json::json!({
+                if
+                    !Self::try_send(
+                        &on_event,
+                        serde_json::json!({
                         "thinking": "Repeated tool call detected. Streaming final answer."
-                    }),
-                ) {
+                    })
+                    )
+                {
                     return Ok(());
                 }
                 let messages = self.get_history(session_id).await;
-                return self
-                    .run_streaming(session_id, messages, temperature, max_tokens, on_event)
-                    .await;
+                return self.run_streaming(
+                    session_id,
+                    messages,
+                    temperature,
+                    max_tokens,
+                    on_event
+                ).await;
             }
         }
     }
 
     async fn append_message(&self, session_id: &str, message: ChatMessage) {
         let mut sessions = self.sessions.lock().await;
-        let history = sessions
-            .entry(session_id.to_string())
-            .or_insert_with(Vec::new);
+        let history = sessions.entry(session_id.to_string()).or_insert_with(Vec::new);
         history.push(message);
     }
 
@@ -257,20 +270,22 @@ impl ChatOrchestrator {
         tool_calls: &[LlmToolCall],
         seen_calls: &mut HashSet<String>,
         tool_call_counts: &mut HashMap<String, usize>,
-        on_event: &Channel<serde_json::Value>,
+        on_event: &Channel<serde_json::Value>
     ) -> Result<bool, String> {
         let mut repeat_detected = false;
 
         if tool_calls.len() > 1 {
-            if !Self::try_send(
-                &on_event,
-                serde_json::json!({
+            if
+                !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
                     "thinking": format!(
                         "Multiple tool calls received ({}). Executing the first only.",
                         tool_calls.len()
                     )
-                }),
-            ) {
+                })
+                )
+            {
                 return Ok(repeat_detected);
             }
         }
@@ -282,9 +297,8 @@ impl ChatOrchestrator {
                 self.append_tool_error(
                     session_id,
                     &call.id,
-                    format!("Repeated tool call for '{}'", call.tool_id),
-                )
-                .await;
+                    format!("Repeated tool call for '{}'", call.tool_id)
+                ).await;
                 continue;
             }
 
@@ -294,9 +308,8 @@ impl ChatOrchestrator {
                     self.append_tool_error(
                         session_id,
                         &call.id,
-                        format!("Unknown tool id '{}'", call.tool_id),
-                    )
-                    .await;
+                        format!("Unknown tool id '{}'", call.tool_id)
+                    ).await;
                     continue;
                 }
             };
@@ -307,9 +320,8 @@ impl ChatOrchestrator {
                 self.append_tool_error(
                     session_id,
                     &call.id,
-                    format!("Tool '{}' called too many times", tool_name),
-                )
-                .await;
+                    format!("Tool '{}' called too many times", tool_name)
+                ).await;
                 continue;
             }
             *tool_count += 1;
@@ -318,21 +330,18 @@ impl ChatOrchestrator {
                 self.append_tool_error(
                     session_id,
                     &call.id,
-                    format!("Server '{}' not allowed", server_id),
-                )
-                .await;
+                    format!("Server '{}' not allowed", server_id)
+                ).await;
                 continue;
             }
 
-            let arguments = self
-                .build_tool_arguments(
-                    original_query,
-                    &server_id,
-                    &tool_name,
-                    &call.arguments,
-                    call.arguments_valid,
-                )
-                .await;
+            let arguments = self.build_tool_arguments(
+                original_query,
+                &server_id,
+                &tool_name,
+                &call.arguments,
+                call.arguments_valid
+            ).await;
 
             let resolved = ResolvedCall {
                 server_id: server_id.clone(),
@@ -345,35 +354,35 @@ impl ChatOrchestrator {
                 continue;
             }
 
-            if !Self::try_send(
-                &on_event,
-                serde_json::json!({
+            if
+                !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
                     "thinking": format!("Calling MCP tool {}::{}", server_id, tool_name)
-                }),
-            ) {
+                })
+                )
+            {
                 return Ok(repeat_detected);
             }
 
             let tool_context_args = arguments.clone();
 
             let result = match self.mcp_service.connect(&server_id).await {
-                Ok(()) => {
-                    self.mcp_service
-                        .tools_call(&server_id, &tool_name, arguments)
-                        .await
-                }
+                Ok(()) => { self.mcp_service.tools_call(&server_id, &tool_name, arguments).await }
                 Err(e) => Err(e),
             };
 
             let (content, raw_result, error_message) = match result {
                 Ok(res) => (format_tool_result(&res), Some(res), None),
                 Err(e) => {
-                    if !Self::try_send(
-                        &on_event,
-                        serde_json::json!({
+                    if
+                        !Self::try_send(
+                            &on_event,
+                            serde_json::json!({
                             "thinking": format!("Tool call failed: {}", e)
-                        }),
-                    ) {
+                        })
+                        )
+                    {
                         return Ok(repeat_detected);
                     }
                     if is_rate_limit_error(&e) {
@@ -386,19 +395,16 @@ impl ChatOrchestrator {
                 }
             };
 
-            self.append_message(
-                session_id,
-                ChatMessage {
-                    role: "tool".to_string(),
-                    content,
-                    name: None,
-                    tool_call_id: Some(call.id.clone()),
-                    tool_calls: None,
-                },
-            )
-            .await;
+            self.append_message(session_id, ChatMessage {
+                role: "tool".to_string(),
+                content,
+                name: None,
+                tool_call_id: Some(call.id.clone()),
+                tool_calls: None,
+            }).await;
 
-            let tool_context = serde_json::json!({
+            let tool_context =
+                serde_json::json!({
                 "server_id": server_id,
                 "tool_name": tool_name,
                 "arguments": tool_context_args,
@@ -408,22 +414,26 @@ impl ChatOrchestrator {
                 "tool_call_id": call.id,
             });
 
-            if !Self::try_send(
-                &on_event,
-                serde_json::json!({
+            if
+                !Self::try_send(
+                    &on_event,
+                    serde_json::json!({
                     "tool_context": tool_context
-                }),
-            ) {
+                })
+                )
+            {
                 return Ok(repeat_detected);
             }
 
             if idx + 1 == 1 {
-                if !Self::try_send(
-                    &on_event,
-                    serde_json::json!({
+                if
+                    !Self::try_send(
+                        &on_event,
+                        serde_json::json!({
                         "thinking": "Tool results injected into context."
-                    }),
-                ) {
+                    })
+                    )
+                {
                     return Ok(repeat_detected);
                 }
             }
@@ -438,7 +448,7 @@ impl ChatOrchestrator {
         server_id: &str,
         tool_name: &str,
         args: &serde_json::Value,
-        args_valid: bool,
+        args_valid: bool
     ) -> serde_json::Value {
         let is_usable =
             args_valid && matches!(args, serde_json::Value::Object(map) if !map.is_empty());
@@ -454,17 +464,13 @@ impl ChatOrchestrator {
     }
 
     async fn append_tool_error(&self, session_id: &str, call_id: &str, error: String) {
-        self.append_message(
-            session_id,
-            ChatMessage {
-                role: "tool".to_string(),
-                content: serde_json::json!({ "error": error }).to_string(),
-                name: None,
-                tool_call_id: Some(call_id.to_string()),
-                tool_calls: None,
-            },
-        )
-        .await;
+        self.append_message(session_id, ChatMessage {
+            role: "tool".to_string(),
+            content: serde_json::json!({ "error": error }).to_string(),
+            name: None,
+            tool_call_id: Some(call_id.to_string()),
+            tool_calls: None,
+        }).await;
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -477,25 +483,23 @@ impl ChatOrchestrator {
         messages: Vec<ChatMessage>,
         temperature: f32,
         max_tokens: i32,
-        on_event: Channel<serde_json::Value>,
+        on_event: Channel<serde_json::Value>
     ) -> Result<(), String> {
         let ctx_size = self.current_ctx_size().await.unwrap_or(4096) as usize;
         let effective_max_tokens = clamp_max_tokens(ctx_size, max_tokens);
         let prompt_budget = compute_prompt_budget(ctx_size, effective_max_tokens);
-        let request_messages =
-            sanitize_messages_for_request(trim_messages_to_budget(&messages, prompt_budget));
+        let request_messages = sanitize_messages_for_request(
+            trim_messages_to_budget(&messages, prompt_budget)
+        );
 
-        let mut rx = self
-            .service
-            .send_chat_message(
-                Some(session_id.to_string()),
-                request_messages,
-                temperature,
-                0.95,
-                40,
-                effective_max_tokens,
-            )
-            .await?;
+        let mut rx = self.service.send_chat_message(
+            Some(session_id.to_string()),
+            request_messages,
+            temperature,
+            0.95,
+            40,
+            effective_max_tokens
+        ).await?;
 
         let mut full_response = String::new();
         let mut parser = ThinkingStreamParser::new();
@@ -510,7 +514,11 @@ impl ChatOrchestrator {
                         }
                     }
                     ParsedChunk::Thinking(text) => {
-                        if !Self::try_send(&on_event, serde_json::json!({ "thinking_chunk": text }))
+                        if
+                            !Self::try_send(
+                                &on_event,
+                                serde_json::json!({ "thinking_chunk": text })
+                            )
                         {
                             return Ok(());
                         }
@@ -570,9 +578,7 @@ impl ChatOrchestrator {
 
     pub async fn get_message(&self, session_id: &str, message_index: usize) -> Option<ChatMessage> {
         let sessions = self.sessions.lock().await;
-        sessions
-            .get(session_id)
-            .and_then(|history| history.get(message_index).cloned())
+        sessions.get(session_id).and_then(|history| history.get(message_index).cloned())
     }
 
     pub async fn set_session_history(&self, session_id: &str, history: Vec<ChatMessage>) {
@@ -583,12 +589,10 @@ impl ChatOrchestrator {
     pub async fn remove_message(
         &self,
         session_id: &str,
-        message_index: usize,
+        message_index: usize
     ) -> Result<(), String> {
         let mut sessions = self.sessions.lock().await;
-        let history = sessions
-            .get_mut(session_id)
-            .ok_or_else(|| "Session not found".to_string())?;
+        let history = sessions.get_mut(session_id).ok_or_else(|| "Session not found".to_string())?;
 
         if message_index >= history.len() {
             return Err("Message not found".to_string());
@@ -600,11 +604,9 @@ impl ChatOrchestrator {
 
     pub fn prepare_regenerate_history(
         history: &[ChatMessage],
-        message_index: usize,
+        message_index: usize
     ) -> Result<Vec<ChatMessage>, String> {
-        let target = history
-            .get(message_index)
-            .ok_or_else(|| "Message not found".to_string())?;
+        let target = history.get(message_index).ok_or_else(|| "Message not found".to_string())?;
 
         if target.role != "assistant" {
             return Err("Target message is not an assistant response".to_string());
@@ -619,33 +621,29 @@ impl ChatOrchestrator {
         message_index: usize,
         temperature: f32,
         max_tokens: i32,
-        on_event: Channel<serde_json::Value>,
+        on_event: Channel<serde_json::Value>
     ) -> Result<(), String> {
         let history_before = {
             let sessions = self.sessions.lock().await;
-            let history = sessions
-                .get(session_id)
-                .ok_or_else(|| "Session not found".to_string())?;
+            let history = sessions.get(session_id).ok_or_else(|| "Session not found".to_string())?;
             Self::prepare_regenerate_history(history, message_index)?
         };
 
         let ctx_size = self.current_ctx_size().await.unwrap_or(4096) as usize;
         let effective_max_tokens = clamp_max_tokens(ctx_size, max_tokens);
         let prompt_budget = compute_prompt_budget(ctx_size, effective_max_tokens);
-        let request_messages =
-            sanitize_messages_for_request(trim_messages_to_budget(&history_before, prompt_budget));
+        let request_messages = sanitize_messages_for_request(
+            trim_messages_to_budget(&history_before, prompt_budget)
+        );
 
-        let mut rx = self
-            .service
-            .send_chat_message(
-                Some(session_id.to_string()),
-                request_messages,
-                temperature,
-                0.95,
-                40,
-                effective_max_tokens,
-            )
-            .await?;
+        let mut rx = self.service.send_chat_message(
+            Some(session_id.to_string()),
+            request_messages,
+            temperature,
+            0.95,
+            40,
+            effective_max_tokens
+        ).await?;
 
         let mut full_response = String::new();
         let mut parser = ThinkingStreamParser::new();
@@ -660,7 +658,11 @@ impl ChatOrchestrator {
                         }
                     }
                     ParsedChunk::Thinking(text) => {
-                        if !Self::try_send(&on_event, serde_json::json!({ "thinking_chunk": text }))
+                        if
+                            !Self::try_send(
+                                &on_event,
+                                serde_json::json!({ "thinking_chunk": text })
+                            )
                         {
                             return Ok(());
                         }
@@ -690,9 +692,7 @@ impl ChatOrchestrator {
         }
 
         let mut sessions = self.sessions.lock().await;
-        let history = sessions
-            .get_mut(session_id)
-            .ok_or_else(|| "Session not found".to_string())?;
+        let history = sessions.get_mut(session_id).ok_or_else(|| "Session not found".to_string())?;
 
         if message_index >= history.len() {
             return Err("Message removed".to_string());
@@ -709,30 +709,28 @@ impl ChatOrchestrator {
 }
 
 fn hash_args(args: &serde_json::Value) -> u64 {
-    use std::hash::{Hash, Hasher};
+    use std::hash::{ Hash, Hasher };
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    serde_json::to_string(args)
-        .unwrap_or_default()
-        .hash(&mut hasher);
+    serde_json::to_string(args).unwrap_or_default().hash(&mut hasher);
     hasher.finish()
 }
 
 fn is_rate_limit_error(message: &str) -> bool {
     let lower = message.to_ascii_lowercase();
-    lower.contains("429")
-        || lower.contains("too many requests")
-        || lower.contains("rate limit")
-        || lower.contains("rate-limited")
+    lower.contains("429") ||
+        lower.contains("too many requests") ||
+        lower.contains("rate limit") ||
+        lower.contains("rate-limited")
 }
 
 fn is_invalid_input_error(message: &str) -> bool {
     let lower = message.to_ascii_lowercase();
-    lower.contains("invalid")
-        || lower.contains("bad request")
-        || lower.contains("missing")
-        || lower.contains("validation")
-        || lower.contains("schema")
-        || lower.contains("argument")
+    lower.contains("invalid") ||
+        lower.contains("bad request") ||
+        lower.contains("missing") ||
+        lower.contains("validation") ||
+        lower.contains("schema") ||
+        lower.contains("argument")
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -817,14 +815,16 @@ fn parse_tool_calls_from_response(response: &serde_json::Value) -> Result<Parsed
         if let Some(parsed_call) = parse_function_call(function_call, 0) {
             return Ok(ParsedToolCalls {
                 content,
-                raw_tool_calls: vec![serde_json::json!({
+                raw_tool_calls: vec![
+                    serde_json::json!({
                     "id": parsed_call.id,
                     "type": "function",
                     "function": {
                         "name": parsed_call.tool_id,
                         "arguments": parsed_call.arguments
                     }
-                })],
+                })
+                ],
                 tool_calls: vec![parsed_call],
             });
         }
@@ -860,10 +860,7 @@ fn parse_tool_call_entry(call: &serde_json::Value, idx: usize) -> Option<LlmTool
 
 fn parse_function_call(function: &serde_json::Value, idx: usize) -> Option<LlmToolCall> {
     let tool_id = function.get("name")?.as_str()?.to_string();
-    let args_val = function
-        .get("arguments")
-        .cloned()
-        .unwrap_or(serde_json::Value::Null);
+    let args_val = function.get("arguments").cloned().unwrap_or(serde_json::Value::Null);
     let (arguments, arguments_valid) = parse_tool_arguments(&args_val);
     Some(LlmToolCall {
         id: default_tool_call_id(idx),
@@ -881,11 +878,12 @@ fn parse_tool_arguments(value: &serde_json::Value) -> (serde_json::Value, bool) 
     match value {
         serde_json::Value::Null => (serde_json::json!({}), false),
         serde_json::Value::Object(_) => (value.clone(), true),
-        serde_json::Value::String(s) => match serde_json::from_str::<serde_json::Value>(s) {
-            Ok(serde_json::Value::Object(obj)) => (serde_json::Value::Object(obj), true),
-            Ok(other) => (other, false),
-            Err(_) => (serde_json::json!({}), false),
-        },
+        serde_json::Value::String(s) =>
+            match serde_json::from_str::<serde_json::Value>(s) {
+                Ok(serde_json::Value::Object(obj)) => (serde_json::Value::Object(obj), true),
+                Ok(other) => (other, false),
+                Err(_) => (serde_json::json!({}), false),
+            }
         _ => (serde_json::json!({}), false),
     }
 }
@@ -961,7 +959,8 @@ fn parse_tool_call_block(block: &str, idx: usize) -> Option<(LlmToolCall, serde_
     let arguments = serde_json::Value::Object(args);
     let call_id = default_tool_call_id(idx);
 
-    let raw_call = serde_json::json!({
+    let raw_call =
+        serde_json::json!({
         "id": call_id,
         "type": "function",
         "function": {
@@ -1080,9 +1079,7 @@ fn parse_attr_value(tag: &str, attr: &str) -> Option<String> {
         return Some(rest[..end].to_string());
     }
 
-    let end = rest
-        .find(|c: char| c.is_whitespace() || c == '>')
-        .unwrap_or(rest.len());
+    let end = rest.find(|c: char| (c.is_whitespace() || c == '>')).unwrap_or(rest.len());
     let raw = rest[..end].trim();
     if raw.is_empty() {
         None
@@ -1093,8 +1090,9 @@ fn parse_attr_value(tag: &str, attr: &str) -> Option<String> {
 
 fn trim_quotes(value: &str) -> &str {
     let value = value.trim();
-    if (value.starts_with('"') && value.ends_with('"'))
-        || (value.starts_with('\'') && value.ends_with('\''))
+    if
+        (value.starts_with('"') && value.ends_with('"')) ||
+        (value.starts_with('\'') && value.ends_with('\''))
     {
         return &value[1..value.len() - 1];
     }
@@ -1184,7 +1182,7 @@ fn format_tool_result(result: &serde_json::Value) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_tool_arguments, parse_tool_calls_from_response};
+    use super::{ parse_tool_arguments, parse_tool_calls_from_response };
 
     #[test]
     fn parse_tool_arguments_accepts_json_string() {
@@ -1195,7 +1193,8 @@ mod tests {
 
     #[test]
     fn parse_tool_calls_extracts_function_call() {
-        let response = serde_json::json!({
+        let response =
+            serde_json::json!({
             "choices": [
                 { "message": { "content": "", "tool_calls": [
                     { "id": "call-1", "type": "function", "function": { "name": "mcp__s1__t1", "arguments": "{\"q\":\"hi\"}" } }
@@ -1211,7 +1210,8 @@ mod tests {
 
     #[test]
     fn parse_tool_calls_from_xml_style_block() {
-        let response = serde_json::json!({
+        let response =
+            serde_json::json!({
             "choices": [
                 { "message": { "content": "\
         <tool_call>\n\

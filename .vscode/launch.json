@@ -6,7 +6,7 @@
       "type": "node",
       "request": "launch",
       "program": "${workspaceFolder}/node_modules/@tauri-apps/cli/tauri.js",
-      "args": ["dev", "--no-watch"],
+      "args": ["dev"],
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**"]
     },

@@ -14,6 +14,7 @@ class ServerStore {
     error = $state<string | null>(null);
     isChecking = $state(false);
     isStarting = $state(false);
+    startingModelPath = $state<string | null>(null);
     currentConfig = $state<LlamaCppConfig | null>(null);
     serverMetrics = $state<{ 
         cpu_usage: number; 
@@ -21,6 +22,17 @@ class ServerStore {
         gpu_usage?: number; 
         vram_usage?: number; 
     } | null>(null);
+    runningServers = $state<Array<{
+        model_id: string;
+        pid: number;
+        config: LlamaCppConfig;
+        metrics: {
+            cpu_usage: number;
+            mem_usage: number;
+            gpu_usage?: number;
+            vram_usage?: number;
+        } | null;
+    }>>([]);
     private healthInterval: ReturnType<typeof setInterval> | null = null;
 
     private sameArgs(left?: string[] | null, right?: string[] | null) {
@@ -79,6 +91,7 @@ class ServerStore {
         try {
             this.error = null;
             this.isStarting = true;
+            this.startingModelPath = options.modelPath;
             const pid = await invokeCommand('start_llama_server', {
                 binaryPath: options.binaryPath,
                 modelPath: options.modelPath,
@@ -114,6 +127,7 @@ class ServerStore {
             console.error('Failed to start server:', err);
         } finally {
             this.isStarting = false;
+            this.startingModelPath = null;
         }
     }
 
@@ -126,6 +140,7 @@ class ServerStore {
             this.isStarting = false;
             this.currentConfig = null;
             this.serverMetrics = null;
+            this.runningServers = [];
             if (this.healthInterval) {
                 clearInterval(this.healthInterval);
                 this.healthInterval = null;
@@ -164,8 +179,9 @@ class ServerStore {
 
     async checkRunning() {
         try {
+            await this.fetchRunningServers();
             const running = await invokeCommand('is_server_running') as boolean;
-            this.isRunning = running;
+            this.isRunning = running || this.runningServers.length > 0;
             if (running) {
                 const config = await invokeCommand('get_llama_config') as LlamaCppConfig;
                 this.currentConfig = config;
@@ -175,7 +191,25 @@ class ServerStore {
         } catch (err) {
             this.isRunning = false;
             this.currentConfig = null;
+            this.runningServers = [];
             console.error('Failed to check if server is running:', err);
+        }
+    }
+
+    async stopModel(modelPath: string) {
+        try {
+            this.error = null;
+            await invokeCommand('stop_llama_server_instance', { modelPath });
+            this.runningServers = this.runningServers.filter((server) => server.config.model_path !== modelPath);
+            if (this.currentConfig?.model_path === modelPath) {
+                this.isHealthy = false;
+                this.currentConfig = null;
+                this.serverMetrics = null;
+            }
+            this.isRunning = this.runningServers.length > 0;
+        } catch (err) {
+            this.error = err instanceof Error ? err.message : String(err);
+            console.error('Failed to stop model server:', err);
         }
     }
 
@@ -194,6 +228,40 @@ class ServerStore {
         }
     }
 
+    async fetchRunningServers() {
+        try {
+            const runningServers = await invokeCommand('get_running_llama_servers');
+            this.runningServers = (runningServers as Array<{
+                model_id: string;
+                pid: number;
+                config: LlamaCppConfig;
+                metrics: {
+                    cpu_usage: number;
+                    mem_usage: number;
+                    gpu_usage?: number;
+                    vram_usage?: number;
+                } | null;
+            }>) ?? [];
+        } catch (err) {
+            this.runningServers = [];
+            console.error('Failed to fetch running llama servers:', err);
+        }
+    }
+
+    getModelServer(modelPath: string | null | undefined) {
+        if (!modelPath) return null;
+        return this.runningServers.find((server) => server.config.model_path === modelPath) ?? null;
+    }
+
+    isModelRunning(modelPath: string | null | undefined) {
+        return this.getModelServer(modelPath) !== null;
+    }
+
+    isModelStarting(modelPath: string | null | undefined) {
+        if (!modelPath) return false;
+        return this.isStarting && this.startingModelPath === modelPath;
+    }
+
     startHealthMonitoring() {
         if (this.healthInterval) {
             clearInterval(this.healthInterval);
@@ -207,12 +275,14 @@ class ServerStore {
                     this.healthInterval = null;
                 }
                 this.serverMetrics = null;
+                this.runningServers = [];
                 return;
             }
             await this.checkHealth();
             
             // Only fetch metrics if on models page
             if (window.location.pathname === "/models") {
+                await this.fetchRunningServers();
                 await this.fetchMetrics();
             }
         }, 2000);

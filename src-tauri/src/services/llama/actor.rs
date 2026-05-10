@@ -12,6 +12,7 @@ use crate::models::{
     ModelId,
     ModelInfo,
     ModelState,
+    RunningServerInfo,
     ServerMetrics,
 };
 
@@ -44,6 +45,9 @@ pub enum ActorMessage {
     },
     GetMetrics {
         respond_to: oneshot::Sender<Option<ServerMetrics>>,
+    },
+    GetRunningServers {
+        respond_to: oneshot::Sender<Vec<RunningServerInfo>>,
     },
     InternalStartComplete {
         model_id: ModelId,
@@ -157,6 +161,10 @@ impl LlamaActor {
                     let metrics = self.handle_get_metrics().await;
                     let _ = respond_to.send(metrics);
                 }
+                ActorMessage::GetRunningServers { respond_to } => {
+                    let running_servers = self.handle_get_running_servers().await;
+                    let _ = respond_to.send(running_servers);
+                }
             }
         }
     }
@@ -264,6 +272,31 @@ impl LlamaActor {
             return None;
         }
         self.metrics.snapshot_for_pid(pid)
+    }
+
+    async fn handle_get_running_servers(&mut self) -> Vec<RunningServerInfo> {
+        let running_instances = self
+            .states
+            .iter()
+            .filter_map(|(model_id, state)| match state {
+                ModelState::Running { pid, config, .. } => Some((model_id.clone(), *pid, config.clone())),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        running_instances
+            .into_iter()
+            .map(|(model_id, pid, config)| RunningServerInfo {
+                metrics: if pid == 0 {
+                    None
+                } else {
+                    self.metrics.snapshot_for_pid(pid)
+                },
+                model_id,
+                pid,
+                config,
+            })
+            .collect()
     }
 
     fn get_model_lock(&mut self, model_id: &ModelId) -> Arc<TokioMutex<()>> {

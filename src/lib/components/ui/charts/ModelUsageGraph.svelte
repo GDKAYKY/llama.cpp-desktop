@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  import Skeleton from "$components/ui/Skeleton.svelte";
 
   let {
     isRunning = false,
+    isStarting = false,
     vramUsage = 0,
     gpuUsage = 0,
-    isMock = false,
   } = $props();
 
   // Task Manager frequency jitter simulation
@@ -13,8 +13,8 @@
   let interval: any;
 
   $effect(() => {
-    // Both running models and mock graphs get some jitter to feel "alive"
-    if (isRunning || isMock) {
+    // Only add jitter when model is actually running
+    if (isRunning) {
       interval = setInterval(() => {
         jitter = (Math.random() - 0.5) * 4; // subtle noise
       }, 400); // 2.5Hz (similar to high-perf task manager)
@@ -28,41 +28,45 @@
   const totalSquares = 100; // 20x5 grid
 
   function getSquareColor(index: number) {
-    // If not running and not mock, everything is empty
-    if (!isRunning && !isMock) return "#121212";
+    if (!isRunning) return "#121212";
 
-    const currentVram = isMock ? 0 : vramUsage;
-    const currentGpu = (isMock ? 0 : gpuUsage) + jitter;
+    const currentVram = vramUsage;
+    const currentGpu = gpuUsage + jitter;
 
     // Normalize index to 0-100 scale
     const normalizedIndex = (index / totalSquares) * 100;
 
     // GPU activity takes precedence
-    if (normalizedIndex < currentGpu)
-      return isMock ? "rgba(255, 255, 255, 0.08)" : "#ffffff";
+    if (normalizedIndex < currentGpu) return "#ffffff";
     // VRAM squares
-    if (normalizedIndex < currentVram)
-      return isMock ? "rgba(255, 255, 255, 0.04)" : "#4b4b4b";
+    if (normalizedIndex < currentVram) return "#4b4b4b";
     // Empty
     return "#121212";
   }
 </script>
 
-<div class="flex flex-col rounded-xl bg-[#171717] p-3">
-  <div
-    class="grid grid-cols-[repeat(20,10px)] gap-[3px] pb-3 justify-center overflow-hidden"
-  >
-    {#each Array(totalSquares) as _, i}
-      {@const color = getSquareColor(i)}
-      <div
-        class="h-[10px] w-[10px] rounded-[1.5px] transition-all duration-300"
-        style="
-          background-color: {color};
-          {color === '#ffffff'}
-        "
-      ></div>
-    {/each}
-  </div>
+<div class="flex flex-col rounded-xl bg-[#171717] p-4">
+  {#if isStarting}
+    <div class="pb-3">
+      <Skeleton class="h-[62px] w-full" />
+    </div>
+  {:else if !isRunning}
+    <div class="flex items-center justify-center py-6">
+      <span class="text-sm text-muted-foreground">Model not loaded.</span>
+    </div>
+  {:else}
+    <div
+      class="grid grid-cols-[repeat(20,10px)] gap-[3px] pb-3 justify-center overflow-hidden"
+    >
+      {#each Array(totalSquares) as _, i}
+        {@const color = getSquareColor(i)}
+        <div
+          class="h-[10px] w-[10px] rounded-[1.5px] transition-all duration-300"
+          style="background-color: {color};"
+        ></div>
+      {/each}
+    </div>
+  {/if}
 
   <div class="flex items-center justify-between">
     <span
@@ -73,29 +77,23 @@
       <div class="flex items-center gap-1.5">
         <div
           class="h-1.5 w-1.5 rounded-[1px]"
-          style="background-color: {isMock ? '#4b4b4b44' : '#4b4b4b'}"
+          style="background-color: #4b4b4b"
         ></div>
-        <span
-          class="text-[9px] font-mono {isMock
-            ? 'text-muted-foreground/50'
-            : 'text-muted-foreground/80'}"
-        >
-          VRAM: {isMock ? "--" : Math.round(vramUsage) + "%"}
+        <span class="text-[9px] font-mono text-muted-foreground/80">
+          VRAM: {isRunning ? Math.round(vramUsage) + "%" : "--"}
         </span>
       </div>
       <div class="flex items-center gap-1.5">
         <div
           class="h-1.5 w-1.5 rounded-[1px]"
-          style="background-color: {isMock ? '#4b4b4b22' : 'white'}"
+          style="background-color: white"
         ></div>
         <span
           class="text-[9px] font-mono {isRunning && gpuUsage > 0
             ? 'text-white font-bold'
-            : isMock
-              ? 'text-muted-foreground/50'
-              : 'text-muted-foreground/80'}"
+            : 'text-muted-foreground/80'}"
         >
-          GPU: {isMock ? "--" : Math.round(gpuUsage) + "%"}
+          GPU: {isRunning ? Math.round(gpuUsage) + "%" : "--"}
         </span>
       </div>
     </div>

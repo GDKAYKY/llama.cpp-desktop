@@ -21,6 +21,7 @@
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import ModelUsageGraph from "$components/ui/charts/ModelUsageGraph.svelte";
+  import Skeleton from "$components/ui/Skeleton.svelte";
   import ModelLogo from "./ModelLogo.svelte";
   import MetaRow from "./MetaRow.svelte";
 
@@ -47,11 +48,12 @@
 
   let statusWidth = $state(0);
 
+  const modelServer = $derived(
+    serverStore.getModelServer(model.model_file_path),
+  );
+
   function isModelRunning(model: Model) {
-    return (
-      serverStore.isRunning &&
-      serverStore.currentConfig?.model_path === model.model_file_path
-    );
+    return serverStore.isModelRunning(model.model_file_path);
   }
 
   function formatSize(bytes: number) {
@@ -220,8 +222,10 @@
 </script>
 
 <div
+  role="button"
+  tabindex="0"
   class={cn(
-    "group relative flex w-full aspect-[335/400] cursor-pointer flex-col gap-2 rounded-xl p-4 transition-all",
+    "group relative flex w-full aspect-[335/400] cursor-pointer flex-col gap-2 rounded-xl p-4 transition-all text-left",
     isSelected
       ? "bg-primary/5 active:duration-0"
       : isModelRunning(model)
@@ -229,6 +233,12 @@
         : "bg-[#171717] hover:bg-[#1a1a1a] active:duration-0",
   )}
   onclick={() => onSelect(model)}
+  onkeydown={(e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onSelect(model);
+    }
+  }}
 >
   <div
     class={cn(
@@ -306,8 +316,6 @@
             Delete Model
           </button>
 
-          <div class="my-1 border-t border-border"></div>
-
           {#if isModelRunning(model)}
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/10"
@@ -330,20 +338,12 @@
     </div>
   </div>
 
-  <div
-    class={!isModelRunning(model)
-      ? "pointer-events-none select-none transition-all duration-500"
-      : "transition-all duration-500"}
-  >
+  <div class="transition-all duration-500">
     <ModelUsageGraph
       isRunning={isModelRunning(model)}
-      isMock={!isModelRunning(model)}
-      vramUsage={isModelRunning(model)
-        ? serverStore.serverMetrics?.vram_usage || 0
-        : 0}
-      gpuUsage={isModelRunning(model)
-        ? serverStore.serverMetrics?.gpu_usage || 0
-        : 0}
+      isStarting={serverStore.isModelStarting(model.model_file_path)}
+      vramUsage={modelServer?.metrics?.vram_usage || 0}
+      gpuUsage={modelServer?.metrics?.gpu_usage || 0}
     />
   </div>
 
