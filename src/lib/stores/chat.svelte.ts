@@ -288,7 +288,7 @@ class ChatStore {
         this.toolContext = [];
         this.thinkingLineBuffer = "";
       }
-      console.log("stream event", payload);
+      // console.log("stream event", payload);
     };
 
     try {
