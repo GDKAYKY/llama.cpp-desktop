@@ -98,6 +98,15 @@ export async function saveMessage(
   await db.conversations.update(conversationId, { updatedAt: Date.now() });
 }
 
+async function getConversationMessagesOrdered(
+  conversationId: number
+): Promise<ChatMessage[]> {
+  const messages = await db.messages.where('conversationId').equals(conversationId).toArray();
+  return messages.sort(
+    (a, b) => a.timestamp - b.timestamp || (a.id ?? 0) - (b.id ?? 0)
+  );
+}
+
 export async function createConversation(title: string = 'New Chat'): Promise<number> {
   return await db.conversations.add({
     title,
@@ -106,7 +115,57 @@ export async function createConversation(title: string = 'New Chat'): Promise<nu
 }
 
 export async function getConversationHistory(conversationId: number): Promise<ChatMessage[]> {
-    return await db.messages.where('conversationId').equals(conversationId).sortBy('timestamp');
+    return await getConversationMessagesOrdered(conversationId);
+}
+
+export async function truncateConversationFromIndex(
+  conversationId: number,
+  startIndex: number
+) {
+  const messages = await getConversationMessagesOrdered(conversationId);
+  const idsToDelete = messages
+    .slice(startIndex)
+    .map((message) => message.id)
+    .filter((id): id is number => id !== undefined);
+
+  await db.transaction('rw', db.messages, db.conversations, async () => {
+    if (idsToDelete.length > 0) {
+      await db.messages.bulkDelete(idsToDelete);
+    }
+    await db.conversations.update(conversationId, { updatedAt: Date.now() });
+  });
+}
+
+export async function updateConversationMessageAtIndex(
+  conversationId: number,
+  messageIndex: number,
+  updates: {
+    content: string;
+    model?: string;
+    thinkingProcess?: string[];
+    modelThinking?: string;
+    toolContext?: ToolContext[];
+  }
+) {
+  const messages = await getConversationMessagesOrdered(conversationId);
+  const target = messages[messageIndex];
+
+  if (!target?.id) {
+    throw new Error(`Message at index ${messageIndex} was not found in conversation ${conversationId}`);
+  }
+
+  await db.transaction('rw', db.messages, db.conversations, async () => {
+    await db.messages.update(target.id!, {
+      content: updates.content,
+      tokens: estimateTokens(updates.content),
+      keywords: extractKeywords(updates.content),
+      model: updates.model,
+      thinkingProcess: updates.thinkingProcess,
+      modelThinking: updates.modelThinking,
+      toolContext: updates.toolContext,
+    });
+    await db.conversations.update(conversationId, { updatedAt: Date.now() });
+  });
 }
 
 export async function updateConversationTitle(conversationId: number, title: string) {

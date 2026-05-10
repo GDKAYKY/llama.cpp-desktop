@@ -60,6 +60,14 @@ The Llama Desktop application features a persistent chat history and hybrid cont
 
 The hybrid context retrieval system provides the AI with relevant long-term memory beyond the immediate conversation window.
 
+### Business Rules
+
+1. Assistant thinking metadata is persisted as UI/debug metadata, not as prompt context.
+2. Fields such as `thinkingProcess`, `modelThinking`, tool traces, and any future thinking duration value are allowed to be stored with a message for display after reload.
+3. When a conversation is rehydrated into the backend session, only canonical chat turns are included: `role` and `content`.
+4. UI-only timing text such as `Thinked for <duration>` must never be appended to message content or injected into model context for later sends.
+5. This separation is intentional: persistence preserves the user experience, while context hydration stays limited to the actual conversation transcript.
+
 ### Keyword Extraction Pipeline
 
 When a message is saved, keywords are extracted using this process:
@@ -168,6 +176,8 @@ async function deleteConversation(conversationId: number)
 - Streams new messages in real-time
 - Auto-saves messages to history
 - Updates conversation timestamp on each message
+- Rehydrates backend chat state from persisted transcript only (`role` + `content`)
+- Keeps thinking/debug metadata available for UI rendering without re-sending it to the model
 
 ### Auto-Title Generation
 - Generates title from first user message

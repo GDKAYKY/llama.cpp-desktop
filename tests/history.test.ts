@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db, createConversation, saveMessage, getConversationHistory, updateConversationTitle, deleteConversation, getRecentConversations, extractKeywords, estimateTokens, findRelevantContext, type ChatMessage } from '../src/lib/services/history';
+import { db, createConversation, saveMessage, getConversationHistory, updateConversationTitle, updateConversationMessageAtIndex, truncateConversationFromIndex, deleteConversation, getRecentConversations, extractKeywords, estimateTokens, findRelevantContext, type ChatMessage } from '../src/lib/services/history';
 
 describe('Chat History Service (IndexedDB)', () => {
   // Clear the database before each test to ensure a clean state
@@ -76,6 +76,40 @@ describe('Chat History Service (IndexedDB)', () => {
     
     expect(conversation).toBeUndefined();
     expect(messages).toHaveLength(0);
+  });
+
+  it('should truncate persisted messages from a given index', async () => {
+    const conversationId = await createConversation('Editable Chat');
+    await saveMessage(conversationId, 'user', 'Original prompt');
+    await saveMessage(conversationId, 'assistant', 'Original reply');
+    await saveMessage(conversationId, 'user', 'Follow-up');
+
+    await truncateConversationFromIndex(conversationId, 1);
+
+    const history = await getConversationHistory(conversationId);
+    expect(history).toHaveLength(1);
+    expect(history[0].content).toBe('Original prompt');
+  });
+
+  it('should update a persisted message by conversation index', async () => {
+    const conversationId = await createConversation('Regenerated Chat');
+    await saveMessage(conversationId, 'user', 'Question');
+    await saveMessage(conversationId, 'assistant', 'Old answer', 'llama-old');
+
+    await updateConversationMessageAtIndex(conversationId, 1, {
+      content: 'New answer',
+      model: 'llama-new',
+      thinkingProcess: ['step one'],
+      modelThinking: 'reasoning',
+      toolContext: [{ toolName: 'search' }],
+    });
+
+    const history = await getConversationHistory(conversationId);
+    expect(history[1].content).toBe('New answer');
+    expect(history[1].model).toBe('llama-new');
+    expect(history[1].thinkingProcess).toEqual(['step one']);
+    expect(history[1].modelThinking).toBe('reasoning');
+    expect(history[1].toolContext).toEqual([{ toolName: 'search' }]);
   });
 
   it('should get recent conversations ordered by updatedAt', async () => {

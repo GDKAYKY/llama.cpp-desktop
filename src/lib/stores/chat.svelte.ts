@@ -9,7 +9,9 @@ import {
   createConversation,
   getConversationHistory,
   getRecentConversations,
+  truncateConversationFromIndex,
   updateConversationTitle,
+  updateConversationMessageAtIndex,
   deleteConversation,
   type Conversation,
 } from "$lib/services/history";
@@ -51,7 +53,7 @@ class ChatStore {
 
   unlisten: UnlistenFn | null = null;
 
-  // To accumulate assistant response before saving
+  // Streaming buffers stay non-reactive on purpose to avoid UI churn.
   currentAssistantResponse = "";
   private lastTemplateKey: string | null = null;
   private thinkingLineBuffer = "";
@@ -111,6 +113,9 @@ class ChatStore {
     // title generation can drift into different sessions like an amateur magician.
 
     try {
+      // Business rule: backend context is rebuilt from the canonical transcript
+      // only. Persisted thinking/debug metadata may exist for UI rendering after
+      // reload, but it must never be re-injected into model context.
       const contextPayload = history.map((h) => ({
         role: h.role,
         content: h.content,
@@ -138,15 +143,7 @@ class ChatStore {
       this.messages = [...this.messages.slice(0, lastIndex), updated];
       this.currentAssistantResponse += chunk;
     } else {
-      this.messages = [
-        ...this.messages,
-        {
-          role: "assistant",
-          content: chunk,
-          timestamp: Date.now(),
-        },
-      ];
-      this.currentAssistantResponse = chunk;
+      console.warn("Assistant chunk received without a placeholder message");
     }
   }
 
@@ -162,6 +159,11 @@ class ChatStore {
       localStorage.setItem("llama_chat_session_id", this.sessionId);
     }
 
+    const conversationId = this.activeConversationId;
+    if (!conversationId) {
+      throw new Error("Failed to create an active conversation before sending");
+    }
+
     const userMessage: Message = {
       role: "user",
       content,
@@ -169,7 +171,7 @@ class ChatStore {
     };
 
     this.messages.push(userMessage);
-    await saveMessage(this.activeConversationId, "user", content);
+    await saveMessage(conversationId, "user", content);
 
     this.messages.push({
       role: "assistant",
@@ -187,108 +189,109 @@ class ChatStore {
     this.currentAssistantResponse = "";
 
     const onEvent = new Channel<any>();
-    onEvent.onmessage = async (payload) => {
-      if (payload.thinking) {
-        this.thinkingProcess = [
-          ...this.thinkingProcess,
-          String(payload.thinking),
-        ];
-      }
+    let eventQueue = Promise.resolve();
+    let streamError: unknown = null;
+    onEvent.onmessage = (payload) => {
+      eventQueue = eventQueue
+        .then(async () => {
+          if (payload.thinking) {
+            this.thinkingProcess = [
+              ...this.thinkingProcess,
+              String(payload.thinking),
+            ];
+          }
 
-      if (payload.thinking_chunk) {
-        this.appendThinkingChunk(String(payload.thinking_chunk));
-      }
+          if (payload.thinking_chunk) {
+            this.appendThinkingChunk(String(payload.thinking_chunk));
+          }
 
-      if (payload.tool_context) {
-        const ctx = payload.tool_context;
-        this.toolContext = [
-          ...this.toolContext,
-          {
-            serverId: ctx.server_id ? String(ctx.server_id) : undefined,
-            toolName: ctx.tool_name ? String(ctx.tool_name) : undefined,
-            arguments: ctx.arguments,
-            result: ctx.result,
-            toolCallId: ctx.tool_call_id ? String(ctx.tool_call_id) : undefined,
-          },
-        ];
-      }
+          if (payload.tool_context) {
+            const ctx = payload.tool_context;
+            this.toolContext = [
+              ...this.toolContext,
+              {
+                serverId: ctx.server_id ? String(ctx.server_id) : undefined,
+                toolName: ctx.tool_name ? String(ctx.tool_name) : undefined,
+                arguments: ctx.arguments,
+                result: ctx.result,
+                toolCallId: ctx.tool_call_id ? String(ctx.tool_call_id) : undefined,
+              },
+            ];
+          }
 
-      if (payload.chunk) {
-        this.appendChunk(payload.chunk);
-      }
+          if (payload.chunk) {
+            this.appendChunk(String(payload.chunk));
+          }
 
-      if (payload.status === "done") {
-        console.log("Stream finished");
+          if (payload.status === "done") {
+            console.log("Stream finished");
 
-        this.flushThinkingBuffer();
+            try {
+              this.flushThinkingBuffer();
 
-        const lastMsg = this.messages[this.messages.length - 1];
-        const assistantContent =
-          this.currentAssistantResponse ||
-          (lastMsg?.role === "assistant" ? lastMsg.content : "");
-        const trimmedContent = assistantContent.trim();
+              const lastMsg = this.messages[this.messages.length - 1];
+              const assistantContent =
+                this.currentAssistantResponse ||
+                (lastMsg?.role === "assistant" ? lastMsg.content : "");
+              const trimmedContent = assistantContent.trim();
 
-        if (this.activeConversationId && trimmedContent) {
-          const conversationId = this.activeConversationId;
-          this.currentAssistantResponse = assistantContent;
+              if (!trimmedContent) {
+                console.warn("Assistant stream finished without content to persist");
+                return;
+              }
 
-          const runningModelPath = serverStore.currentConfig?.model_path;
-          const modelInLibrary = modelsStore.models.find(
-            (m) => m.model_file_path === runningModelPath,
-          );
-          const modelName = modelInLibrary?.name || "Unknown Model";
+              this.currentAssistantResponse = assistantContent;
 
-          await saveMessage(
-            conversationId,
-            "assistant",
-            assistantContent,
-            modelName,
-            {
-              thinkingProcess: this.thinkingProcess.length
-                ? [...this.thinkingProcess]
-                : undefined,
-              modelThinking: this.modelThinking || undefined,
-              toolContext: this.toolContext.length
-                ? [...this.toolContext]
-                : undefined,
-            },
-          );
+              const modelName = this.getRunningModelName();
 
-          if (this.messages.length > 0) {
-            const lastMsg = this.messages[this.messages.length - 1];
-            if (lastMsg.role === "assistant") {
-              lastMsg.model = modelName;
+              await saveMessage(
+                conversationId,
+                "assistant",
+                assistantContent,
+                modelName,
+                this.buildAssistantDebugMeta(),
+              );
+
+              const lastAssistantIndex = this.messages.length - 1;
+              const lastAssistant = this.messages[lastAssistantIndex];
+              if (lastAssistant?.role === "assistant") {
+                this.messages = [
+                  ...this.messages.slice(0, lastAssistantIndex),
+                  { ...lastAssistant, model: modelName },
+                  ...this.messages.slice(lastAssistantIndex + 1),
+                ];
+              }
+
+              const userMessages = this.messages.filter((m) => m.role === "user");
+              const assistantMessages = this.messages.filter(
+                (m) => m.role === "assistant" && m.content.trim(),
+              );
+              if (
+                userMessages.length === 1 &&
+                assistantMessages.length === 1 &&
+                this.currentAssistantResponse
+              ) {
+                this.generateTitle(
+                  conversationId,
+                  userMessages[0].content,
+                  this.currentAssistantResponse,
+                ).catch((err) => {
+                  console.warn("Background title generation error:", err);
+                });
+              }
+
+              await this.loadRecentConversations();
+            } finally {
+              this.attachDebugToAssistantAt(this.messages.length - 1);
+              this.resetStreamingState();
             }
           }
-
-          const userMessages = this.messages.filter((m) => m.role === "user");
-          const assistantMessages = this.messages.filter(
-            (m) => m.role === "assistant",
-          );
-          if (
-            userMessages.length === 1 &&
-            assistantMessages.length === 1 &&
-            this.currentAssistantResponse
-          ) {
-            this.generateTitle(
-              conversationId,
-              userMessages[0].content,
-              this.currentAssistantResponse,
-            ).catch((err) => {
-              console.warn("Background title generation error:", err);
-            });
-          }
-
-          await this.loadRecentConversations();
-        }
-
-        this.attachDebugToLastAssistant();
-        this.thinkingProcess = [];
-        this.modelThinking = "";
-        this.toolContext = [];
-        this.thinkingLineBuffer = "";
-      }
-      // console.log("stream event", payload);
+        })
+        .catch((err) => {
+          streamError ??= err;
+          this.error = err instanceof Error ? err.message : String(err);
+          console.error("Chat stream event failed:", err);
+        });
     };
 
     try {
@@ -299,6 +302,10 @@ class ChatStore {
         maxTokens: settingsStore.settings.maxTokens,
         onEvent,
       });
+      await eventQueue;
+      if (streamError) {
+        throw streamError;
+      }
     } catch (err) {
       this.error = err instanceof Error ? err.message : String(err);
       console.error("ERRO NO CHAT:", err);
@@ -308,6 +315,8 @@ class ChatStore {
   }
 
   async likeMessage(messageIndex: number) {
+    if (this.isLoading) return;
+
     await invokeCommand("chat_action_like", {
       sessionId: this.sessionId,
       messageIndex,
@@ -315,6 +324,8 @@ class ChatStore {
   }
 
   async dislikeMessage(messageIndex: number) {
+    if (this.isLoading) return;
+
     await invokeCommand("chat_action_dislike", {
       sessionId: this.sessionId,
       messageIndex,
@@ -322,6 +333,8 @@ class ChatStore {
   }
 
   async copyMessage(messageIndex: number) {
+    if (this.isLoading) return;
+
     await invokeCommand("chat_action_copy", {
       sessionId: this.sessionId,
       messageIndex,
@@ -329,6 +342,8 @@ class ChatStore {
   }
 
   async shareMessage(messageIndex: number): Promise<string> {
+    if (this.isLoading) return "";
+
     const result = await invokeCommand("chat_action_share", {
       sessionId: this.sessionId,
       messageIndex,
@@ -344,11 +359,18 @@ class ChatStore {
       throw new Error("Target message is not an assistant response");
     }
 
+    const conversationId = this.activeConversationId;
+    if (!conversationId) {
+      throw new Error("No active conversation available for regeneration");
+    }
+
     this.isLoading = true;
     this.error = null;
 
     const onEvent = new Channel<any>();
     let buffer = "";
+    let eventQueue = Promise.resolve();
+    let streamError: unknown = null;
 
     await this.refreshThinkingLabel();
     this.thinkingProcess = [];
@@ -357,64 +379,79 @@ class ChatStore {
     this.thinkingLineBuffer = "";
 
     onEvent.onmessage = (payload) => {
-      if (payload.thinking) {
-        this.thinkingProcess = [
-          ...this.thinkingProcess,
-          String(payload.thinking),
-        ];
-      }
+      eventQueue = eventQueue
+        .then(async () => {
+          if (payload.thinking) {
+            this.thinkingProcess = [
+              ...this.thinkingProcess,
+              String(payload.thinking),
+            ];
+          }
 
-      if (payload.thinking_chunk) {
-        this.appendThinkingChunk(String(payload.thinking_chunk));
-      }
+          if (payload.thinking_chunk) {
+            this.appendThinkingChunk(String(payload.thinking_chunk));
+          }
 
-      if (payload.tool_context) {
-        const ctx = payload.tool_context;
-        this.toolContext = [
-          ...this.toolContext,
-          {
-            serverId: ctx.server_id ? String(ctx.server_id) : undefined,
-            toolName: ctx.tool_name ? String(ctx.tool_name) : undefined,
-            arguments: ctx.arguments,
-            result: ctx.result,
-            toolCallId: ctx.tool_call_id ? String(ctx.tool_call_id) : undefined,
-          },
-        ];
-      }
+          if (payload.tool_context) {
+            const ctx = payload.tool_context;
+            this.toolContext = [
+              ...this.toolContext,
+              {
+                serverId: ctx.server_id ? String(ctx.server_id) : undefined,
+                toolName: ctx.tool_name ? String(ctx.tool_name) : undefined,
+                arguments: ctx.arguments,
+                result: ctx.result,
+                toolCallId: ctx.tool_call_id ? String(ctx.tool_call_id) : undefined,
+              },
+            ];
+          }
 
-      if (payload.chunk) {
-        buffer += payload.chunk;
-        const msg = this.messages[messageIndex];
-        if (msg && msg.role === "assistant") {
-          const updated = { ...msg, content: buffer };
-          this.messages = [
-            ...this.messages.slice(0, messageIndex),
-            updated,
-            ...this.messages.slice(messageIndex + 1),
-          ];
-        }
-      }
+          if (payload.chunk) {
+            buffer += String(payload.chunk);
+            const msg = this.messages[messageIndex];
+            if (msg && msg.role === "assistant") {
+              const updated = { ...msg, content: buffer };
+              this.messages = [
+                ...this.messages.slice(0, messageIndex),
+                updated,
+                ...this.messages.slice(messageIndex + 1),
+              ];
+            }
+          }
 
-      if (payload.status === "done") {
-        this.flushThinkingBuffer();
+          if (payload.status === "done") {
+            try {
+              this.flushThinkingBuffer();
 
-        const runningModelPath = serverStore.currentConfig?.model_path;
-        const modelInLibrary = modelsStore.models.find(
-          (m) => m.model_file_path === runningModelPath,
-        );
-        const modelName = modelInLibrary?.name || "Unknown Model";
+              const modelName = this.getRunningModelName();
+              const msg = this.messages[messageIndex];
+              const finalContent =
+                buffer || (msg?.role === "assistant" ? msg.content : "");
+              if (msg && msg.role === "assistant") {
+                this.messages = [
+                  ...this.messages.slice(0, messageIndex),
+                  { ...msg, content: finalContent, model: modelName },
+                  ...this.messages.slice(messageIndex + 1),
+                ];
+              }
 
-        const msg = this.messages[messageIndex];
-        if (msg && msg.role === "assistant") {
-          msg.model = modelName;
-        }
-
-        this.attachDebugToLastAssistant();
-        this.thinkingProcess = [];
-        this.modelThinking = "";
-        this.toolContext = [];
-        this.thinkingLineBuffer = "";
-      }
+              await updateConversationMessageAtIndex(conversationId, messageIndex, {
+                content: finalContent,
+                model: modelName,
+                ...this.buildAssistantDebugMeta(),
+              });
+              await this.loadRecentConversations();
+            } finally {
+              this.attachDebugToAssistantAt(messageIndex);
+              this.resetStreamingState();
+            }
+          }
+        })
+        .catch((err) => {
+          streamError ??= err;
+          this.error = err instanceof Error ? err.message : String(err);
+          console.error("Regenerate stream event failed:", err);
+        });
     };
 
     try {
@@ -425,6 +462,10 @@ class ChatStore {
         maxTokens: settingsStore.settings.maxTokens,
         onEvent,
       });
+      await eventQueue;
+      if (streamError) {
+        throw streamError;
+      }
     } catch (err) {
       this.error = err instanceof Error ? err.message : String(err);
       throw err;
@@ -436,19 +477,24 @@ class ChatStore {
   async editMessage(index: number, content: string) {
     if (this.isLoading) return;
 
-    this.messages = this.messages.slice(0, index);
+    const conversationId = this.activeConversationId;
+    if (!conversationId) {
+      throw new Error("No active conversation available for editing");
+    }
+
+    const truncatedMessages = this.messages.slice(0, index);
+    await truncateConversationFromIndex(conversationId, index);
+    this.messages = truncatedMessages;
+    await this.replaceBackendHistory(truncatedMessages);
     await this.send(content);
   }
 
-  private attachDebugToLastAssistant() {
-    if (this.messages.length === 0) return;
-
-    const lastIndex = this.messages.length - 1;
-    const lastMsg = this.messages[lastIndex];
-    if (!lastMsg || lastMsg.role !== "assistant") return;
+  private attachDebugToAssistantAt(index: number) {
+    const target = this.messages[index];
+    if (!target || target.role !== "assistant") return;
 
     const updated: Message = {
-      ...lastMsg,
+      ...target,
       thinkingProcess: this.thinkingProcess.length
         ? [...this.thinkingProcess]
         : undefined,
@@ -457,9 +503,9 @@ class ChatStore {
     };
 
     this.messages = [
-      ...this.messages.slice(0, lastIndex),
+      ...this.messages.slice(0, index),
       updated,
-      ...this.messages.slice(lastIndex + 1),
+      ...this.messages.slice(index + 1),
     ];
   }
 
@@ -543,6 +589,46 @@ class ChatStore {
 
     this.messages = [];
     this.error = null;
+    this.activeConversationId = null;
+    this.history = [];
+    this.sessionId = "";
+    localStorage.removeItem("llama_chat_session_id");
+  }
+
+  private buildAssistantDebugMeta() {
+    return {
+      thinkingProcess: this.thinkingProcess.length
+        ? [...this.thinkingProcess]
+        : undefined,
+      modelThinking: this.modelThinking || undefined,
+      toolContext: this.toolContext.length ? [...this.toolContext] : undefined,
+    };
+  }
+
+  private getRunningModelName() {
+    const runningModelPath = serverStore.currentConfig?.model_path;
+    const modelInLibrary = modelsStore.models.find(
+      (m) => m.model_file_path === runningModelPath,
+    );
+    return modelInLibrary?.name || "Unknown Model";
+  }
+
+  private async replaceBackendHistory(messages: Message[]) {
+    await invokeCommand("clear_chat", { sessionId: this.sessionId });
+    await invokeCommand("load_history_context", {
+      sessionId: this.sessionId,
+      messages: messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+    });
+  }
+
+  private resetStreamingState() {
+    this.thinkingProcess = [];
+    this.modelThinking = "";
+    this.toolContext = [];
+    this.thinkingLineBuffer = "";
   }
 
   private async refreshThinkingLabel() {
@@ -629,15 +715,21 @@ function deriveThinkingTagsFromTemplate(template: string | null): string[] {
   if (!template) return [];
   const tags = new Set<string>();
   const tagRegex = /<([a-zA-Z][a-zA-Z0-9_-]{0,32})>/g;
-  const lower = template.toLowerCase();
   const blocked = new Set(["assistant", "user", "system", "tool"]);
-  let match = tagRegex.exec(lower);
+  let match = tagRegex.exec(template);
   while (match) {
     const tag = match[1];
-    if (!blocked.has(tag) && lower.includes(`</${tag}>`)) {
-      tags.add(tag);
+    if (!blocked.has(tag.toLowerCase())) {
+      const closingTag = new RegExp(`</${escapeRegExp(tag)}>`, "i");
+      if (closingTag.test(template)) {
+        tags.add(tag);
+      }
     }
-    match = tagRegex.exec(lower);
+    match = tagRegex.exec(template);
   }
   return [...tags];
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
