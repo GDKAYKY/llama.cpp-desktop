@@ -12,7 +12,7 @@
     MoreHorizontal,
   } from "lucide-svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
-  import { toast } from "svelte-sonner";
+  import { notifications } from "$lib/shared/notifications";
   import EditableMessage from "./EditableMessage.svelte";
   import ThinkingPanel from "./ThinkingPanel.svelte";
 
@@ -53,9 +53,9 @@
     try {
       await navigator.clipboard.writeText(message.content);
       await chatStore.copyMessage(index);
-      toast.success("Message copied to clipboard");
+      notifications.success("Message copied to clipboard");
     } catch (err) {
-      toast.error("Failed to copy message");
+      notifications.error("Failed to copy message");
     }
   }
 
@@ -92,27 +92,27 @@
   async function handleLike() {
     try {
       await chatStore.likeMessage(index);
-      toast.success("Curtido");
+      notifications.success("Curtido");
     } catch (err) {
-      toast.error("Falha ao curtir");
+      notifications.error("Falha ao curtir");
     }
   }
 
   async function handleDislike() {
     try {
       await chatStore.dislikeMessage(index);
-      toast.success("Feedback enviado");
+      notifications.success("Feedback enviado");
     } catch (err) {
-      toast.error("Falha ao enviar feedback");
+      notifications.error("Falha ao enviar feedback");
     }
   }
 
   async function handleShare() {
     try {
       const path = await chatStore.shareMessage(index);
-      toast.success(`Salvo em ${path}`);
+      notifications.success(`Salvo em ${path}`);
     } catch (err) {
-      toast.error("Falha ao compartilhar");
+      notifications.error("Falha ao compartilhar");
     }
   }
 
@@ -120,12 +120,12 @@
     try {
       await chatStore.regenerateMessage(index);
     } catch (err) {
-      toast.error("Falha ao regenerar");
+      notifications.error("Falha ao regenerar");
     }
   }
 
   function handleMore() {
-    toast.message("Mais ações em breve");
+    notifications.message("Mais ações em breve");
   }
 </script>
 

@@ -1,6 +1,6 @@
 <script>
   import { ChevronDown, Copy, Wrench } from "lucide-svelte";
-  import { toast } from "svelte-sonner";
+  import { notifications } from "$lib/shared/notifications";
 
   let { ctx, isStreaming = false } = $props();
 
@@ -30,9 +30,9 @@
       const result = formatValue(ctx?.result ?? "");
       const payload = `Arguments:\n${args}\n\nResult:\n${result}`.trim();
       await navigator.clipboard.writeText(payload);
-      toast.success("Tool context copied to clipboard");
+      notifications.success("Tool context copied to clipboard");
     } catch (err) {
-      toast.error("Failed to copy tool context");
+      notifications.error("Failed to copy tool context");
     }
   }
 </script>

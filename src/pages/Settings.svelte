@@ -7,7 +7,6 @@
   import { getConfigPath } from "$lib/config/index";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
-  import { cn } from "$shared/cn.js";
   import { openPath } from "@tauri-apps/plugin-opener";
   import { Switch, Slider } from "bits-ui";
   import {
@@ -39,11 +38,11 @@
     getVramDescription,
     getVramColorClass,
   } from "$lib/utils/vram-calculator";
+  import { notifications } from "$lib/shared/notifications";
 
   let configPath = $state("");
   let loading = $state(false);
   let saving = $state(false);
-  let message = $state({ type: "", text: "" });
   let unsavedChanges = $state(false);
 
   let maxTokensValue = $state(settingsStore.settings.maxTokens);
@@ -202,10 +201,12 @@
   }
 
   function showMessage(type, text) {
-    message = { type, text };
-    setTimeout(() => {
-      message = { type: "", text: "" };
-    }, 5000);
+    if (type === "error") {
+      notifications.error(text);
+      return;
+    }
+
+    notifications.success(text);
   }
 
   function getTotalModelSize() {
@@ -296,19 +297,6 @@
       </button>
     </div>
   </div>
-
-  {#if message.text}
-    <div
-      class={cn(
-        "mb-5 rounded-lg px-4 py-3 text-sm",
-        message.type === "success"
-          ? "bg-green-500/10 text-green-400"
-          : "bg-red-500/10 text-red-400",
-      )}
-    >
-      {message.text}
-    </div>
-  {/if}
 
   {#if loading}
     <div class="py-10 text-center text-muted-foreground">

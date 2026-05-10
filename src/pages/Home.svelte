@@ -3,14 +3,13 @@
   import ChatHeader from "$components/layout/chat/ChatHeader.svelte";
   import ChatMessages from "$components/chat/ChatMessageList.svelte";
   import ChatForm from "$components/chat/ChatForm.svelte";
-  import { toast } from "svelte-sonner";
+  import { notifications } from "$lib/shared/notifications";
   import { chatStore } from "$lib/stores/chat.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
   import { uiStore } from "$lib/stores/ui.svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { mcpStore } from "$lib/stores/mcp.svelte";
-  import { cn } from "$lib/shared/cn.js";
 
   let userInput = $state("");
   let messagesEnd: any = $state();
@@ -38,12 +37,14 @@
     if (!userInput.trim() || chatStore.isLoading) return;
 
     if (!serverStore.isRunning) {
-      toast.error("Server is not running. Please select a model to start.");
+      notifications.error(
+        "Server is not running. Please select a model to start.",
+      );
       return;
     }
     await serverStore.checkHealth();
     if (!serverStore.isHealthy) {
-      toast.error(serverStore.error ?? "Server health check failed.");
+      notifications.error(serverStore.error ?? "Server health check failed.");
       return;
     }
 
@@ -54,7 +55,7 @@
     await chatStore.send(currentInput);
 
     if (chatStore.error) {
-      toast.error(`Failed to send message: ${chatStore.error}`);
+      notifications.error(`Failed to send message: ${chatStore.error}`);
     }
   }
 
@@ -97,25 +98,29 @@
         : null;
 
     if (!binaryPath) {
-      toast.error("Llama Server path not configured. Please go to Settings.");
+      notifications.error(
+        "Llama Server path not configured. Please go to Settings.",
+      );
       return;
     }
 
     if (!modelPath) {
-      toast.error("Model path not found for selected model.");
+      notifications.error("Model path not found for selected model.");
       return;
     }
+
+    let startNotificationId: string | number | undefined;
 
     try {
       if (
         serverStore.isRunning &&
         serverStore.currentConfig?.model_path === modelPath
       ) {
-        toast.success(`Using already running model: ${model.name}`);
+        notifications.success(`Using already running model: ${model.name}`);
         return;
       }
 
-      toast.info("Starting llama-server...");
+      startNotificationId = notifications.loading("Starting llama-server...");
       if (serverStore.isRunning) {
         await serverStore.stopServer();
       }
@@ -133,13 +138,19 @@
 
       setTimeout(() => {
         if (serverStore.error) {
-          toast.error(`Server failed to start: ${serverStore.error}`);
+          notifications.error(`Server failed to start: ${serverStore.error}`, {
+            id: startNotificationId,
+          });
         } else {
-          toast.success(`Server started with ${model.name}`);
+          notifications.success(`Server started with ${model.name}`, {
+            id: startNotificationId,
+          });
         }
       }, 1000);
     } catch (err) {
-      toast.error(`Failed to start server: ${err}`);
+      notifications.error(`Failed to start server: ${err}`, {
+        id: startNotificationId,
+      });
     }
   }
 

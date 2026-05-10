@@ -18,6 +18,7 @@
   import ModelUsageGraph from "$components/ui/charts/ModelUsageGraph.svelte";
   import ModelLogo from "./ModelLogo.svelte";
   import { Play, Rocket, Plus, Copy } from "lucide-svelte";
+  import { notifications } from "$lib/shared/notifications";
 
   import ModelCard from "./ModelCard.svelte";
   import Modal from "$components/ui/Modal.svelte";
@@ -26,8 +27,6 @@
   let activeDropdown = $state<string | null>(null);
   let viewingManifest = $state<Model | null>(null);
   let deletingModel = $state<Model | null>(null);
-  let showCopySuccess = $state(false);
-  let showDeleteSuccess = $state(false);
   let showAddModal = $state(false);
   let downloadReference = $state("");
   let showModels = $state(true);
@@ -43,9 +42,12 @@
 
     if (action === "copy-path") {
       if (model.model_file_path) {
-        navigator.clipboard.writeText(model.model_file_path);
-        showCopySuccess = true;
-        setTimeout(() => (showCopySuccess = false), 2000);
+        try {
+          await navigator.clipboard.writeText(model.model_file_path);
+          notifications.success("Path copied to clipboard!");
+        } catch {
+          notifications.error("Failed to copy path!");
+        }
       }
     } else if (action === "view-manifest") {
       viewingManifest = model;
@@ -62,8 +64,7 @@
     if (!deletingModel) return;
     await modelsStore.remove(deletingModel);
     deletingModel = null;
-    showDeleteSuccess = true;
-    setTimeout(() => (showDeleteSuccess = false), 2000);
+    notifications.success("Model deleted successfully!");
   }
 
   async function handleSelectDirectory() {
@@ -78,11 +79,14 @@
     modelsStore.selectModel(model);
   }
 
-  function handleCopyModelsRoot() {
+  async function handleCopyModelsRoot() {
     if (!modelsStore.modelsRoot) return;
-    navigator.clipboard.writeText(modelsStore.modelsRoot);
-    showCopySuccess = true;
-    setTimeout(() => (showCopySuccess = false), 2000);
+    try {
+      await navigator.clipboard.writeText(modelsStore.modelsRoot);
+      notifications.success("Path copied to clipboard!");
+    } catch {
+      notifications.error("Failed to copy path!");
+    }
   }
 
   async function handleDownloadModel() {
@@ -331,30 +335,6 @@
           {/each}
         </div>
       {/if}
-    </div>
-  {/if}
-
-  {#if showCopySuccess}
-    <div
-      class="fixed bottom-8 left-1/2 z-100 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none"
-    >
-      <div
-        class="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg"
-      >
-        Path copied to clipboard!
-      </div>
-    </div>
-  {/if}
-
-  {#if showDeleteSuccess}
-    <div
-      class="fixed bottom-8 left-1/2 z-100 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none"
-    >
-      <div
-        class="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg"
-      >
-        Model deleted successfully!
-      </div>
     </div>
   {/if}
 

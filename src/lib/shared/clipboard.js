@@ -1,4 +1,4 @@
-import { toast } from "svelte-sonner";
+import { notifications } from "$lib/shared/notifications";
 
 /**
  * Copy text to clipboard with toast notification
@@ -11,7 +11,7 @@ export async function copyToClipboard(
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(text);
-      toast.success(successMessage);
+      notifications.success(successMessage);
       return true;
     }
 
@@ -29,14 +29,14 @@ export async function copyToClipboard(
     document.body.removeChild(textArea);
 
     if (successful) {
-      toast.success(successMessage);
+      notifications.success(successMessage);
       return true;
     } else {
       throw new Error("execCommand failed");
     }
   } catch (error) {
     console.error("Failed to copy to clipboard:", error);
-    toast.error(errorMessage);
+    notifications.error(errorMessage);
     return false;
   }
 }

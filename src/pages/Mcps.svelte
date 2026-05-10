@@ -8,7 +8,6 @@
   } from "$lib/types/backend";
   import { openPath } from "@tauri-apps/plugin-opener";
   import { invokeCommand } from "$infrastructure/ipc";
-  import { cn } from "$shared/cn.js";
   import {
     Link,
     Unlink,
@@ -28,13 +27,11 @@
   import { SiModelcontextprotocol } from "@icons-pack/svelte-simple-icons";
   import Dropdown from "$components/ui/Dropdown.svelte";
   import Checkbox from "$components/ui/Checkbox.svelte";
+  import { notifications } from "$lib/shared/notifications";
 
   let selectedId = $state<string | null>(null);
   let saving = $state(false);
   let initializing = $state(true);
-  let message = $state<{ type: string; text: string }>({ type: "", text: "" });
-  let showCopySuccess = $state(false);
-
   const defaultServerIds = $derived.by(
     () => new Set(mcpStore.defaultServers.map((server) => server.id)),
   );
@@ -193,10 +190,12 @@
   }
 
   function showMessage(type: string, text: string) {
-    message = { type, text };
-    setTimeout(() => {
-      message = { type: "", text: "" };
-    }, 5000);
+    if (type === "error") {
+      notifications.error(text);
+      return;
+    }
+
+    notifications.success(text);
   }
 
   async function handleSave() {
@@ -346,8 +345,7 @@
     if (!mcpStore.configPath) return;
     try {
       await navigator.clipboard.writeText(mcpStore.configPath);
-      showCopySuccess = true;
-      setTimeout(() => (showCopySuccess = false), 2000);
+      notifications.success("Path copied to clipboard!");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showMessage("error", msg);
@@ -409,18 +407,6 @@
         </button>
       </div>
     {/if}
-    {#if message.text}
-      <div
-        class={cn(
-          "mt-4 rounded-lg border px-4 py-3 text-sm",
-          message.type === "success"
-            ? "border-green-500/30 bg-green-500/10 text-green-400"
-            : "border-red-500/30 bg-red-500/10 text-red-400",
-        )}
-      >
-        {message.text}
-      </div>
-    {/if}
   </div>
 </div>
 
@@ -428,30 +414,6 @@
   <div
     class="flex min-h-[calc(100vh-160px)] flex-col gap-6 px-6 pb-10 text-foreground"
   >
-    {#if message.text}
-      <div
-        class={`rounded-lg px-4 py-3 text-sm ${
-          message.type === "success"
-            ? "bg-green-500/10 text-green-400"
-            : "bg-red-500/10 text-red-400"
-        }`}
-      >
-        {message.text}
-      </div>
-    {/if}
-
-    {#if showCopySuccess}
-      <div
-        class="fixed bottom-8 left-1/2 z-100 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none"
-      >
-        <div
-          class="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg"
-        >
-          Path copied to clipboard!
-        </div>
-      </div>
-    {/if}
-
     <div class="grid gap-6 lg:grid-cols-[320px_1fr] items-start">
       <section class="rounded-xl bg-card p-5 shadow-sm h-full">
         <div class="mb-4 flex items-center gap-3 pb-3">
