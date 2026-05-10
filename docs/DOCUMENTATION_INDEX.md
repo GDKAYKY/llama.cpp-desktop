@@ -111,6 +111,14 @@ src-tauri/src/
 
 ### Features & Services
 
+#### Chat API
+- **[Chat API Documentation](./CHAT_API.md)** - OpenAI-compatible chat API for llama.cpp
+  - Request/response formats
+  - Tool calling support
+  - Builder pattern utilities
+  - Streaming responses
+  - Migration guide
+
 #### Chat History
 - **[Chat History & Context](./frontend/CHAT_HISTORY.md)** - Persistent storage and context retrieval
   - IndexedDB schema

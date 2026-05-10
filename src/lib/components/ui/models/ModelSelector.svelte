@@ -123,15 +123,17 @@
         ? model.tokenizer_metadata["tokenizer.chat_template"]
         : null;
 
-    await serverStore.startServer(
-      llamaDirectory,
-      model.model_file_path,
-      settingsStore.settings.serverPort,
-      settingsStore.settings.contextSize,
-      undefined,
-      undefined,
-      chatTemplate,
-    );
+    await serverStore.startServer({
+      binaryPath: llamaDirectory,
+      modelPath: model.model_file_path,
+      port: settingsStore.settings.serverPort,
+      ctxSize: settingsStore.settings.contextSize,
+      nGpuLayers: settingsStore.settings.llamaServerGpuLayers,
+      jinja: settingsStore.settings.llamaServerJinja,
+      parallel: settingsStore.settings.llamaServerParallel,
+      extraArgs: settingsStore.settings.llamaServerExtraArgs,
+      ...(chatTemplate !== null ? { chatTemplate } : {}),
+    });
   }
 </script>
 

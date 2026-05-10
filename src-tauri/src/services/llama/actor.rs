@@ -1,12 +1,18 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
+use tokio::sync::{ mpsc, oneshot, Mutex as TokioMutex };
 
 use crate::infrastructure::llama::process::ProcessManager;
 use crate::infrastructure::llama::server::LlamaServer;
 use crate::infrastructure::metrics::MetricsProvider;
 use crate::models::{
-    ActiveModel, ChatRequest, LlamaCppConfig, ModelId, ModelInfo, ModelState, ServerMetrics,
+    ActiveModel,
+    ChatRequest,
+    LlamaCppConfig,
+    ModelId,
+    ModelInfo,
+    ModelState,
+    ServerMetrics,
 };
 
 pub enum ActorMessage {
@@ -65,7 +71,7 @@ impl LlamaActor {
         self_sender: mpsc::Sender<ActorMessage>,
         initial_registry: HashMap<ModelId, ModelInfo>,
         process_manager: Arc<dyn ProcessManager>,
-        metrics: Arc<dyn MetricsProvider>,
+        metrics: Arc<dyn MetricsProvider>
     ) -> Self {
         Self {
             registry: initial_registry,
@@ -83,30 +89,21 @@ impl LlamaActor {
     pub async fn run(&mut self) {
         while let Some(msg) = self.receiver.recv().await {
             match msg {
-                ActorMessage::Start {
-                    model_id,
-                    config,
-                    respond_to,
-                } => {
-                    self.handle_start_request(model_id, config, respond_to)
-                        .await;
+                ActorMessage::Start { model_id, config, respond_to } => {
+                    self.handle_start_request(model_id, config, respond_to).await;
                 }
-                ActorMessage::InternalStartComplete {
-                    model_id,
-                    result,
-                    config,
-                    respond_to,
-                } => {
+                ActorMessage::InternalStartComplete { model_id, result, config, respond_to } => {
                     let lock = self.get_model_lock(&model_id);
                     let _guard = lock.lock().await;
                     let final_res = match result {
                         Ok((port, child)) => {
                             let pid = child.id().unwrap_or(0);
                             self.process_manager.register(model_id.clone(), child);
-                            self.states.insert(
-                                model_id.clone(),
-                                ModelState::Running { port, pid, config },
-                            );
+                            self.states.insert(model_id.clone(), ModelState::Running {
+                                port,
+                                pid,
+                                config,
+                            });
                             self.active_model = Some(model_id);
                             Ok(pid)
                         }
@@ -117,34 +114,20 @@ impl LlamaActor {
                     };
                     let _ = respond_to.send(final_res);
                 }
-                ActorMessage::Stop {
-                    model_id,
-                    respond_to,
-                } => {
+                ActorMessage::Stop { model_id, respond_to } => {
                     let res = self.handle_stop(&model_id).await;
                     if res.is_ok() && self.active_model.as_ref() == Some(&model_id) {
                         self.active_model = None;
                     }
                     let _ = respond_to.send(res);
                 }
-                ActorMessage::SendChat {
-                    model_id,
-                    request,
-                    respond_to,
-                } => {
+                ActorMessage::SendChat { model_id, request, respond_to } => {
                     let _ = respond_to.send(self.handle_chat(&model_id, request).await);
                 }
-                ActorMessage::CompleteChat {
-                    model_id,
-                    request,
-                    respond_to,
-                } => {
+                ActorMessage::CompleteChat { model_id, request, respond_to } => {
                     let _ = respond_to.send(self.handle_complete_chat(&model_id, request).await);
                 }
-                ActorMessage::IsRunning {
-                    model_id,
-                    respond_to,
-                } => {
+                ActorMessage::IsRunning { model_id, respond_to } => {
                     let id_to_check = model_id.or(self.active_model.clone());
                     let running = if let Some(id) = id_to_check {
                         let lock = self.get_model_lock(&id);
@@ -159,9 +142,11 @@ impl LlamaActor {
                     let config = if let Some(id) = self.active_model.clone() {
                         let lock = self.get_model_lock(&id);
                         let _guard = lock.lock().await;
-                        self.states.get(&id).and_then(|state| match state {
-                            ModelState::Running { config, .. } => Some(config.clone()),
-                            _ => None,
+                        self.states.get(&id).and_then(|state| {
+                            match state {
+                                ModelState::Running { config, .. } => Some(config.clone()),
+                                _ => None,
+                            }
                         })
                     } else {
                         None
@@ -180,7 +165,7 @@ impl LlamaActor {
         &mut self,
         model_id: ModelId,
         config: LlamaCppConfig,
-        respond_to: oneshot::Sender<Result<u32, String>>,
+        respond_to: oneshot::Sender<Result<u32, String>>
     ) {
         let lock = self.get_model_lock(&model_id);
         let _guard = lock.lock().await;
@@ -208,14 +193,12 @@ impl LlamaActor {
 
         tauri::async_runtime::spawn(async move {
             let result = LlamaServer::spawn(model_entry, config_clone.clone(), client).await;
-            let _ = self_sender
-                .send(ActorMessage::InternalStartComplete {
-                    model_id,
-                    result,
-                    config: config_clone,
-                    respond_to,
-                })
-                .await;
+            let _ = self_sender.send(ActorMessage::InternalStartComplete {
+                model_id,
+                result,
+                config: config_clone,
+                respond_to,
+            }).await;
         });
     }
 
@@ -237,7 +220,7 @@ impl LlamaActor {
     async fn handle_chat(
         &mut self,
         model_id: &ModelId,
-        request: ChatRequest,
+        request: ChatRequest
     ) -> Result<mpsc::Receiver<String>, String> {
         let lock = self.get_model_lock(model_id);
         let _guard = lock.lock().await;
@@ -253,7 +236,7 @@ impl LlamaActor {
     async fn handle_complete_chat(
         &mut self,
         model_id: &ModelId,
-        request: ChatRequest,
+        request: ChatRequest
     ) -> Result<serde_json::Value, String> {
         let lock = self.get_model_lock(model_id);
         let _guard = lock.lock().await;
@@ -272,7 +255,9 @@ impl LlamaActor {
         let _guard = lock.lock().await;
         let pid = match self.states.get(&id)? {
             ModelState::Running { pid, .. } => *pid,
-            _ => return None,
+            _ => {
+                return None;
+            }
         };
         drop(_guard);
         if pid == 0 {
@@ -293,7 +278,7 @@ impl LlamaActor {
     pub async fn test_handle_chat(
         &mut self,
         model_id: &ModelId,
-        request: ChatRequest,
+        request: ChatRequest
     ) -> Result<mpsc::Receiver<String>, String> {
         self.handle_chat(model_id, request).await
     }
@@ -310,7 +295,7 @@ impl LlamaActor {
         &mut self,
         model_id: ModelId,
         config: LlamaCppConfig,
-        respond_to: oneshot::Sender<Result<u32, String>>,
+        respond_to: oneshot::Sender<Result<u32, String>>
     ) {
         self.handle_start_request(model_id, config, respond_to).await;
     }

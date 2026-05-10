@@ -55,6 +55,8 @@ async fn test_actual_model_call() {
         ctx_size: 2048,
         parallel: 1,
         n_gpu_layers: 0, // Using CPU for predictable test environments
+        jinja: true,
+        extra_args: Vec::new(),
         chat_template: None,
         chat_template_file: None,
     };

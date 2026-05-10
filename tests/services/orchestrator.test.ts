@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { OrchestratorService, useConversation } from "$lib/services/orchestrator";
+import {
+  OrchestratorService,
+  useConversation,
+} from "$lib/services/orchestrator";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
@@ -70,12 +73,17 @@ describe("OrchestratorService", () => {
     vi.mocked(invoke).mockResolvedValue("AI response");
 
     const params = { temperature: 0.7, max_tokens: 256, top_p: 0.9, top_k: 40 };
-    const result = await OrchestratorService.sendMessage("slot-1", "Hello", params);
+    const result = await OrchestratorService.sendMessage(
+      "slot-1",
+      "Hello",
+      params,
+    );
 
     expect(invoke).toHaveBeenCalledWith("send_message", {
-      slot_id: "slot-1",
+      session_id: "slot-1",
       message: "Hello",
-      params,
+      temperature: 0.7,
+      max_tokens: 256,
     });
     expect(result).toBe("AI response");
   });
@@ -87,9 +95,10 @@ describe("OrchestratorService", () => {
     await OrchestratorService.sendMessage("slot-1", "Hi");
 
     expect(invoke).toHaveBeenCalledWith("send_message", {
-      slot_id: "slot-1",
+      session_id: "slot-1",
       message: "Hi",
-      params: undefined,
+      temperature: 0.7,
+      max_tokens: 256,
     });
   });
 
@@ -161,7 +170,7 @@ describe("useConversation", () => {
     const conv = useConversation();
 
     await expect(conv.send("Hello")).rejects.toThrow(
-      "Conversation not initialized"
+      "Conversation not initialized",
     );
   });
 
@@ -190,9 +199,10 @@ describe("useConversation", () => {
     await conv.send("test", params);
 
     expect(invoke).toHaveBeenCalledWith("send_message", {
-      slot_id: "slot-1",
+      session_id: "slot-1",
       message: "test",
-      params,
+      temperature: 0.5,
+      max_tokens: 100,
     });
   });
 

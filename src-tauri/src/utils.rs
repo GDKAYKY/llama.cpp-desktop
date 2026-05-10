@@ -43,8 +43,8 @@ pub fn append_jsonl<T: Serialize>(path: &Path, data: &T) -> Result<(), String> {
         })?;
     }
 
-    let json = serde_json::to_string(data)
-        .map_err(|e| format!("Failed to serialize data: {}", e))?;
+    let json =
+        serde_json::to_string(data).map_err(|e| format!("Failed to serialize data: {}", e))?;
 
     let mut file = OpenOptions::new()
         .create(true)

@@ -1,19 +1,5 @@
 import { invokeCommand } from '../infrastructure/ipc';
-
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
-export interface StartServerOptions {
-  binaryPath: string;
-  modelPath: string;
-  port: number;
-  ctxSize: number;
-  nGpuLayers: number;
-  parallel?: number;
-  /** Inline template string (passado diretamente ao --chat-template) */
-  chatTemplate?: string;
-  /** Caminho para um arquivo .jinja local (passado ao --chat-template-file) */
-  chatTemplatePath?: string;
-}
+import type { StartServerBaseOptions, StartServerOptions } from '$lib/types/backend';
 
 // ─── ensure_chat_template ─────────────────────────────────────────────────────
 
@@ -57,7 +43,9 @@ export async function startLlamaServer(
     port: options.port,
     ctxSize: options.ctxSize,
     nGpuLayers: options.nGpuLayers,
+    jinja: options.jinja,
     parallel: options.parallel ?? null,
+    extraArgs: options.extraArgs ?? null,
     chatTemplate: options.chatTemplate ?? null,
     chatTemplateFile: options.chatTemplatePath ?? null,
   })) as string;
@@ -87,7 +75,7 @@ export async function startLlamaServer(
  */
 export async function ensureTemplateAndStartServer(
   hfRepo: string,
-  options: Omit<StartServerOptions, 'chatTemplatePath'>,
+  options: StartServerBaseOptions,
 ): Promise<string> {
   // Passo 1 — garante (ou baixa) o template
   const chatTemplatePath = await ensureChatTemplate(hfRepo);

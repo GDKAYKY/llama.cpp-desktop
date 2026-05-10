@@ -1,5 +1,5 @@
 import { invokeCommand } from '$infrastructure/ipc';
-import type { LlamaCppConfig } from '$lib/types/backend';
+import type { LlamaCppConfig, StartServerOptions } from '$lib/types/backend';
 
 export interface ServerStatus {
     isRunning: boolean;
@@ -23,6 +23,17 @@ class ServerStore {
     } | null>(null);
     private healthInterval: ReturnType<typeof setInterval> | null = null;
 
+    private sameArgs(left?: string[] | null, right?: string[] | null) {
+        const leftArgs = left ?? [];
+        const rightArgs = right ?? [];
+
+        return leftArgs.length === rightArgs.length && leftArgs.every((arg, index) => arg === rightArgs[index]);
+    }
+
+    private normalizeArgs(args?: string[] | null) {
+        return (args ?? []).map((arg) => arg.trim()).filter(Boolean);
+    }
+
     constructor() {
         this.init();
     }
@@ -35,27 +46,33 @@ class ServerStore {
         }
     }
 
-    async startServer(
-        binaryPath: string,
-        modelPath: string,
-        port: number = 8000,
-        ctxSize: number = 4096,
-        nGpuLayers: number = 33,
-        parallel: number = 1,
-        chatTemplate?: string | null,
-        chatTemplateFile?: string | null,
-    ) {
+    async startServer(options: StartServerOptions) {
         if (this.isStarting) return;
+
+        if (!options.binaryPath?.trim()) {
+            this.error = 'Llama server binary path is required';
+            return;
+        }
+
+        if (!options.modelPath?.trim()) {
+            this.error = 'Model path is required';
+            return;
+        }
+
+        const extraArgs = this.normalizeArgs(options.extraArgs);
+
         if (
             this.isRunning &&
-            this.currentConfig?.llama_cpp_path === binaryPath &&
-            this.currentConfig?.model_path === modelPath &&
-            this.currentConfig?.port === port &&
-            this.currentConfig?.ctx_size === ctxSize &&
-            this.currentConfig?.n_gpu_layers === nGpuLayers &&
-            this.currentConfig?.parallel === parallel &&
-            (this.currentConfig?.chat_template ?? null) === (chatTemplate ?? null) &&
-            (this.currentConfig?.chat_template_file ?? null) === (chatTemplateFile ?? null)
+            this.currentConfig?.llama_cpp_path === options.binaryPath &&
+            this.currentConfig?.model_path === options.modelPath &&
+            this.currentConfig?.port === options.port &&
+            this.currentConfig?.ctx_size === options.ctxSize &&
+            this.currentConfig?.n_gpu_layers === options.nGpuLayers &&
+            this.currentConfig?.jinja === options.jinja &&
+            this.currentConfig?.parallel === (options.parallel ?? 1) &&
+            this.sameArgs(this.currentConfig?.extra_args ?? [], extraArgs) &&
+            (this.currentConfig?.chat_template ?? null) === (options.chatTemplate ?? null) &&
+            (this.currentConfig?.chat_template_file ?? null) === (options.chatTemplatePath ?? null)
         ) {
             return;
         }
@@ -63,25 +80,29 @@ class ServerStore {
             this.error = null;
             this.isStarting = true;
             const pid = await invokeCommand('start_llama_server', {
-                binaryPath: binaryPath,
-                modelPath: modelPath,
-                port,
-                ctxSize,
-                nGpuLayers,
-                parallel,
-                chatTemplate,
-                chatTemplateFile,
+                binaryPath: options.binaryPath,
+                modelPath: options.modelPath,
+                port: options.port,
+                ctxSize: options.ctxSize,
+                nGpuLayers: options.nGpuLayers,
+                jinja: options.jinja,
+                parallel: options.parallel ?? null,
+                extraArgs: extraArgs.length > 0 ? extraArgs : null,
+                chatTemplate: options.chatTemplate ?? null,
+                chatTemplateFile: options.chatTemplatePath ?? null,
             });
             this.isRunning = true;
             this.currentConfig = {
-                llama_cpp_path: binaryPath,
-                model_path: modelPath,
-                port,
-                ctx_size: ctxSize,
-                parallel,
-                n_gpu_layers: nGpuLayers,
-                chat_template: chatTemplate ?? null,
-                chat_template_file: chatTemplateFile ?? null
+                llama_cpp_path: options.binaryPath,
+                model_path: options.modelPath,
+                port: options.port,
+                ctx_size: options.ctxSize,
+                parallel: options.parallel ?? 1,
+                n_gpu_layers: options.nGpuLayers,
+                jinja: options.jinja,
+                extra_args: extraArgs,
+                chat_template: options.chatTemplate ?? null,
+                chat_template_file: options.chatTemplatePath ?? null
             };
             console.log('Server started with PID:', pid);
 

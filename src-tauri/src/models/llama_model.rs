@@ -17,6 +17,9 @@ pub struct LlamaCppConfig {
     pub ctx_size: u32,
     pub parallel: u32,
     pub n_gpu_layers: i32,
+    pub jinja: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_args: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chat_template: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

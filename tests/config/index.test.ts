@@ -37,6 +37,10 @@ describe("config module", () => {
       expect(DEFAULT_CONFIG.autoSaveChat).toBe(true);
       expect(DEFAULT_CONFIG.chatHistoryLimit).toBe(50);
       expect(DEFAULT_CONFIG.serverPort).toBe(8080);
+      expect(DEFAULT_CONFIG.llamaServerParallel).toBe(1);
+      expect(DEFAULT_CONFIG.llamaServerGpuLayers).toBe(33);
+      expect(DEFAULT_CONFIG.llamaServerJinja).toBe(true);
+      expect(DEFAULT_CONFIG.llamaServerExtraArgs).toEqual([]);
       expect(DEFAULT_CONFIG.webSearchProvider).toBe("tavily");
       expect(DEFAULT_CONFIG.webSearchMcpId).toBeNull();
       expect(DEFAULT_CONFIG.chatHeaderStyle).toBe("default");

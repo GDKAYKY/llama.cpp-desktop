@@ -31,7 +31,9 @@ pub async fn start_llama_server(
     port: u16,
     ctx_size: u32,
     n_gpu_layers: i32,
+    jinja: bool,
     parallel: Option<u32>,
+    extra_args: Option<Vec<String>>,
     chat_template: Option<String>,
     chat_template_file: Option<String>,
     state: State<'_, AppState>,
@@ -45,7 +47,9 @@ pub async fn start_llama_server(
         port,
         ctx_size,
         n_gpu_layers,
+        jinja,
         parallel,
+        extra_args,
         resolved_template,
         resolved_template_file,
     )
@@ -102,7 +106,9 @@ pub async fn start_llama_server_with_service(
     port: u16,
     ctx_size: u32,
     n_gpu_layers: i32,
+    jinja: bool,
     parallel: Option<u32>,
+    extra_args: Option<Vec<String>>,
     chat_template: Option<String>,
     chat_template_file: Option<String>,
 ) -> Result<String, String> {
@@ -113,6 +119,8 @@ pub async fn start_llama_server_with_service(
         ctx_size,
         parallel: parallel.unwrap_or(1),
         n_gpu_layers,
+        jinja,
+        extra_args: extra_args.unwrap_or_default(),
         chat_template,
         chat_template_file,
     };
@@ -131,6 +139,10 @@ fn resolve_chat_template(
     }
 
     let template = chat_template.unwrap();
+    if template.trim().is_empty() {
+        return Err("chat_template cannot be empty".to_string());
+    }
+
     const MAX_INLINE_TEMPLATE_CHARS: usize = 2000;
     if template.len() <= MAX_INLINE_TEMPLATE_CHARS {
         return Ok((Some(template), None));

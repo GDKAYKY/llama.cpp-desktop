@@ -30,8 +30,15 @@
     Copy,
     Moon,
     Sun,
+    Zap,
   } from "lucide-svelte";
   import Dropdown from "$components/ui/Dropdown.svelte";
+  import {
+    estimateVramUsage,
+    formatVramUsage,
+    getVramDescription,
+    getVramColorClass,
+  } from "$lib/utils/vram-calculator";
 
   let configPath = $state("");
   let loading = $state(false);
@@ -43,12 +50,26 @@
   let temperatureValue = $state(settingsStore.settings.temperature);
   let contextSizeValue = $state(settingsStore.settings.contextSize);
   let historyLimitValue = $state(settingsStore.settings.chatHistoryLimit);
+  let serverPortValue = $state(settingsStore.settings.serverPort);
+  let llamaServerParallelValue = $state(
+    settingsStore.settings.llamaServerParallel,
+  );
+  let llamaServerGpuLayersValue = $state(
+    settingsStore.settings.llamaServerGpuLayers,
+  );
+  let llamaServerExtraArgsValue = $state("");
 
   $effect(() => {
     maxTokensValue = settingsStore.settings.maxTokens;
     temperatureValue = settingsStore.settings.temperature;
     contextSizeValue = settingsStore.settings.contextSize;
     historyLimitValue = settingsStore.settings.chatHistoryLimit;
+    serverPortValue = settingsStore.settings.serverPort;
+    llamaServerParallelValue = settingsStore.settings.llamaServerParallel;
+    llamaServerGpuLayersValue = settingsStore.settings.llamaServerGpuLayers;
+    llamaServerExtraArgsValue = formatLlamaServerExtraArgs(
+      settingsStore.settings.llamaServerExtraArgs,
+    );
   });
 
   const themeItems = [
@@ -102,7 +123,13 @@
         temperature: temperatureValue,
         autoSaveChat: settingsStore.settings.autoSaveChat,
         chatHistoryLimit: historyLimitValue,
-        serverPort: settingsStore.settings.serverPort,
+        serverPort: serverPortValue,
+        llamaServerParallel: llamaServerParallelValue,
+        llamaServerGpuLayers: llamaServerGpuLayersValue,
+        llamaServerJinja: settingsStore.settings.llamaServerJinja,
+        llamaServerExtraArgs: parseLlamaServerExtraArgs(
+          llamaServerExtraArgsValue,
+        ),
         webSearchProvider: settingsStore.settings.webSearchProvider,
         webSearchMcpId: settingsStore.settings.webSearchMcpId,
       };
@@ -181,8 +208,41 @@
     }, 5000);
   }
 
+  function getTotalModelSize() {
+    if (!modelsStore.selectedModel?.manifest_data?.layers) return 0;
+    return modelsStore.selectedModel.manifest_data.layers.reduce(
+      (acc, layer) => acc + layer.size,
+      0,
+    );
+  }
+
+  function calculateEstimatedVram() {
+    const totalSize = getTotalModelSize();
+    return estimateVramUsage(
+      totalSize,
+      llamaServerGpuLayersValue,
+      contextSizeValue,
+      llamaServerParallelValue,
+    );
+  }
+
+  function getVramColorClassForEstimate() {
+    return getVramColorClass(calculateEstimatedVram());
+  }
+
   function handleChange() {
     unsavedChanges = true;
+  }
+
+  function formatLlamaServerExtraArgs(args) {
+    return (args ?? []).join("\n");
+  }
+
+  function parseLlamaServerExtraArgs(value) {
+    return value
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
   }
 
   async function handleOpenConfigFile() {
@@ -508,6 +568,152 @@
             </Slider.Root>
             <p class="text-xs text-muted-foreground">
               Total context window size for the model (1024-32768)
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="rounded-xl bg-card p-6 shadow-sm">
+        <div class="mb-6 flex items-center gap-3 pb-4">
+          <div
+            class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500"
+          >
+            <Cpu size={18} />
+          </div>
+          <div>
+            <h2 class="text-lg font-semibold leading-tight">
+              llama.cpp Server
+            </h2>
+            <p class="text-xs text-muted-foreground leading-relaxed">
+              Configure launch-time server flags and raw argv passthrough
+            </p>
+          </div>
+        </div>
+
+        <div class="space-y-6">
+          <div class="grid gap-4 sm:grid-cols-3">
+            <div class="space-y-2">
+              <label for="server-port" class="text-sm font-medium">Port</label>
+              <input
+                id="server-port"
+                type="number"
+                min="1"
+                max="65535"
+                bind:value={serverPortValue}
+                oninput={handleChange}
+                class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
+              />
+            </div>
+
+            <div class="space-y-2">
+              <label for="server-parallel" class="text-sm font-medium"
+                >Parallel Slots</label
+              >
+              <input
+                id="server-parallel"
+                type="number"
+                min="1"
+                bind:value={llamaServerParallelValue}
+                oninput={handleChange}
+                class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
+              />
+            </div>
+
+            <div class="space-y-2">
+              <label for="server-gpu-layers" class="text-sm font-medium"
+                >GPU Layers</label
+              >
+              <input
+                id="server-gpu-layers"
+                type="number"
+                bind:value={llamaServerGpuLayersValue}
+                oninput={handleChange}
+                class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
+              />
+            </div>
+          </div>
+
+          <!-- VRAM Estimate -->
+          <div class="rounded-lg bg-muted/30 p-4 border border-muted">
+            <div class="flex items-start gap-3">
+              <div
+                class="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500 flex-shrink-0 mt-0.5"
+              >
+                <Zap size={16} />
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                  <h3 class="text-sm font-semibold">Estimated VRAM Usage</h3>
+                  <span
+                    class="text-sm font-mono font-bold"
+                    class:text-green-400={getVramColorClassForEstimate() ===
+                      "text-green-400"}
+                    class:text-blue-400={getVramColorClassForEstimate() ===
+                      "text-blue-400"}
+                    class:text-yellow-400={getVramColorClassForEstimate() ===
+                      "text-yellow-400"}
+                    class:text-orange-400={getVramColorClassForEstimate() ===
+                      "text-orange-400"}
+                    class:text-red-400={getVramColorClassForEstimate() ===
+                      "text-red-400"}
+                  >
+                    {formatVramUsage(calculateEstimatedVram())}
+                  </span>
+                </div>
+                <p class="text-xs text-muted-foreground">
+                  {getVramDescription(calculateEstimatedVram())}
+                </p>
+                <p class="text-xs text-muted-foreground/70 mt-2">
+                  Based on context size ({contextSizeValue} tokens), GPU layers ({llamaServerGpuLayersValue}),
+                  and parallel slots ({llamaServerParallelValue})
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between space-x-4">
+            <label for="llama-server-jinja" class="flex flex-col space-y-1">
+              <span class="text-sm font-medium">Enable `--jinja`</span>
+              <span class="text-xs text-muted-foreground">
+                Required for some chat templates and tool-calling flows
+              </span>
+            </label>
+            <Switch.Root
+              id="llama-server-jinja"
+              checked={settingsStore.settings.llamaServerJinja}
+              onCheckedChange={(checked) => {
+                settingsStore.settings.llamaServerJinja = checked;
+                handleChange();
+              }}
+              class="peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
+            >
+              <Switch.Thumb
+                class="pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
+              />
+            </Switch.Root>
+          </div>
+
+          <div class="space-y-2">
+            <label for="llama-server-extra-args" class="text-sm font-medium">
+              Extra `llama-server` argv tokens
+            </label>
+            <textarea
+              id="llama-server-extra-args"
+              bind:value={llamaServerExtraArgsValue}
+              oninput={handleChange}
+              rows="8"
+              spellcheck="false"
+              class="w-full rounded-md bg-muted/50 px-3 py-2 font-mono text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
+              placeholder={"--host\n0.0.0.0\n--metrics\n--cache-reuse\n256"}
+            ></textarea>
+            <p class="text-xs text-muted-foreground">
+              One argv token per line. Put flag values on their own lines in the
+              exact order they should be passed to `llama-server`.
+            </p>
+            <p class="text-xs text-muted-foreground">
+              Managed flags like `--model`, `--port`, `--ctx-size`,
+              `--parallel`, `--gpu-layers`, `--jinja`, and chat-template flags
+              are controlled by the app and cannot be duplicated here.
             </p>
           </div>
         </div>

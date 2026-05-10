@@ -6,6 +6,158 @@ use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 pub struct LlamaServer;
 
+fn ensure_non_empty_input(value: &str, label: &str) -> Result<(), String> {
+    if value.trim().is_empty() {
+        return Err(format!("{} cannot be empty", label));
+    }
+
+    Ok(())
+}
+
+fn validate_existing_file_with_extension(
+    value: impl AsRef<Path>,
+    label: &str,
+    expected_extensions: &[&str],
+) -> Result<PathBuf, String> {
+    let path = value.as_ref();
+    let value = path.to_string_lossy();
+    ensure_non_empty_input(value.as_ref(), label)?;
+
+    let path = path.to_path_buf();
+    if !path.exists() {
+        return Err(format!("{} not found: {}", label, path.display()));
+    }
+
+    if !path.is_file() {
+        return Err(format!("{} must be a file: {}", label, path.display()));
+    }
+
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .ok_or_else(|| {
+            let extensions = expected_extensions
+                .iter()
+                .map(|ext| format!(".{}", ext.trim_start_matches('.')))
+                .collect::<Vec<_>>()
+                .join(" or ");
+            format!("{} must have an extension of {}", label, extensions)
+        })?;
+
+    if expected_extensions
+        .iter()
+        .any(|expected| extension.eq_ignore_ascii_case(expected.trim_start_matches('.')))
+    {
+        Ok(path)
+    } else {
+        let extensions = expected_extensions
+            .iter()
+            .map(|ext| format!(".{}", ext.trim_start_matches('.')))
+            .collect::<Vec<_>>()
+            .join(" or ");
+        Err(format!(
+            "{} must have an extension of {}",
+            label, extensions
+        ))
+    }
+}
+
+fn validate_existing_file(value: impl AsRef<Path>, label: &str) -> Result<PathBuf, String> {
+    let path = value.as_ref();
+    let value = path.to_string_lossy();
+    ensure_non_empty_input(value.as_ref(), label)?;
+
+    let path = path.to_path_buf();
+    if !path.exists() {
+        return Err(format!("{} not found: {}", label, path.display()));
+    }
+
+    if !path.is_file() {
+        return Err(format!("{} must be a file: {}", label, path.display()));
+    }
+
+    Ok(path)
+}
+
+fn validate_binary_path(value: &str) -> Result<PathBuf, String> {
+    ensure_non_empty_input(value, "binary_path")?;
+
+    let path = PathBuf::from(value);
+    if !path.exists() {
+        return Err(format!("binary_path not found: {}", path.display()));
+    }
+
+    if path.is_file() && cfg!(windows) {
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .ok_or_else(|| {
+                format!(
+                    "binary_path must point to a .exe, .cmd, or .bat file when using a file path: {}",
+                    path.display()
+                )
+            })?;
+
+        if !["exe", "cmd", "bat"]
+            .iter()
+            .any(|expected| extension.eq_ignore_ascii_case(expected))
+        {
+            return Err(format!(
+                "binary_path must point to a .exe, .cmd, or .bat file when using a file path: {}",
+                path.display()
+            ));
+        }
+    }
+
+    Ok(path)
+}
+
+fn validate_inline_chat_template(template: &str) -> Result<(), String> {
+    ensure_non_empty_input(template, "chat_template")
+}
+
+fn matches_managed_flag(arg: &str, flag: &str) -> bool {
+    arg == flag
+        || arg
+            .strip_prefix(flag)
+            .is_some_and(|suffix| suffix.starts_with('='))
+}
+
+fn validate_extra_args(extra_args: &[String]) -> Result<(), String> {
+    const MANAGED_FLAGS: &[&str] = &[
+        "-m",
+        "--model",
+        "--port",
+        "-c",
+        "--ctx-size",
+        "-np",
+        "--parallel",
+        "-ngl",
+        "--gpu-layers",
+        "--n-gpu-layers",
+        "--jinja",
+        "--chat-template",
+        "--chat-template-file",
+    ];
+
+    for arg in extra_args {
+        ensure_non_empty_input(arg, "extra_args entry")?;
+
+        if let Some(flag) = MANAGED_FLAGS
+            .iter()
+            .copied()
+            .find(|flag| matches_managed_flag(arg, flag))
+        {
+            return Err(format!(
+                "extra_args cannot override managed flag {}. Update the corresponding app setting instead.",
+                flag
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 impl LlamaServer {
     pub async fn spawn(
         model_entry: Option<ModelInfo>,
@@ -23,11 +175,8 @@ impl LlamaServer {
             PathBuf::from(&config.model_path)
         };
 
-        if !model_path.exists() {
-            return Err(format!("Model file not found: {:?}", model_path));
-        }
-
-        let mut llama_server_path = PathBuf::from(&config.llama_cpp_path);
+        validate_existing_file(&model_path, "model_path")?;
+        let mut llama_server_path = validate_binary_path(&config.llama_cpp_path)?;
         let is_exec = llama_server_path
             .file_name()
             .and_then(|n| n.to_str())
@@ -88,14 +237,25 @@ impl LlamaServer {
             ));
         }
 
+        if config.chat_template.is_some() && config.chat_template_file.is_some() {
+            return Err("Use either chat_template or chat_template_file, not both".to_string());
+        }
+
+        if let Some(template) = &config.chat_template {
+            validate_inline_chat_template(template)?;
+        }
+
+        if let Some(template_file) = &config.chat_template_file {
+            validate_existing_file_with_extension(template_file, "chat_template_file", &["jinja"])?;
+        }
+
+        validate_extra_args(&config.extra_args)?;
+
         println!(
             "[Infrastructure] Spawning llama-server at: {:?} with port {}",
             llama_server_path, config.port
         );
         let binary_dir = llama_server_path.parent().unwrap_or(Path::new("."));
-        if config.chat_template.is_some() && config.chat_template_file.is_some() {
-            return Err("Use either chat_template or chat_template_file, not both".to_string());
-        }
 
         let mut cmd = Command::new(&llama_server_path);
         #[cfg(windows)]
@@ -116,9 +276,15 @@ impl LlamaServer {
             .arg("-np")
             .arg(config.parallel.to_string())
             .arg("-ngl")
-            .arg(config.n_gpu_layers.to_string())
-            // Enable Jinja templates for tool calling support.
-            .arg("--jinja");
+            .arg(config.n_gpu_layers.to_string());
+
+        if config.jinja {
+            cmd.arg("--jinja");
+        }
+
+        for arg in &config.extra_args {
+            cmd.arg(arg);
+        }
 
         if let Some(template) = &config.chat_template {
             cmd.arg("--chat-template").arg(template);
@@ -250,8 +416,7 @@ impl LlamaServer {
                                     return;
                                 }
 
-                                if let Ok(json) =
-                                    serde_json::from_str::<serde_json::Value>(payload)
+                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(payload)
                                 {
                                     let chunks = extract_stream_chunks(&json);
                                     if !chunks.is_empty() {

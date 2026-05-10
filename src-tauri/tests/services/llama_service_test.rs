@@ -1,7 +1,7 @@
 use crate::common;
 
-use llama_desktop_lib::services::llama::service::LlamaCppService;
 use llama_desktop_lib::services::llama::actor::ActorMessage;
+use llama_desktop_lib::services::llama::service::LlamaCppService;
 use tokio::sync::mpsc;
 
 #[tokio::test]
@@ -118,7 +118,9 @@ async fn test_service_send_chat_no_model() {
         }
     });
 
-    let result = service.send_chat_message(None, vec![], 0.7, 1.0, 40, 512).await;
+    let result = service
+        .send_chat_message(None, vec![], 0.7, 1.0, 40, 512)
+        .await;
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("No model running"));
 }
@@ -142,7 +144,10 @@ async fn test_service_send_chat_success() {
         }
     });
 
-    let mut receiver = service.send_chat_message(None, vec![], 0.7, 1.0, 40, 512).await.unwrap();
+    let mut receiver = service
+        .send_chat_message(None, vec![], 0.7, 1.0, 40, 512)
+        .await
+        .unwrap();
     let chunk = receiver.recv().await;
     assert_eq!(chunk, Some("Hello".to_string()));
 }
@@ -158,7 +163,21 @@ async fn test_service_complete_chat_no_model() {
         }
     });
 
-    let result = service.complete_chat(None, vec![], 0.7, 1.0, 40, 512, None, None, None, None, None).await;
+    let result = service
+        .complete_chat(
+            None,
+            vec![],
+            0.7,
+            1.0,
+            40,
+            512,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
     assert!(result.is_err());
 }
 
@@ -177,6 +196,20 @@ async fn test_service_complete_chat_success() {
         }
     });
 
-    let result = service.complete_chat(None, vec![], 0.7, 1.0, 40, 512, None, None, None, None, None).await;
+    let result = service
+        .complete_chat(
+            None,
+            vec![],
+            0.7,
+            1.0,
+            40,
+            512,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
     assert!(result.is_ok());
 }

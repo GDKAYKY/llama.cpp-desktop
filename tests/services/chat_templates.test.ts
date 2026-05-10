@@ -61,6 +61,7 @@ describe("chat_templates service", () => {
         port: 8080,
         ctxSize: 4096,
         nGpuLayers: 35,
+        jinja: true,
       });
 
       expect(invoke).toHaveBeenCalledWith("start_llama_server", {
@@ -69,7 +70,9 @@ describe("chat_templates service", () => {
         port: 8080,
         ctxSize: 4096,
         nGpuLayers: 35,
+        jinja: true,
         parallel: null,
+        extraArgs: null,
         chatTemplate: null,
         chatTemplateFile: null,
       });
@@ -90,8 +93,9 @@ describe("chat_templates service", () => {
         port: 8080,
         ctxSize: 4096,
         nGpuLayers: 35,
+        jinja: true,
         parallel: 4,
-        chatTemplate: "chatml",
+        extraArgs: ["--metrics", "--host", "0.0.0.0"],
         chatTemplatePath: "/cache/template.jinja",
       });
 
@@ -101,8 +105,10 @@ describe("chat_templates service", () => {
         port: 8080,
         ctxSize: 4096,
         nGpuLayers: 35,
+        jinja: true,
         parallel: 4,
-        chatTemplate: "chatml",
+        extraArgs: ["--metrics", "--host", "0.0.0.0"],
+        chatTemplate: null,
         chatTemplateFile: "/cache/template.jinja",
       });
     });
@@ -127,6 +133,7 @@ describe("chat_templates service", () => {
           port: 8080,
           ctxSize: 4096,
           nGpuLayers: 35,
+          jinja: true,
         }
       );
 
@@ -140,7 +147,9 @@ describe("chat_templates service", () => {
         port: 8080,
         ctxSize: 4096,
         nGpuLayers: 35,
+        jinja: true,
         parallel: null,
+        extraArgs: null,
         chatTemplate: null,
         chatTemplateFile: "/cache/template.jinja",
       });
@@ -162,6 +171,7 @@ describe("chat_templates service", () => {
           port: 8080,
           ctxSize: 4096,
           nGpuLayers: 35,
+          jinja: true,
         })
       ).rejects.toThrow("Template not found");
     });

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { serverStore } from "$lib/stores/server.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
+  import { modelsStore } from "$lib/stores/models.svelte";
   import { Power, CircleAlert, CircleCheck } from "lucide-svelte";
 
   let binary_directory = $state("");
@@ -10,7 +11,7 @@
 
   async function handleStart() {
     const configBinaryPath = settingsStore.settings.llamaDirectory;
-    const configModelPath = settingsStore.settings.modelsDirectory;
+    const configModelPath = modelsStore.selectedModel?.model_file_path ?? null;
 
     if (!configBinaryPath) {
       serverStore.error =
@@ -19,17 +20,22 @@
     }
 
     if (!configModelPath) {
-      serverStore.error = "Please configure models directory in settings";
+      serverStore.error = "Please select a model file from the model library";
       return;
     }
 
     isLoading = true;
     try {
-      await serverStore.startServer(
-        configBinaryPath,
-        configModelPath,
-        settingsStore.settings.serverPort,
-      );
+      await serverStore.startServer({
+        binaryPath: configBinaryPath,
+        modelPath: configModelPath,
+        port: settingsStore.settings.serverPort,
+        ctxSize: settingsStore.settings.contextSize,
+        nGpuLayers: settingsStore.settings.llamaServerGpuLayers,
+        jinja: settingsStore.settings.llamaServerJinja,
+        parallel: settingsStore.settings.llamaServerParallel,
+        extraArgs: settingsStore.settings.llamaServerExtraArgs,
+      });
     } catch (error) {
       serverStore.error = `Failed to start server: ${error}`;
     } finally {

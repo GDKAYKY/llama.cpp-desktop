@@ -111,14 +111,15 @@ impl LlamaCppService {
     ) -> Result<mpsc::Receiver<String>, String> {
         let config = self.get_config().await.ok_or("No model running")?;
         let id = ModelId(config.model_path);
-        let chat_template_kwargs = if config.chat_template.is_some() || config.chat_template_file.is_some() {
-            Some(serde_json::json!({
-                "enable_thinking": true,
-                "add_generation_prompt": true
-            }))
-        } else {
-            None
-        };
+        let chat_template_kwargs =
+            if config.chat_template.is_some() || config.chat_template_file.is_some() {
+                Some(serde_json::json!({
+                    "enable_thinking": true,
+                    "add_generation_prompt": true
+                }))
+            } else {
+                None
+            };
         let request = ChatRequest {
             model: "unknown".to_string(),
             session_id,

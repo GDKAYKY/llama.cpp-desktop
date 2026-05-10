@@ -64,14 +64,15 @@ describe("serverStore", () => {
       const { invoke } = await import("@tauri-apps/api/core");
       vi.mocked(invoke).mockResolvedValue("pid-123");
 
-      await serverStore.startServer(
-        "/bin/llama",
-        "/models/model.gguf",
-        8000,
-        4096,
-        33,
-        1,
-      );
+      await serverStore.startServer({
+        binaryPath: "/bin/llama",
+        modelPath: "/models/model.gguf",
+        port: 8000,
+        ctxSize: 4096,
+        nGpuLayers: 33,
+        jinja: true,
+        parallel: 1,
+      });
 
       expect(invoke).toHaveBeenCalledWith("start_llama_server", {
         binaryPath: "/bin/llama",
@@ -79,9 +80,11 @@ describe("serverStore", () => {
         port: 8000,
         ctxSize: 4096,
         nGpuLayers: 33,
+        jinja: true,
         parallel: 1,
-        chatTemplate: undefined,
-        chatTemplateFile: undefined,
+        extraArgs: null,
+        chatTemplate: null,
+        chatTemplateFile: null,
       });
       expect(serverStore.isRunning).toBe(true);
       expect(serverStore.isStarting).toBe(false);
@@ -93,9 +96,51 @@ describe("serverStore", () => {
       const { invoke } = await import("@tauri-apps/api/core");
       serverStore.isStarting = true;
 
-      await serverStore.startServer("/bin/llama", "/models/m.gguf");
+      await serverStore.startServer({
+        binaryPath: "/bin/llama",
+        modelPath: "/models/m.gguf",
+        port: 8000,
+        ctxSize: 4096,
+        nGpuLayers: 33,
+        jinja: true,
+        parallel: 1,
+      });
 
       expect(invoke).not.toHaveBeenCalled();
+    });
+
+    it("rejects missing binary path before IPC", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+
+      await serverStore.startServer({
+        binaryPath: "",
+        modelPath: "/models/m.gguf",
+        port: 8000,
+        ctxSize: 4096,
+        nGpuLayers: 33,
+        jinja: true,
+        parallel: 1,
+      });
+
+      expect(invoke).not.toHaveBeenCalled();
+      expect(serverStore.error).toBe("Llama server binary path is required");
+    });
+
+    it("rejects missing model path before IPC", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+
+      await serverStore.startServer({
+        binaryPath: "/bin/llama",
+        modelPath: "",
+        port: 8000,
+        ctxSize: 4096,
+        nGpuLayers: 33,
+        jinja: true,
+        parallel: 1,
+      });
+
+      expect(invoke).not.toHaveBeenCalled();
+      expect(serverStore.error).toBe("Model path is required");
     });
 
     it("skips if same config is already running", async () => {
@@ -107,19 +152,22 @@ describe("serverStore", () => {
         port: 8000,
         ctx_size: 4096,
         n_gpu_layers: 33,
+        jinja: true,
         parallel: 1,
+        extra_args: [],
         chat_template: null,
         chat_template_file: null,
       };
 
-      await serverStore.startServer(
-        "/bin/llama",
-        "/models/m.gguf",
-        8000,
-        4096,
-        33,
-        1,
-      );
+      await serverStore.startServer({
+        binaryPath: "/bin/llama",
+        modelPath: "/models/m.gguf",
+        port: 8000,
+        ctxSize: 4096,
+        nGpuLayers: 33,
+        jinja: true,
+        parallel: 1,
+      });
 
       expect(invoke).not.toHaveBeenCalled();
     });
@@ -128,7 +176,15 @@ describe("serverStore", () => {
       const { invoke } = await import("@tauri-apps/api/core");
       vi.mocked(invoke).mockRejectedValue(new Error("Start failed"));
 
-      await serverStore.startServer("/bin/llama", "/models/m.gguf");
+      await serverStore.startServer({
+        binaryPath: "/bin/llama",
+        modelPath: "/models/m.gguf",
+        port: 8000,
+        ctxSize: 4096,
+        nGpuLayers: 33,
+        jinja: true,
+        parallel: 1,
+      });
 
       expect(serverStore.error).toBe("Start failed");
       expect(serverStore.isRunning).toBe(false);
@@ -139,7 +195,15 @@ describe("serverStore", () => {
       const { invoke } = await import("@tauri-apps/api/core");
       vi.mocked(invoke).mockRejectedValue("raw error");
 
-      await serverStore.startServer("/bin/llama", "/models/m.gguf");
+      await serverStore.startServer({
+        binaryPath: "/bin/llama",
+        modelPath: "/models/m.gguf",
+        port: 8000,
+        ctxSize: 4096,
+        nGpuLayers: 33,
+        jinja: true,
+        parallel: 1,
+      });
 
       expect(serverStore.error).toBe("raw error");
     });
@@ -148,23 +212,25 @@ describe("serverStore", () => {
       const { invoke } = await import("@tauri-apps/api/core");
       vi.mocked(invoke).mockResolvedValue("pid-456");
 
-      await serverStore.startServer(
-        "/bin/llama",
-        "/models/m.gguf",
-        8000,
-        4096,
-        33,
-        1,
-        "chatml",
-        "/cache/template.jinja",
-      );
+      await serverStore.startServer({
+        binaryPath: "/bin/llama",
+        modelPath: "/models/m.gguf",
+        port: 8000,
+        ctxSize: 4096,
+        nGpuLayers: 33,
+        jinja: true,
+        parallel: 1,
+        chatTemplate: "chatml",
+      });
 
       expect(invoke).toHaveBeenCalledWith("start_llama_server", expect.objectContaining({
+        jinja: true,
+        extraArgs: null,
         chatTemplate: "chatml",
-        chatTemplateFile: "/cache/template.jinja",
+        chatTemplateFile: null,
       }));
       expect(serverStore.currentConfig?.chat_template).toBe("chatml");
-      expect(serverStore.currentConfig?.chat_template_file).toBe("/cache/template.jinja");
+      expect(serverStore.currentConfig?.chat_template_file).toBeNull();
     });
   });
 

@@ -10,6 +10,8 @@ pub fn sample_llama_config() -> LlamaCppConfig {
         ctx_size: 2048,
         parallel: 1,
         n_gpu_layers: 0,
+        jinja: true,
+        extra_args: Vec::new(),
         chat_template: None,
         chat_template_file: None,
     }

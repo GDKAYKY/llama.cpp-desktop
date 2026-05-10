@@ -9,6 +9,10 @@ export interface AppConfig {
   autoSaveChat: boolean;
   chatHistoryLimit: number;
   serverPort: number;
+  llamaServerParallel: number;
+  llamaServerGpuLayers: number;
+  llamaServerJinja: boolean;
+  llamaServerExtraArgs: string[];
   webSearchProvider: "tavily" | "custom";
   webSearchMcpId: string | null;
   chatHeaderStyle: "default" | "capsule";

@@ -106,7 +106,7 @@
     <div class="mb-auto shrink-0 pt-2.5 pb-2.5">
       <div class="flex w-[60px] shrink-0 items-center justify-center">
         <button
-          class="flex h-10 w-10 items-center justify-center rounded-lg text-[#b4b4b4] transition-colors hover:bg-[#2f2f2f] hover:text-white"
+          class="flex h-10 w-10 items-center justify-center rounded-lg text-[#b4b4b4] transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:bg-[#2f2f2f] hover:text-white"
           onclick={toggleSidebar}
         >
           {#if isSidebarOpen}
@@ -128,14 +128,14 @@
     <nav class="flex shrink-0 flex-col">
       <!-- New Chat Button -->
       <button
-        class="group relative flex h-12 w-full cursor-pointer items-center border-none bg-transparent transition-colors duration-200"
+        class="group relative flex h-12 w-full cursor-pointer items-center border-none bg-transparent transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
         onclick={() => chatStore.clear()}
         title={!isSidebarOpen ? "New Chat" : ""}
       >
         <!-- Background Highlight -->
         <div
           class={cn(
-            "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-300 ease-in-out origin-left",
+            "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] origin-left",
             isSidebarOpen ? "w-[calc(100%-20px)]" : "w-10",
             "bg-transparent group-hover:bg-[#2f2f2f]",
           )}
@@ -145,7 +145,7 @@
           class="relative z-10 flex w-[60px] shrink-0 items-center justify-center"
         >
           <div
-            class="flex h-10 w-10 items-center justify-center text-[#b4b4b4] group-hover:text-white transition-colors duration-200"
+            class="flex h-10 w-10 items-center justify-center text-[#b4b4b4] group-hover:text-white transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
           >
             <SquarePen size={20} strokeWidth={1.5} />
           </div>
@@ -157,7 +157,7 @@
           )}
         >
           <span
-            class="text-[0.9rem] font-medium text-[#ececec] group-hover:text-white transition-colors duration-200"
+            class="text-[0.9rem] font-medium text-[#ececec] group-hover:text-white transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
           >
             New Chat
           </span>
@@ -167,14 +167,14 @@
       {#each menuItems as item}
         {@const isActive = page.url.pathname === item.path}
         <button
-          class="group relative flex h-12 w-full cursor-pointer items-center border-none bg-transparent transition-colors duration-200"
+          class="group relative flex h-12 w-full cursor-pointer items-center border-none bg-transparent transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
           onclick={() => handleAction(item)}
           title={!isSidebarOpen ? item.label : ""}
         >
           <!-- Background Highlight -->
           <div
             class={cn(
-              "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-300 ease-in-out origin-left",
+              "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] origin-left",
               isSidebarOpen ? "w-[calc(100%-20px)]" : "w-10",
               isActive
                 ? "bg-[#3f3f3f]"
@@ -187,7 +187,7 @@
           >
             <div
               class={cn(
-                "flex h-10 w-10 items-center justify-center transition-colors duration-200",
+                "flex h-10 w-10 items-center justify-center transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
                 isActive
                   ? "text-white"
                   : "text-[#b4b4b4] group-hover:text-white",
@@ -204,7 +204,7 @@
           >
             <span
               class={cn(
-                "text-[0.9rem] font-medium transition-colors duration-200",
+                "text-[0.9rem] font-medium transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
                 isActive
                   ? "text-white"
                   : "text-[#ececec] group-hover:text-white",
@@ -226,7 +226,7 @@
     >
       <div class="flex flex-col gap-2">
         <button
-          class="group flex cursor-pointer items-center justify-between p-2 px-6 text-xs font-medium text-[#999] transition-colors hover:text-[#ccc]"
+          class="group flex cursor-pointer items-center justify-between p-2 px-6 text-xs font-medium text-[#999] transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:text-[#ccc]"
           onclick={toggleChatHistory}
         >
           <span class="whitespace-nowrap uppercase tracking-wider"
@@ -249,7 +249,7 @@
             {#each chatStore.history as chat}
               <div
                 class={cn(
-                  "group relative flex h-9 w-full items-center justify-between overflow-hidden rounded-lg px-3 text-left text-sm text-[#ececec] transition-all duration-300 ease-in-out hover:bg-[#2f2f2f]",
+                  "group relative flex h-9 w-full items-center justify-between overflow-hidden rounded-lg px-3 text-left text-sm text-[#ececec] transition-all duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:bg-[#2f2f2f]",
                   chatStore.activeConversationId === chat.id &&
                     "bg-[#242424] text-white font-medium",
                 )}
@@ -266,7 +266,7 @@
                 >
                   <DropdownMenu.Root>
                     <DropdownMenu.Trigger
-                      class="flex h-6 w-6 items-center justify-center rounded hover:bg-[#3f3f3f] text-[#b4b4b4] hover:text-white transition-colors data-[state=open]:bg-[#3f3f3f] data-[state=open]:text-white"
+                      class="flex h-6 w-6 items-center justify-center rounded hover:bg-[#3f3f3f] text-[#b4b4b4] hover:text-white transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] data-[state=open]:bg-[#3f3f3f] data-[state=open]:text-white"
                     >
                       <Ellipsis size={14} />
                     </DropdownMenu.Trigger>
@@ -277,14 +277,14 @@
                       sideOffset={8}
                     >
                       <DropdownMenu.Item
-                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
+                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
                       >
                         <Share size={14} />
                         <span>Share - WIP</span>
                       </DropdownMenu.Item>
 
                       <DropdownMenu.Item
-                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
+                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
                         onclick={() => {
                           /* Rename logic */
                         }}
@@ -298,21 +298,21 @@
                       />
 
                       <DropdownMenu.Item
-                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
+                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
                       >
                         <Pin size={14} />
                         <span>Pin Chat</span>
                       </DropdownMenu.Item>
 
                       <DropdownMenu.Item
-                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
+                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ececec] transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] outline-none data-[highlighted]:bg-[#2f2f2f] data-[highlighted]:text-white"
                       >
                         <Archive size={14} />
                         <span>Arquivar</span>
                       </DropdownMenu.Item>
 
                       <DropdownMenu.Item
-                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ff6b6b] transition-colors outline-none data-[highlighted]:bg-[#3f2f2f] data-[highlighted]:text-[#ff4b4b]"
+                        class="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-[#ff6b6b] transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] outline-none data-[highlighted]:bg-[#3f2f2f] data-[highlighted]:text-[#ff4b4b]"
                         onclick={() => {
                           if (chat.id) chatStore.deleteChat(chat.id);
                         }}
@@ -334,13 +334,13 @@
     <div class="mt-auto shrink-0 border-t border-[#2f2f2f] pt-2 pb-2">
       <div class="relative">
         <button
-          class="group relative flex h-12 w-full cursor-pointer items-center border-none bg-transparent transition-colors duration-200"
+          class="group relative flex h-12 w-full cursor-pointer items-center border-none bg-transparent transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
           onclick={toggleProfileMenu}
         >
           <!-- Background Highlight -->
           <div
             class={cn(
-              "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-300 ease-in-out origin-left",
+              "absolute inset-y-1 left-[10px] rounded-lg z-0 transition-all duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] origin-left",
               isSidebarOpen ? "w-[calc(100%-16px)]" : "w-10",
               showProfileMenu
                 ? "bg-[#3f3f3f]"
@@ -353,7 +353,7 @@
           >
             <div
               class={cn(
-                "flex h-8 w-8 items-center justify-center transition-colors duration-200",
+                "flex h-8 w-8 items-center justify-center transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
                 showProfileMenu
                   ? "text-white"
                   : "text-[#b4b4b4] group-hover:text-white",
@@ -374,7 +374,7 @@
           >
             <span
               class={cn(
-                "text-sm font-medium transition-colors duration-200",
+                "text-sm font-medium transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
                 showProfileMenu
                   ? "text-white"
                   : "text-[#ececec] group-hover:text-white",
@@ -406,7 +406,7 @@
 
             {#each profileMenuItems as item}
               <button
-                class="flex w-full items-center gap-3 rounded-lg p-2.5 px-3 text-left text-sm font-medium text-[#ececec] transition-colors hover:bg-[#3f3f3f]"
+                class="flex w-full items-center gap-3 rounded-lg p-2.5 px-3 text-left text-sm font-medium text-[#ececec] transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:bg-[#3f3f3f]"
                 onclick={() => handleAction(item)}
               >
                 <item.icon size={16} strokeWidth={1.5} />

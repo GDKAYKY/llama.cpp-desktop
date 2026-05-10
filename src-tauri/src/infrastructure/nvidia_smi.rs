@@ -1,7 +1,7 @@
-use std::process::Command;
-use std::sync::Mutex;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
+use std::process::Command;
+use std::sync::Mutex;
 
 pub struct NvidiaSmi;
 

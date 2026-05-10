@@ -119,15 +119,17 @@
       if (serverStore.isRunning) {
         await serverStore.stopServer();
       }
-      await serverStore.startServer(
+      await serverStore.startServer({
         binaryPath,
         modelPath,
         port,
         ctxSize,
-        undefined,
-        undefined,
-        chatTemplate,
-      );
+        nGpuLayers: settingsStore.settings.llamaServerGpuLayers,
+        jinja: settingsStore.settings.llamaServerJinja,
+        parallel: settingsStore.settings.llamaServerParallel,
+        extraArgs: settingsStore.settings.llamaServerExtraArgs,
+        ...(chatTemplate !== null ? { chatTemplate } : {}),
+      });
 
       setTimeout(() => {
         if (serverStore.error) {
