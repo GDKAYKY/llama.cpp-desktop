@@ -311,7 +311,7 @@
         </h3>
         <div
           class={cn(
-            "flex h-[33px] w-[33px] items-center justify-center rounded-[7px] bg-[#27272A] transition-all duration-200 group-hover:bg-[#2f2f33]",
+            "flex h-[33px] w-[33px] items-center justify-center rounded-[7px] bg-[#212121] transition-all duration-200 group-hover:bg-[#2f2f33]",
           )}
         >
           <ChevronDown

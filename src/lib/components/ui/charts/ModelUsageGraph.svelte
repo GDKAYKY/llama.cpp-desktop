@@ -28,7 +28,7 @@
   const totalSquares = 100; // 20x5 grid
 
   function getSquareColor(index: number) {
-    if (!isRunning) return "#121212";
+    if (!isRunning) return "#101010";
 
     const currentVram = vramUsage;
     const currentGpu = gpuUsage + jitter;
@@ -41,18 +41,14 @@
     // VRAM squares
     if (normalizedIndex < currentVram) return "#4b4b4b";
     // Empty
-    return "#121212";
+    return "#101010";
   }
 </script>
 
-<div class="flex flex-col rounded-xl bg-[#171717] p-4">
+<div class="flex flex-col rounded-xl bg-[#131313] p-4">
   {#if isStarting}
     <div class="pb-3">
       <Skeleton class="h-[62px] w-full" />
-    </div>
-  {:else if !isRunning}
-    <div class="flex items-center justify-center py-6">
-      <span class="text-sm text-muted-foreground">Model not loaded.</span>
     </div>
   {:else}
     <div

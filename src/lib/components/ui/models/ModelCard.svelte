@@ -24,6 +24,7 @@
   import Skeleton from "$components/ui/Skeleton.svelte";
   import ModelLogo from "./ModelLogo.svelte";
   import MetaRow from "./MetaRow.svelte";
+  import Badge from "$components/ui/Badge.svelte";
 
   interface Props {
     model: Model;
@@ -34,9 +35,6 @@
     onAction: (action: string, model: Model, e: MouseEvent) => void;
   }
 
-  const BORDER_GAP_LEFT = 5;
-  const BORDER_GAP_RIGHT = 16;
-
   let {
     model,
     isSelected,
@@ -45,8 +43,6 @@
     onToggleDropdown,
     onAction,
   }: Props = $props();
-
-  let statusWidth = $state(0);
 
   const modelServer = $derived(
     serverStore.getModelServer(model.model_file_path),
@@ -153,7 +149,7 @@
         };
       }
       return {
-        label: "Model is running",
+        label: "Running",
         icon: Activity,
         color: "text-green-400",
         badgeColor: "bg-green-500",
@@ -164,13 +160,7 @@
   });
 
   const borderColors = $derived.by(() => {
-    if (currentStatus?.icon === TriangleAlert) {
-      if (isSelected) return "border-orange-300 group-hover:border-orange-100";
-      return "border-orange-500 group-hover:border-orange-400";
-    }
     if (isSelected) return "border-primary";
-    if (isModelRunning(model))
-      return "border-[#416b418f] group-hover:border-[#347034] group-active:!border-[#8fff94]";
     return "border-border group-hover:border-white/20";
   });
 
@@ -225,12 +215,8 @@
   role="button"
   tabindex="0"
   class={cn(
-    "group relative flex w-full aspect-[335/400] cursor-pointer flex-col gap-2 rounded-xl p-4 transition-all text-left",
-    isSelected
-      ? "bg-primary/5 active:duration-0"
-      : isModelRunning(model)
-        ? "bg-[#171717] hover:bg-[#1a1a1a] active:duration-0"
-        : "bg-[#171717] hover:bg-[#1a1a1a] active:duration-0",
+    "group relative flex w-full aspect-[300/400] cursor-pointer flex-col gap-3 rounded-xl p-4 transition-all text-left",
+    "bg-[#171717] hover:bg-[#1a1a1a] active:duration-0",
   )}
   onclick={() => onSelect(model)}
   onkeydown={(e) => {
@@ -245,20 +231,6 @@
       "pointer-events-none absolute inset-0 rounded-xl border transition-all",
       borderColors,
     )}
-    style={currentStatus && statusWidth > 0
-      ? `
-      -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 1px), transparent calc(100% - 1px)), linear-gradient(to right, black ${BORDER_GAP_LEFT}px, transparent ${BORDER_GAP_LEFT}px, transparent calc(16px + ${statusWidth}px + 7px), black calc(16px + ${statusWidth}px + 7px));
-      -webkit-mask-composite: source-over;
-      -webkit-mask-size: 100% 100%, 100% 1px;
-      -webkit-mask-position: 0 0, 0 100%;
-      -webkit-mask-repeat: no-repeat;
-      mask-image: linear-gradient(to bottom, black calc(100% - 1px), transparent calc(100% - 1px)), linear-gradient(to right, black ${BORDER_GAP_LEFT}px, transparent ${BORDER_GAP_LEFT}px, transparent calc(16px + ${statusWidth}px + 7px), black calc(16px + ${statusWidth}px + 7px));
-      mask-composite: add;
-      mask-size: 100% 100%, 100% 1px;
-      mask-position: 0 0, 0 100%;
-      mask-repeat: no-repeat;
-    `.trim()
-      : ""}
   ></div>
   <div
     class="flex items-center justify-between gap-2 border-b border-border pb-2"
@@ -270,11 +242,9 @@
         <ModelLogo name={model.name} size={18} />
       </div>
       <div class="flex min-w-0 flex-col">
-        <div class="flex items-center gap-2">
-          <h4 class="truncate font-semibold text-foreground">
-            {model.name}
-          </h4>
-        </div>
+        <h4 class="truncate font-semibold text-foreground">
+          {model.name}
+        </h4>
         <span class="text-[10px] text-muted-foreground">
           {model.version}
         </span>
@@ -390,19 +360,6 @@
     {/each}
   </div>
 
-  {#if currentStatus}
-    <div
-      bind:clientWidth={statusWidth}
-      class={cn(
-        "absolute bottom-0 left-4 z-100 flex translate-y-1/2 items-center gap-1.5 text-[9px] font-bold uppercase tracking-tight transition-all",
-        currentStatus.color,
-      )}
-    >
-      <currentStatus.icon size={10} strokeWidth={3} />
-      <span class="truncate">{currentStatus.label}</span>
-    </div>
-  {/if}
-
   {#if isSelected}
     <div
       class="absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
@@ -410,13 +367,19 @@
       <Check size={16} strokeWidth={3} />
     </div>
   {:else if currentStatus?.icon === TriangleAlert}
-    <div
+    <button
       class={cn(
-        "absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full text-white shadow-lg",
+        "absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full text-white shadow-lg transition-transform hover:scale-110 active:scale-95",
         currentStatus.badgeColor,
       )}
+      onclick={(e) => {
+        e.stopPropagation();
+        // Show alert details or trigger action
+        alert(currentStatus.label);
+      }}
+      title={currentStatus.label}
     >
       <TriangleAlert size={16} strokeWidth={3} />
-    </div>
+    </button>
   {/if}
 </div>

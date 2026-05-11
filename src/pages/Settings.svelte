@@ -14,6 +14,7 @@
     Save,
     RotateCcw,
     Box,
+    MemoryStick,
     Palette,
     Sliders as SlidersIcon,
     MessageSquare,
@@ -627,7 +628,7 @@
               <div
                 class="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500 flex-shrink-0 mt-0.5"
               >
-                <Zap size={16} />
+                <MemoryStick size={18} />
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between gap-2 mb-2">
