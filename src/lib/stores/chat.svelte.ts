@@ -13,6 +13,7 @@ import {
   updateConversationTitle,
   updateConversationMessageAtIndex,
   deleteConversation,
+  estimateTokens,
   type Conversation,
 } from "$lib/services/history";
 
@@ -20,6 +21,7 @@ export interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: number;
+  tokens?: number;
   model?: string;
   thinkingProcess?: string[];
   modelThinking?: string;
@@ -99,6 +101,7 @@ class ChatStore {
       role: h.role,
       content: h.content,
       timestamp: h.timestamp,
+      tokens: h.tokens,
       model: h.model,
       thinkingProcess: h.thinkingProcess,
       modelThinking: h.modelThinking,
@@ -168,6 +171,7 @@ class ChatStore {
       role: "user",
       content,
       timestamp: Date.now(),
+      tokens: estimateTokens(content),
     };
 
     this.messages.push(userMessage);
@@ -177,6 +181,7 @@ class ChatStore {
       role: "assistant",
       content: "",
       timestamp: Date.now(),
+      tokens: 0,
     });
 
     this.isLoading = true;
@@ -257,7 +262,11 @@ class ChatStore {
               if (lastAssistant?.role === "assistant") {
                 this.messages = [
                   ...this.messages.slice(0, lastAssistantIndex),
-                  { ...lastAssistant, model: modelName },
+                  { 
+                    ...lastAssistant, 
+                    model: modelName,
+                    tokens: estimateTokens(assistantContent)
+                  },
                   ...this.messages.slice(lastAssistantIndex + 1),
                 ];
               }
@@ -430,7 +439,12 @@ class ChatStore {
               if (msg && msg.role === "assistant") {
                 this.messages = [
                   ...this.messages.slice(0, messageIndex),
-                  { ...msg, content: finalContent, model: modelName },
+                  { 
+                    ...msg, 
+                    content: finalContent, 
+                    model: modelName,
+                    tokens: estimateTokens(finalContent)
+                  },
                   ...this.messages.slice(messageIndex + 1),
                 ];
               }

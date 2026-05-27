@@ -6,9 +6,11 @@
     Loader2,
     Square,
     PanelLeft,
+    Info,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
+  import { chatStore } from "$lib/stores/chat.svelte";
   import ModelLogo from "../../ui/models/ModelLogo.svelte";
 
   /** @type {{
@@ -21,7 +23,8 @@
    *   models: any[],
    *   selectModel: (model: any) => void,
    *   handleClickOutside: (e: MouseEvent) => void,
-   *   modelLoaded: boolean
+   *   modelLoaded: boolean,
+   *   toggleSessionPanel: () => void
    * }} */
   let {
     isSidebarOpen,
@@ -34,6 +37,7 @@
     selectModel,
     handleClickOutside,
     modelLoaded,
+    toggleSessionPanel,
   } = $props();
 
   function getModelMetadata(version: string) {
@@ -43,6 +47,39 @@
     );
     return quantMatch ? quantMatch[0].toUpperCase() : null;
   }
+
+  // Calculate context usage percentage
+  function getContextUsage() {
+    const userTokens = chatStore.messages
+      .filter((m) => m.role === "user")
+      .reduce((sum, m) => sum + (m.tokens || 0), 0);
+
+    const assistantTokens = chatStore.messages
+      .filter((m) => m.role === "assistant")
+      .reduce((sum, m) => sum + (m.tokens || 0), 0);
+
+    const systemTokens = chatStore.messages
+      .filter((m) => m.role === "system")
+      .reduce((sum, m) => sum + (m.tokens || 0), 0);
+
+    const toolTokens = chatStore.messages.reduce((sum, m) => {
+      if (m.toolContext && m.toolContext.length > 0) {
+        const toolText = JSON.stringify(m.toolContext);
+        return sum + Math.ceil(toolText.length / 4);
+      }
+      return sum;
+    }, 0);
+
+    const totalTokens =
+      userTokens + assistantTokens + systemTokens + toolTokens;
+    const contextLimit = 200000;
+    const usagePercent =
+      totalTokens > 0 ? (totalTokens / contextLimit) * 100 : 0;
+
+    return usagePercent;
+  }
+
+  const contextUsage = $derived(getContextUsage());
 </script>
 
 <svelte:window on:click={handleClickOutside} />
@@ -144,7 +181,7 @@
     </div>
   </div>
 
-  <div class="flex min-w-[80px] shrink-0 items-center justify-end gap-3">
+  <div class="flex min-w-[80px] shrink-0 items-center justify-end gap-1.5">
     {#if isLoading}
       <div
         class="flex items-center justify-center text-muted-foreground"
@@ -153,5 +190,62 @@
         <Loader2 class="h-3.5 w-3.5 animate-spin" />
       </div>
     {/if}
+
+    <!-- Square rounded button -->
+    <button
+      type="button"
+      class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/5"
+      aria-label="Actions"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="1" />
+        <circle cx="12" cy="5" r="1" />
+        <circle cx="12" cy="19" r="1" />
+      </svg>
+    </button>
+
+    <!-- Circle with context usage -->
+    <button
+      type="button"
+      class="relative flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-white/5"
+      onclick={toggleSessionPanel}
+      aria-label="Context usage: {contextUsage.toFixed(1)}%"
+      title="Context usage: {contextUsage.toFixed(1)}%"
+    >
+      <!-- Background circle -->
+      <svg class="h-5.5 w-5.5 -rotate-90" viewBox="0 0 24 24">
+        <circle
+          cx="12"
+          cy="12"
+          r="10.5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          class="text-white/10"
+        />
+        <!-- Progress arc -->
+        <circle
+          cx="12"
+          cy="12"
+          r="10.5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-dasharray="{(contextUsage / 100) * 65.97} 65.97"
+          stroke-linecap="round"
+          class="text-muted-foreground"
+        />
+      </svg>
+    </button>
   </div>
 </header>

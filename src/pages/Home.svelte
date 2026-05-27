@@ -3,6 +3,7 @@
   import ChatHeader from "$components/layout/chat/ChatHeader.svelte";
   import ChatMessages from "$components/chat/ChatMessageList.svelte";
   import ChatForm from "$components/chat/ChatForm.svelte";
+  import SessionInfoPanel from "$components/layout/chat/SessionInfoPanel.svelte";
   import { notifications } from "$lib/shared/notifications";
   import { chatStore } from "$lib/stores/chat.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
@@ -15,6 +16,8 @@
   let messagesEnd: any = $state();
   let textarea: any = $state();
   let isDropdownOpen = $state(false);
+  let isSessionPanelOpen = $state(false);
+  let sessionPanelWidth = $state(400);
 
   $effect(() => {
     if (chatStore.messages.length) {
@@ -165,6 +168,10 @@
     }
   }
 
+  function toggleSessionPanel() {
+    isSessionPanelOpen = !isSessionPanelOpen;
+  }
+
   let isEmpty = $derived(
     chatStore.messages.length === 0 && !chatStore.isLoading,
   );
@@ -172,39 +179,76 @@
 
 <!-- Outer wrapper — fills the capsule background behind the rounded window -->
 <div class="flex h-full flex-col bg-[#171717]">
-  <!-- Unified window container -->
-  <div class="flex h-full flex-col overflow-hidden rounded-tl-lg bg-background">
-    <!-- Header (pill-style, matches ChatMessageWindow header) -->
-    <ChatHeader
-      isSidebarOpen={uiStore.isSidebarOpen}
-      toggleSidebar={() => uiStore.toggleSidebar()}
-      isLoading={chatStore.isLoading}
-      {toggleDropdown}
-      selectedModel={modelsStore.selectedModel}
-      {isDropdownOpen}
-      models={modelsStore.models}
-      {selectModel}
-      {handleClickOutside}
-      modelLoaded={chatStore.modelLoaded}
-    />
+  <!-- Main container with chat and panel -->
+  <div class="flex h-full overflow-hidden">
+    <!-- Chat area -->
+    <div 
+      class="flex h-full flex-col overflow-hidden rounded-tl-lg bg-background transition-all duration-300"
+      style="width: {isSessionPanelOpen ? `calc(100% - ${sessionPanelWidth}px)` : '100%'}"
+    >
+      <!-- Header (pill-style, matches ChatMessageWindow header) -->
+      <ChatHeader
+        isSidebarOpen={uiStore.isSidebarOpen}
+        toggleSidebar={() => uiStore.toggleSidebar()}
+        isLoading={chatStore.isLoading}
+        {toggleDropdown}
+        selectedModel={modelsStore.selectedModel}
+        {isDropdownOpen}
+        models={modelsStore.models}
+        {selectModel}
+        {handleClickOutside}
+        modelLoaded={chatStore.modelLoaded}
+        {toggleSessionPanel}
+      />
 
-    <!-- Background mock behind the rounded chat window -->
-    <div class="bg-[#171717]" style="height: calc(100% - 60px)">
-      <!-- Body — scrollable chat content -->
-      <div
-        class="flex h-full min-h-0 flex-col overflow-y-auto rounded-t-lg bg-background"
-      >
-        {#if isEmpty}
-          <div class="flex grow items-center justify-center">
-            <div class="w-full max-w-3xl text-center">
-              <h1 class="mb-2 text-3xl font-semibold tracking-tight">
-                llama.cpp
-              </h1>
-              <p class="mb-10 text-lg text-muted-foreground">
-                Type a message or upload files to get started
-              </p>
+      <!-- Background mock behind the rounded chat window -->
+      <div class="bg-[#171717]" style="height: calc(100% - 60px)">
+        <!-- Body — scrollable chat content -->
+        <div
+          class="flex h-full min-h-0 flex-col overflow-y-auto rounded-t-lg bg-background"
+        >
+          {#if isEmpty}
+            <div class="flex grow items-center justify-center">
+              <div class="w-full max-w-3xl text-center">
+                <h1 class="mb-2 text-3xl font-semibold tracking-tight">
+                  llama.cpp
+                </h1>
+                <p class="mb-10 text-lg text-muted-foreground">
+                  Type a message or upload files to get started
+                </p>
 
-              <div class="w-full">
+                <div class="w-full">
+                  <ChatForm
+                    bind:userInput
+                    modelLoaded={serverStore.isRunning}
+                    isLoading={chatStore.isLoading}
+                    onKeydown={handleKeydown}
+                    onInput={handleInput}
+                    onSend={sendMessage}
+                    bind:textarea
+                    selectedModel={modelsStore.selectedModel}
+                  />
+                </div>
+              </div>
+            </div>
+          {:else}
+            <ChatMessages
+              messages={chatStore.messages}
+              isLoading={chatStore.isLoading}
+              thinkingProcess={chatStore.thinkingProcess}
+              modelThinking={chatStore.modelThinking}
+              thinkingLabel={chatStore.thinkingLabel}
+              thinkingTags={chatStore.thinkingTags}
+              toolContext={chatStore.toolContext}
+              bind:messagesEnd
+            />
+
+            <!-- Floating Chat Form at the bottom -->
+            <div
+              class="pointer-events-none sticky bottom-0 z-10 mt-auto flex w-full flex-col items-center pb-2"
+              style="background: linear-gradient(to bottom, transparent 40%, #212121 40%)"
+            >
+              <div class="pointer-events-auto w-full flex flex-col items-center">
                 <ChatForm
                   bind:userInput
                   modelLoaded={serverStore.isRunning}
@@ -215,44 +259,17 @@
                   bind:textarea
                   selectedModel={modelsStore.selectedModel}
                 />
+                <p
+                  class="mt-2 text-center text-[0.75rem] text-muted-foreground opacity-80"
+                ></p>
               </div>
             </div>
-          </div>
-        {:else}
-          <ChatMessages
-            messages={chatStore.messages}
-            isLoading={chatStore.isLoading}
-            thinkingProcess={chatStore.thinkingProcess}
-            modelThinking={chatStore.modelThinking}
-            thinkingLabel={chatStore.thinkingLabel}
-            thinkingTags={chatStore.thinkingTags}
-            toolContext={chatStore.toolContext}
-            bind:messagesEnd
-          />
-
-          <!-- Floating Chat Form at the bottom -->
-          <div
-            class="pointer-events-none sticky bottom-0 z-10 mt-auto flex w-full flex-col items-center pb-2"
-            style="background: linear-gradient(to bottom, transparent 40%, #212121 40%)"
-          >
-            <div class="pointer-events-auto w-full flex flex-col items-center">
-              <ChatForm
-                bind:userInput
-                modelLoaded={serverStore.isRunning}
-                isLoading={chatStore.isLoading}
-                onKeydown={handleKeydown}
-                onInput={handleInput}
-                onSend={sendMessage}
-                bind:textarea
-                selectedModel={modelsStore.selectedModel}
-              />
-              <p
-                class="mt-2 text-center text-[0.75rem] text-muted-foreground opacity-80"
-              ></p>
-            </div>
-          </div>
-        {/if}
+          {/if}
+        </div>
       </div>
     </div>
+
+    <!-- Session Info Panel -->
+    <SessionInfoPanel isOpen={isSessionPanelOpen} onClose={toggleSessionPanel} bind:width={sessionPanelWidth} />
   </div>
 </div>

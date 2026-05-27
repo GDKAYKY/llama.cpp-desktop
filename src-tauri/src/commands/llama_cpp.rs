@@ -1,8 +1,8 @@
-use crate::models::{LlamaCppConfig, RunningServerInfo, ServerMetrics};
+use crate::models::{ LlamaCppConfig, RunningServerInfo, ServerMetrics };
 use crate::services::llama::LlamaCppService;
 use crate::state::AppState;
 use serde::Serialize;
-use sha2::{Digest, Sha256};
+use sha2::{ Digest, Sha256 };
 use tauri::command;
 use tauri::AppHandle;
 use tauri::Manager;
@@ -36,10 +36,13 @@ pub async fn start_llama_server(
     extra_args: Option<Vec<String>>,
     chat_template: Option<String>,
     chat_template_file: Option<String>,
-    state: State<'_, AppState>,
+    state: State<'_, AppState>
 ) -> Result<String, String> {
-    let (resolved_template, resolved_template_file) =
-        resolve_chat_template(&app, chat_template, chat_template_file)?;
+    let (resolved_template, resolved_template_file) = resolve_chat_template(
+        &app,
+        chat_template,
+        chat_template_file
+    )?;
     start_llama_server_with_service(
         &state.llama_service,
         binary_path,
@@ -51,9 +54,8 @@ pub async fn start_llama_server(
         parallel,
         extra_args,
         resolved_template,
-        resolved_template_file,
-    )
-    .await
+        resolved_template_file
+    ).await
 }
 
 #[command]
@@ -64,7 +66,7 @@ pub async fn stop_llama_server(state: State<'_, AppState>) -> Result<String, Str
 #[command]
 pub async fn stop_llama_server_instance(
     model_path: String,
-    state: State<'_, AppState>,
+    state: State<'_, AppState>
 ) -> Result<String, String> {
     stop_llama_server_instance_with_service(&state.llama_service, model_path).await
 }
@@ -88,28 +90,28 @@ pub struct HealthCheckDetail {
 
 #[command]
 pub async fn check_server_health_detail(
-    state: State<'_, AppState>,
+    state: State<'_, AppState>
 ) -> Result<HealthCheckDetail, String> {
     check_server_health_detail_with_service(&state.llama_service).await
 }
 
 #[command]
 pub async fn get_llama_config(
-    state: State<'_, AppState>,
+    state: State<'_, AppState>
 ) -> Result<Option<LlamaCppConfig>, String> {
     get_llama_config_with_service(&state.llama_service).await
 }
 
 #[command]
 pub async fn get_server_metrics(
-    state: State<'_, AppState>,
+    state: State<'_, AppState>
 ) -> Result<Option<ServerMetrics>, String> {
     get_server_metrics_with_service(&state.llama_service).await
 }
 
 #[command]
 pub async fn get_running_llama_servers(
-    state: State<'_, AppState>,
+    state: State<'_, AppState>
 ) -> Result<Vec<RunningServerInfo>, String> {
     get_running_llama_servers_with_service(&state.llama_service).await
 }
@@ -125,7 +127,7 @@ pub async fn start_llama_server_with_service(
     parallel: Option<u32>,
     extra_args: Option<Vec<String>>,
     chat_template: Option<String>,
-    chat_template_file: Option<String>,
+    chat_template_file: Option<String>
 ) -> Result<String, String> {
     let config = LlamaCppConfig {
         llama_cpp_path: binary_path,
@@ -147,7 +149,7 @@ pub async fn start_llama_server_with_service(
 fn resolve_chat_template(
     app: &AppHandle,
     chat_template: Option<String>,
-    chat_template_file: Option<String>,
+    chat_template_file: Option<String>
 ) -> Result<(Option<String>, Option<String>), String> {
     if chat_template_file.is_some() || chat_template.is_none() {
         return Ok((chat_template, chat_template_file));
@@ -173,11 +175,13 @@ fn resolve_chat_template(
         .app_data_dir()
         .map_err(|e| format!("Failed to resolve app data directory: {}", e))?
         .join("chat_templates");
-    std::fs::create_dir_all(&cache_dir)
+    std::fs
+        ::create_dir_all(&cache_dir)
         .map_err(|e| format!("Failed to create chat_templates directory: {}", e))?;
     let file_path = cache_dir.join(format!("embedded_{}.jinja", hash_hex));
     if !file_path.exists() {
-        std::fs::write(&file_path, template.as_bytes())
+        std::fs
+            ::write(&file_path, template.as_bytes())
             .map_err(|e| format!("Failed to write chat template file: {}", e))?;
     }
 
@@ -191,7 +195,7 @@ pub async fn stop_llama_server_with_service(service: &LlamaCppService) -> Result
 
 pub async fn stop_llama_server_instance_with_service(
     service: &LlamaCppService,
-    model_path: String,
+    model_path: String
 ) -> Result<String, String> {
     service.stop_model(model_path).await?;
     Ok("Server stopped".to_string())
@@ -206,10 +210,7 @@ pub async fn check_server_health_with_service(service: &LlamaCppService) -> Resu
         return Ok(false);
     }
 
-    let config = service
-        .get_config()
-        .await
-        .ok_or_else(|| "No config".to_string())?;
+    let config = service.get_config().await.ok_or_else(|| "No config".to_string())?;
     let url = format!("http://localhost:{}/health", config.port);
 
     let client = reqwest::Client::new();
@@ -222,7 +223,7 @@ pub async fn check_server_health_with_service(service: &LlamaCppService) -> Resu
 }
 
 pub async fn check_server_health_detail_with_service(
-    service: &LlamaCppService,
+    service: &LlamaCppService
 ) -> Result<HealthCheckDetail, String> {
     if !service.is_running().await {
         return Ok(HealthCheckDetail {
@@ -232,10 +233,7 @@ pub async fn check_server_health_detail_with_service(
         });
     }
 
-    let config = service
-        .get_config()
-        .await
-        .ok_or_else(|| "No config".to_string())?;
+    let config = service.get_config().await.ok_or_else(|| "No config".to_string())?;
     let url = format!("http://localhost:{}/health", config.port);
 
     let client = reqwest::Client::new();
@@ -254,28 +252,29 @@ pub async fn check_server_health_detail_with_service(
                 },
             })
         }
-        Err(e) => Ok(HealthCheckDetail {
-            healthy: false,
-            url,
-            error: Some(format!("Healthcheck request failed: {}", e)),
-        }),
+        Err(e) =>
+            Ok(HealthCheckDetail {
+                healthy: false,
+                url,
+                error: Some(format!("Healthcheck request failed: {}", e)),
+            }),
     }
 }
 
 pub async fn get_llama_config_with_service(
-    service: &LlamaCppService,
+    service: &LlamaCppService
 ) -> Result<Option<LlamaCppConfig>, String> {
     Ok(service.get_config().await)
 }
 
 pub async fn get_server_metrics_with_service(
-    service: &LlamaCppService,
+    service: &LlamaCppService
 ) -> Result<Option<ServerMetrics>, String> {
     Ok(service.get_metrics().await)
 }
 
 pub async fn get_running_llama_servers_with_service(
-    service: &LlamaCppService,
+    service: &LlamaCppService
 ) -> Result<Vec<RunningServerInfo>, String> {
     Ok(service.get_running_servers().await)
 }
