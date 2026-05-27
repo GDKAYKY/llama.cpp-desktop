@@ -98,6 +98,7 @@ async fn test_service_get_metrics() {
                 mem_usage: 1024,
                 gpu_usage: Some(30.0),
                 vram_usage: Some(40.0),
+                gpu_instances: Vec::new(),
             }));
         }
     });

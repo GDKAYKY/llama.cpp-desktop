@@ -28,6 +28,7 @@ fn sample_metrics() -> ServerMetrics {
         mem_usage: 2048,
         gpu_usage: Some(0.4),
         vram_usage: Some(0.2),
+        gpu_instances: Vec::new(),
     }
 }
 

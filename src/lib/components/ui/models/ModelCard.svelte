@@ -20,6 +20,7 @@
     Trash2,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
+  import type { ProcessGpuMetrics } from "$lib/types/backend";
   import ModelUsageGraph from "$components/ui/charts/ModelUsageGraph.svelte";
   import Skeleton from "$components/ui/Skeleton.svelte";
   import ModelLogo from "./ModelLogo.svelte";
@@ -121,6 +122,30 @@
   }
 
   const metadata = $derived(getModelMetadata(model));
+  const gpuInstances = $derived(modelServer?.metrics?.gpu_instances ?? []);
+
+  function getGpuUtilizationLabel(instance: ProcessGpuMetrics) {
+    const utilization = instance.utilization;
+
+    if (utilization === "Unavailable") {
+      return "GPU usage unavailable";
+    }
+
+    if ("Precise" in utilization) {
+      return `SM ${utilization.Precise.sm.toFixed(0)}% • MEM ${utilization.Precise.mem.toFixed(0)}%`;
+    }
+
+    return `GPU ${utilization.Engine.gpu.toFixed(0)}%`;
+  }
+
+  function getGpuMemoryLabel(instance: ProcessGpuMetrics) {
+    if (!instance.vram_total_mb) {
+      return `${instance.vram_used_mb} MB VRAM`;
+    }
+
+    const percent = (instance.vram_used_mb / instance.vram_total_mb) * 100;
+    return `${instance.vram_used_mb}/${instance.vram_total_mb} MB VRAM • ${percent.toFixed(0)}%`;
+  }
 
   function getShortDigest(digest: string) {
     if (!digest) return "";
@@ -316,6 +341,40 @@
       gpuUsage={modelServer?.metrics?.gpu_usage || 0}
     />
   </div>
+
+  {#if gpuInstances.length > 0}
+    <div class="space-y-2 rounded-lg border border-white/8 bg-white/[0.03] p-2.5">
+      <div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+        <Activity size={12} />
+        <span>GPU Instances</span>
+      </div>
+
+      {#each gpuInstances as instance (`${instance.gpu_index}-${instance.gpu_name}`)}
+        <div class="rounded-md bg-black/20 px-2.5 py-2">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <Badge>GPU {instance.gpu_index}</Badge>
+                <span class="truncate text-[11px] font-semibold text-foreground/90">
+                  {instance.gpu_name}
+                </span>
+              </div>
+              <div class="mt-1 text-[10px] text-muted-foreground">
+                {getGpuUtilizationLabel(instance)}
+              </div>
+            </div>
+
+            <div class="text-right text-[10px] text-muted-foreground">
+              <div>{getGpuMemoryLabel(instance)}</div>
+              {#if instance.temperature != null}
+                <div class="mt-1">{instance.temperature}C</div>
+              {/if}
+            </div>
+          </div>
+        </div>
+      {/each}
+    </div>
+  {/if}
 
   <div class="rounded-lg bg-white/5 p-2.5">
     <div class="grid grid-cols-3 gap-2">

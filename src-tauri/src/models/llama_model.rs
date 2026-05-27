@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::infrastructure::gpu::ProcessGpuMetrics;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ModelId(pub String);
 
@@ -44,6 +46,8 @@ pub struct ServerMetrics {
     pub mem_usage: u64,
     pub gpu_usage: Option<f32>,
     pub vram_usage: Option<f32>, // VRAM usage percentage (0-100%)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub gpu_instances: Vec<ProcessGpuMetrics>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

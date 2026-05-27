@@ -21,6 +21,7 @@ impl MetricsProvider for MockMetricsProvider {
             mem_usage: 10,
             gpu_usage: None,
             vram_usage: None,
+            gpu_instances: Vec::new(),
         })
     }
 }

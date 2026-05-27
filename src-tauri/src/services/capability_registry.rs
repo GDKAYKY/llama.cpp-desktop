@@ -216,43 +216,6 @@ impl CapabilityRegistry {
             })
     }
 
-    /// Build a compact summary for the LLM intent-classification prompt.
-    /// Only names + short descriptions — NOT the full schema.
-    pub async fn summary_for_prompt(&self, allowed_server_ids: &[String]) -> String {
-        let guard = self.servers.read().await;
-        let mut lines = Vec::new();
-
-        for (server_id, caps) in guard.iter() {
-            if !allowed_server_ids.is_empty()
-                && !allowed_server_ids.iter().any(|id| id == server_id)
-            {
-                continue;
-            }
-
-            lines.push(format!("Server: {}", server_id));
-            for (name, def) in &caps.tools {
-                let desc = def
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("(no description)");
-                lines.push(format!("  tool: {} — {}", name, desc));
-            }
-            for (uri, def) in &caps.resources {
-                let desc = def
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("(no description)");
-                lines.push(format!("  resource: {} — {}", uri, desc));
-            }
-        }
-
-        if lines.is_empty() {
-            "No tools available.".to_string()
-        } else {
-            lines.join("\n")
-        }
-    }
-
     /// Build a compact JSON summary for the LLM intent-classification prompt.
     /// Can be filtered by a specific list of relevant tools.
     pub async fn summary_for_prompt_json(

@@ -1,12 +1,14 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import {
     selectModelsDirectory,
     selectLlamaDirectory,
   } from "$lib/services/models";
   import { getConfigPath } from "$lib/config/index";
+  import { invokeCommand } from "$lib/infrastructure/ipc";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
+  import type { GpuInfo } from "$lib/types/backend";
   import { openPath } from "@tauri-apps/plugin-opener";
   import { Switch, Slider } from "bits-ui";
   import {
@@ -45,6 +47,7 @@
   let loading = $state(false);
   let saving = $state(false);
   let unsavedChanges = $state(false);
+  let availableGpus = $state<GpuInfo[]>([]);
 
   let maxTokensValue = $state(settingsStore.settings.maxTokens);
   let temperatureValue = $state(settingsStore.settings.temperature);
@@ -57,6 +60,9 @@
   let llamaServerGpuLayersValue = $state(
     settingsStore.settings.llamaServerGpuLayers,
   );
+  let llamaServerGpuDeviceValue = $state(
+    settingsStore.settings.llamaServerGpuDevice ?? "0",
+  );
   let llamaServerExtraArgsValue = $state("");
 
   $effect(() => {
@@ -67,6 +73,8 @@
     serverPortValue = settingsStore.settings.serverPort;
     llamaServerParallelValue = settingsStore.settings.llamaServerParallel;
     llamaServerGpuLayersValue = settingsStore.settings.llamaServerGpuLayers;
+    llamaServerGpuDeviceValue =
+      settingsStore.settings.llamaServerGpuDevice ?? "0";
     llamaServerExtraArgsValue = formatLlamaServerExtraArgs(
       settingsStore.settings.llamaServerExtraArgs,
     );
@@ -98,8 +106,29 @@
       showMessage("error", settingsStore.error);
     }
     await loadConfigPath();
+    await loadAvailableGpus();
     loading = false;
   });
+
+  async function loadAvailableGpus() {
+    try {
+      availableGpus = (await invokeCommand("get_available_gpus")) as GpuInfo[];
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error("Failed to load available GPUs:", errorMessage);
+      availableGpus = Array.from({ length: 8 }, (_, i) => ({
+        index: i,
+        name: `GPU ${i}`,
+        vram_total_mb: 0,
+        vendor: "Unknown",
+      }));
+    }
+  }
+
+  function formatGpuOption(gpu: GpuInfo) {
+    const vram = gpu.vram_total_mb > 0 ? ` • ${formatVramUsage(gpu.vram_total_mb)}` : "";
+    return `${gpu.index}: ${gpu.name}${vram}`;
+  }
 
   async function loadConfigPath() {
     try {
@@ -126,6 +155,7 @@
         serverPort: serverPortValue,
         llamaServerParallel: llamaServerParallelValue,
         llamaServerGpuLayers: llamaServerGpuLayersValue,
+        llamaServerGpuDevice: llamaServerGpuDeviceValue,
         llamaServerJinja: settingsStore.settings.llamaServerJinja,
         llamaServerExtraArgs: parseLlamaServerExtraArgs(
           llamaServerExtraArgsValue,
@@ -176,7 +206,7 @@
     }
   }
 
-  async function handleCopyPath(path, label) {
+  async function handleCopyPath(path: string | null, label: string) {
     if (!path) return;
 
     try {
@@ -201,7 +231,7 @@
     }
   }
 
-  function showMessage(type, text) {
+  function showMessage(type: "error" | "success", text: string) {
     if (type === "error") {
       notifications.error(text);
       return;
@@ -236,14 +266,16 @@
     unsavedChanges = true;
   }
 
-  function formatLlamaServerExtraArgs(args) {
+  function formatLlamaServerExtraArgs(
+    args: string[] | null | undefined,
+  ): string {
     return (args ?? []).join("\n");
   }
 
-  function parseLlamaServerExtraArgs(value) {
+  function parseLlamaServerExtraArgs(value: string): string[] {
     return value
       .split(/\r?\n/)
-      .map((line) => line.trim())
+      .map((line: string) => line.trim())
       .filter(Boolean);
   }
 
@@ -580,7 +612,32 @@
         </div>
 
         <div class="space-y-6">
-          <div class="grid gap-4 sm:grid-cols-3">
+          <div class="space-y-2">
+            <label for="model-select" class="text-sm font-medium">
+              Select Model
+            </label>
+            <select
+              id="model-select"
+              bind:value={modelsStore.selectedModel}
+              class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
+            >
+              <option value={null}>No model selected</option>
+              {#each modelsStore.models as model (model.full_identifier)}
+                <option value={model}>
+                  {model.name}
+                </option>
+              {/each}
+            </select>
+            {#if modelsStore.selectedModel}
+              <p class="text-xs text-muted-foreground">
+                {modelsStore.selectedModel.name} • {formatVramUsage(
+                  getTotalModelSize() / (1024 * 1024),
+                )}
+              </p>
+            {/if}
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-4">
             <div class="space-y-2">
               <label for="server-port" class="text-sm font-medium">Port</label>
               <input
@@ -620,45 +677,100 @@
                 class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
               />
             </div>
+
+            <div class="space-y-2">
+              <label for="server-gpu-device" class="text-sm font-medium"
+                >GPU Device</label
+              >
+              <select
+                id="server-gpu-device"
+                bind:value={llamaServerGpuDeviceValue}
+                onchange={handleChange}
+                class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
+              >
+                {#each availableGpus as gpu (gpu.index)}
+                  <option value={String(gpu.index)}>
+                    {formatGpuOption(gpu)}
+                  </option>
+                {/each}
+              </select>
+            </div>
           </div>
 
           <!-- VRAM Estimate -->
-          <div class="rounded-lg bg-muted/30 p-4 border border-muted">
-            <div class="flex items-start gap-3">
-              <div
-                class="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500 flex-shrink-0 mt-0.5"
-              >
-                <MemoryStick size={18} />
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between gap-2 mb-2">
-                  <h3 class="text-sm font-semibold">Estimated VRAM Usage</h3>
-                  <span
-                    class="text-sm font-mono font-bold"
-                    class:text-green-400={getVramColorClassForEstimate() ===
-                      "text-green-400"}
-                    class:text-blue-400={getVramColorClassForEstimate() ===
-                      "text-blue-400"}
-                    class:text-yellow-400={getVramColorClassForEstimate() ===
-                      "text-yellow-400"}
-                    class:text-orange-400={getVramColorClassForEstimate() ===
-                      "text-orange-400"}
-                    class:text-red-400={getVramColorClassForEstimate() ===
-                      "text-red-400"}
-                  >
-                    {formatVramUsage(calculateEstimatedVram())}
-                  </span>
+          {#if getTotalModelSize() > 0}
+            <div class="rounded-lg bg-muted/30 p-4 border border-muted">
+              <div class="flex items-start gap-3">
+                <div
+                  class="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500 flex-shrink-0 mt-0.5"
+                >
+                  <MemoryStick size={18} />
                 </div>
-                <p class="text-xs text-muted-foreground">
-                  {getVramDescription(calculateEstimatedVram())}
-                </p>
-                <p class="text-xs text-muted-foreground/70 mt-2">
-                  Based on context size ({contextSizeValue} tokens), GPU layers ({llamaServerGpuLayersValue}),
-                  and parallel slots ({llamaServerParallelValue})
-                </p>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between gap-2 mb-3">
+                    <h3 class="text-sm font-semibold">Estimated VRAM Usage</h3>
+                    <span
+                      class="text-sm font-mono font-bold"
+                      class:text-green-400={getVramColorClassForEstimate() ===
+                        "text-green-400"}
+                      class:text-blue-400={getVramColorClassForEstimate() ===
+                        "text-blue-400"}
+                      class:text-yellow-400={getVramColorClassForEstimate() ===
+                        "text-yellow-400"}
+                      class:text-orange-400={getVramColorClassForEstimate() ===
+                        "text-orange-400"}
+                      class:text-red-400={getVramColorClassForEstimate() ===
+                        "text-red-400"}
+                    >
+                      {formatVramUsage(calculateEstimatedVram())}
+                    </span>
+                  </div>
+
+                  <!-- VRAM Progress Bar -->
+                  <div class="mb-3">
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-xs text-muted-foreground"
+                        >Memory Usage</span
+                      >
+                      <span class="text-xs font-mono text-muted-foreground">
+                        {Math.round((calculateEstimatedVram() / 24576) * 100)}%
+                        of 24GB
+                      </span>
+                    </div>
+                    <div
+                      class="w-full h-2 bg-muted rounded-full overflow-hidden"
+                    >
+                      <div
+                        class="h-full rounded-full transition-all duration-300"
+                        class:bg-green-500={getVramColorClassForEstimate() ===
+                          "text-green-400"}
+                        class:bg-blue-500={getVramColorClassForEstimate() ===
+                          "text-blue-400"}
+                        class:bg-yellow-500={getVramColorClassForEstimate() ===
+                          "text-yellow-400"}
+                        class:bg-orange-500={getVramColorClassForEstimate() ===
+                          "text-orange-400"}
+                        class:bg-red-500={getVramColorClassForEstimate() ===
+                          "text-red-400"}
+                        style="width: {Math.min(
+                          (calculateEstimatedVram() / 24576) * 100,
+                          100,
+                        )}%"
+                      ></div>
+                    </div>
+                  </div>
+
+                  <p class="text-xs text-muted-foreground">
+                    {getVramDescription(calculateEstimatedVram())}
+                  </p>
+                  <p class="text-xs text-muted-foreground/70 mt-2">
+                    Based on context size ({contextSizeValue} tokens), GPU layers
+                    ({llamaServerGpuLayersValue}), and parallel slots ({llamaServerParallelValue})
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          {/if}
 
           <div class="flex items-center justify-between space-x-4">
             <label for="llama-server-jinja" class="flex flex-col space-y-1">

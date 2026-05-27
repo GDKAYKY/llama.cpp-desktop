@@ -11,6 +11,7 @@ export interface AppConfig {
   serverPort: number;
   llamaServerParallel: number;
   llamaServerGpuLayers: number;
+  llamaServerGpuDevice: string;
   llamaServerJinja: boolean;
   llamaServerExtraArgs: string[];
   webSearchProvider: "tavily" | "custom";

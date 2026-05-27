@@ -152,6 +152,44 @@ export interface LlamaCppConfig {
   chat_template_file?: string | null;
 }
 
+export type GpuVendor = "Nvidia" | "Amd" | "Intel" | "Unknown";
+
+export type GpuUtilization =
+  | { Precise: { sm: number; mem: number } }
+  | { Engine: { gpu: number } }
+  | "Unavailable";
+
+export interface ProcessGpuMetrics {
+  gpu_index: number;
+  gpu_name: string;
+  vram_used_mb: number;
+  vram_total_mb: number;
+  temperature?: number | null;
+  utilization: GpuUtilization;
+}
+
+export interface ServerMetrics {
+  cpu_usage: number;
+  mem_usage: number;
+  gpu_usage?: number | null;
+  vram_usage?: number | null;
+  gpu_instances: ProcessGpuMetrics[];
+}
+
+export interface RunningServerInfo {
+  model_id: string;
+  pid: number;
+  config: LlamaCppConfig;
+  metrics: ServerMetrics | null;
+}
+
+export interface GpuInfo {
+  index: number;
+  name: string;
+  vram_total_mb: number;
+  vendor: GpuVendor;
+}
+
 export interface StartServerBaseOptions {
   binaryPath: string;
   modelPath: string;

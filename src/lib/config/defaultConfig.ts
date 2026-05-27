@@ -16,6 +16,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   serverPort: 8080,
   llamaServerParallel: 1,
   llamaServerGpuLayers: 33,
+  llamaServerGpuDevice: "0",
   llamaServerJinja: true,
   llamaServerExtraArgs: [],
   webSearchProvider: "tavily",

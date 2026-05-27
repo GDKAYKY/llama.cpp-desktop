@@ -106,6 +106,7 @@ async fn get_metrics_returns_value() {
         mem_usage: 2,
         gpu_usage: None,
         vram_usage: None,
+        gpu_instances: Vec::new(),
     };
 
     tokio::spawn(async move {

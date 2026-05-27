@@ -48,10 +48,10 @@ async fn test_registry_available_server_ids_empty() {
 }
 
 #[tokio::test]
-async fn test_registry_summary_for_prompt_empty() {
+async fn test_registry_summary_for_prompt_json_empty() {
     let registry = CapabilityRegistry::new();
-    let summary = registry.summary_for_prompt(&[]).await;
-    assert!(summary.contains("No tools available"));
+    let summary = registry.summary_for_prompt_json(&[], None).await;
+    assert!(summary.contains("No matching/available MCP capabilities found"));
 }
 
 #[tokio::test]

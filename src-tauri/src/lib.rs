@@ -3,6 +3,7 @@ pub mod commands {
     pub mod chat_actions;
     pub mod config;
     pub mod general;
+    pub mod gpu;
     pub mod llama_cpp;
     pub mod mcp;
     pub mod mcp_config;
@@ -10,6 +11,7 @@ pub mod commands {
 }
 
 pub mod infrastructure {
+    pub mod gpu;
     pub mod llama {
         pub mod process;
         pub mod server;
@@ -69,7 +71,8 @@ use tauri::Manager;
 #[cfg(not(test))]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
+    let builder = tauri::Builder
+        ::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
@@ -79,14 +82,14 @@ pub fn run() {
                 println!("Failed to load config: {}", e);
                 crate::models::AppConfig::default()
             });
-            let mcp_config = commands::mcp_config::load_mcp_config_file(app.handle())
+            let mcp_config = commands::mcp_config
+                ::load_mcp_config_file(app.handle())
                 .unwrap_or_else(|e| {
                     println!("Failed to load MCP config: {}", e);
                     crate::models::McpConfig::default()
                 });
 
-            let models_path = config
-                .models_directory
+            let models_path = config.models_directory
                 .map(std::path::PathBuf::from)
                 .unwrap_or_else(|| std::path::PathBuf::from("E:\\models"));
 
@@ -105,7 +108,8 @@ pub fn run() {
             Ok(())
         });
 
-    ipc_handlers::configure_ipc(builder)
+    ipc_handlers
+        ::configure_ipc(builder)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

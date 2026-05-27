@@ -30,6 +30,7 @@ fn test_server_metrics_serialization() {
         mem_usage: 1024,
         gpu_usage: Some(30.0),
         vram_usage: Some(50.0),
+        gpu_instances: Vec::new(),
     };
 
     let json = serde_json::to_string(&metrics).unwrap();

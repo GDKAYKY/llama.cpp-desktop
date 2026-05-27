@@ -1,5 +1,10 @@
 import { invokeCommand } from '$infrastructure/ipc';
-import type { LlamaCppConfig, StartServerOptions } from '$lib/types/backend';
+import type {
+    LlamaCppConfig,
+    RunningServerInfo,
+    ServerMetrics,
+    StartServerOptions,
+} from '$lib/types/backend';
 
 export interface ServerStatus {
     isRunning: boolean;
@@ -16,23 +21,8 @@ class ServerStore {
     isStarting = $state(false);
     startingModelPath = $state<string | null>(null);
     currentConfig = $state<LlamaCppConfig | null>(null);
-    serverMetrics = $state<{ 
-        cpu_usage: number; 
-        mem_usage: number; 
-        gpu_usage?: number; 
-        vram_usage?: number; 
-    } | null>(null);
-    runningServers = $state<Array<{
-        model_id: string;
-        pid: number;
-        config: LlamaCppConfig;
-        metrics: {
-            cpu_usage: number;
-            mem_usage: number;
-            gpu_usage?: number;
-            vram_usage?: number;
-        } | null;
-    }>>([]);
+    serverMetrics = $state<ServerMetrics | null>(null);
+    runningServers = $state<RunningServerInfo[]>([]);
     private healthInterval: ReturnType<typeof setInterval> | null = null;
 
     private sameArgs(left?: string[] | null, right?: string[] | null) {
@@ -217,12 +207,7 @@ class ServerStore {
         try {
             if (!this.isRunning) return;
             const metrics = await invokeCommand('get_server_metrics');
-            this.serverMetrics = metrics as { 
-                cpu_usage: number; 
-                mem_usage: number; 
-                gpu_usage?: number; 
-                vram_usage?: number; 
-            } | null;
+            this.serverMetrics = metrics as ServerMetrics | null;
         } catch (err) {
             console.error('Failed to fetch server metrics:', err);
         }
@@ -231,17 +216,7 @@ class ServerStore {
     async fetchRunningServers() {
         try {
             const runningServers = await invokeCommand('get_running_llama_servers');
-            this.runningServers = (runningServers as Array<{
-                model_id: string;
-                pid: number;
-                config: LlamaCppConfig;
-                metrics: {
-                    cpu_usage: number;
-                    mem_usage: number;
-                    gpu_usage?: number;
-                    vram_usage?: number;
-                } | null;
-            }>) ?? [];
+            this.runningServers = (runningServers as RunningServerInfo[]) ?? [];
         } catch (err) {
             this.runningServers = [];
             console.error('Failed to fetch running llama servers:', err);
