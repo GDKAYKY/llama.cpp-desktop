@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronDown, ChevronUp, X, Plus } from "lucide-svelte";
+  import { ChevronDown, ChevronUp, X, Plus, Diff } from "lucide-svelte";
   import { chatStore, type Message } from "$lib/stores/chat.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
   import { serverStore } from "$lib/stores/server.svelte";
@@ -25,7 +25,7 @@
 
   function handleResizeMove(e: MouseEvent) {
     if (!isResizing) return;
-    
+
     const delta = startX - e.clientX;
     const newWidth = Math.min(Math.max(startWidth + delta, 300), 700);
     width = newWidth;
@@ -37,22 +37,22 @@
 
   $effect(() => {
     if (isResizing) {
-      document.addEventListener('mousemove', handleResizeMove);
-      document.addEventListener('mouseup', handleResizeEnd);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
+      document.addEventListener("mousemove", handleResizeMove);
+      document.addEventListener("mouseup", handleResizeEnd);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
     } else {
-      document.removeEventListener('mousemove', handleResizeMove);
-      document.removeEventListener('mouseup', handleResizeEnd);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+      document.removeEventListener("mousemove", handleResizeMove);
+      document.removeEventListener("mouseup", handleResizeEnd);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
     }
 
     return () => {
-      document.removeEventListener('mousemove', handleResizeMove);
-      document.removeEventListener('mouseup', handleResizeEnd);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+      document.removeEventListener("mousemove", handleResizeMove);
+      document.removeEventListener("mouseup", handleResizeEnd);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
     };
   });
 
@@ -61,11 +61,11 @@
     const userTokens = chatStore.messages
       .filter((m) => m.role === "user")
       .reduce((sum, m) => sum + (m.tokens || 0), 0);
-    
+
     const assistantTokens = chatStore.messages
       .filter((m) => m.role === "assistant")
       .reduce((sum, m) => sum + (m.tokens || 0), 0);
-    
+
     const systemTokens = chatStore.messages
       .filter((m) => m.role === "system")
       .reduce((sum, m) => sum + (m.tokens || 0), 0);
@@ -78,9 +78,11 @@
       return sum;
     }, 0);
 
-    const totalTokens = userTokens + assistantTokens + systemTokens + toolTokens;
+    const totalTokens =
+      userTokens + assistantTokens + systemTokens + toolTokens;
     const contextLimit = 200000;
-    const usagePercent = totalTokens > 0 ? (totalTokens / contextLimit) * 100 : 0;
+    const usagePercent =
+      totalTokens > 0 ? (totalTokens / contextLimit) * 100 : 0;
 
     return usagePercent;
   }
@@ -112,7 +114,7 @@
         agent: "build",
         model: {
           modelID: message.model || "unknown",
-          providerID: "kiro-cli",
+          providerID: "llama.cpp",
           variant: "high",
         },
         content: message.content,
@@ -233,6 +235,78 @@
   const assistantMessageCount = $derived(
     chatStore.messages.filter((m) => m.role === "assistant").length,
   );
+
+  const sessionInfoItems = $derived([
+    { label: "Sessão", value: currentConversation?.title || "New Chat" },
+    { label: "Mensagens", value: chatStore.messages.length },
+    { label: "Provedor", value: "llama.cpp" },
+    { label: "Modelo", value: mostUsedModel },
+    {
+      label: "Limite de Contexto",
+      value: tokenStats.contextLimit.toLocaleString(),
+    },
+    {
+      label: "Total de Tokens",
+      value: tokenStats.totalTokens.toLocaleString(),
+    },
+    { label: "Uso", value: `${tokenStats.usagePercent.toFixed(1)}%` },
+    {
+      label: "Tokens de Entrada",
+      value: tokenStats.inputTokens.toLocaleString(),
+    },
+    {
+      label: "Tokens de Saída",
+      value: tokenStats.outputTokens.toLocaleString(),
+    },
+    { label: "Tokens de Raciocínio", value: "0" },
+    { label: "Tokens de Cache (Leitura/Escrita)", value: "0/0" },
+    { label: "Mensagens de Usuário", value: userMessageCount },
+    { label: "Mensagens do Assistente", value: assistantMessageCount },
+    { label: "Custo Total", value: "US$ 0,00" },
+    {
+      label: "Sessão Criada",
+      value: currentConversation
+        ? formatTimestamp(currentConversation.updatedAt)
+        : "N/A",
+    },
+    {
+      label: "Última Atividade",
+      value:
+        chatStore.messages.length > 0
+          ? formatTimestamp(
+              chatStore.messages[chatStore.messages.length - 1].timestamp,
+            )
+          : "N/A",
+    },
+  ]);
+
+  const tabs = [
+    {
+      id: "revision" as const,
+      label: "Revision",
+      iconType: "diff" as const,
+    },
+    {
+      id: "context" as const,
+      label: "Contexto",
+      showProgress: true,
+    },
+  ];
+
+  const breakdownItems = $derived([
+    { color: "bg-blue-500", label: "Usuário", percent: breakdown.user },
+    {
+      color: "bg-green-500",
+      label: "Assistente",
+      percent: breakdown.assistant,
+    },
+    {
+      color: "bg-purple-500",
+      label: "Chamadas de Ferramentas",
+      percent: breakdown.tools,
+    },
+    { color: "bg-gray-500", label: "Outros", percent: breakdown.other },
+  ]);
 </script>
 
 {#if isOpen}
@@ -253,138 +327,83 @@
     <div class="flex h-full flex-col">
       <!-- Tab Header -->
       <div
-        class="flex h-[60px] items-center justify-between border-b border-border/50 px-3 bg-background"
+        class="flex h-15 items-center justify-between border-b border-border/50 px-3 bg-background"
       >
         <!-- Left from right: Active Tabs -->
         <div class="flex items-center gap-1">
-          <!-- Revision Tab -->
-          <div
-            role="button"
-            tabindex="0"
-            class="group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors {activeTab ===
-            'revision'
-              ? 'bg-white/5 text-foreground hover:bg-white/10'
-              : 'text-muted-foreground hover:bg-white/5'}"
-            onclick={() => (activeTab = "revision")}
-            onkeydown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                activeTab = "revision";
-              }
-            }}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+          {#each tabs as tab}
+            <div
+              role="button"
+              tabindex="0"
+              class="group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors {activeTab ===
+              tab.id
+                ? 'bg-white/5 text-foreground hover:bg-white/10'
+                : 'text-muted-foreground hover:bg-white/5'}"
+              onclick={() => (activeTab = tab.id)}
+              onkeydown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  activeTab = tab.id;
+                }
+              }}
             >
-              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-              <path d="M21 3v5h-5" />
-              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-              <path d="M3 21v-5h5" />
-            </svg>
-            <span>Revision</span>
-            {#if activeTab === "revision"}
-              <div
-                role="button"
-                tabindex="0"
-                class="ml-1 rounded p-0.5 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  onClose();
-                }}
-                onkeydown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
+              {#if tab.showProgress}
+                <!-- Circle progress indicator -->
+                <svg class="h-3.5 w-3.5 -rotate-90" viewBox="0 0 24 24">
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10.5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    class="text-white/10"
+                  />
+                  <!-- Progress arc -->
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10.5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-dasharray="{(contextUsage / 100) * 65.97} 65.97"
+                    stroke-linecap="round"
+                    class="text-current"
+                  />
+                </svg>
+              {:else if tab.iconType === "diff"}
+                <Diff size={12} strokeWidth={2} />
+              {/if}
+              <span>{tab.label}</span>
+              {#if activeTab === tab.id}
+                <div
+                  role="button"
+                  tabindex="0"
+                  class="ml-1 rounded p-0.5 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
+                  onclick={(e) => {
+                    e.stopPropagation();
                     onClose();
-                  }
-                }}
-              >
-                <X size={12} strokeWidth={2} />
-              </div>
-            {/if}
+                  }}
+                  onkeydown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onClose();
+                    }
+                  }}
+                >
+                  <X size={12} strokeWidth={2} />
+                </div>
+              {/if}
 
-            <!-- Active indicator -->
-            {#if activeTab === "revision"}
-              <div
-                class="absolute -bottom-[13px] left-0 right-0 h-[2px] bg-white"
-              ></div>
-            {/if}
-          </div>
-          <!-- Context Tab -->
-          <div
-            role="button"
-            tabindex="0"
-            class="group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors {activeTab ===
-            'context'
-              ? 'bg-white/5 text-foreground hover:bg-white/10'
-              : 'text-muted-foreground hover:bg-white/5'}"
-            onclick={() => (activeTab = "context")}
-            onkeydown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                activeTab = "context";
-              }
-            }}
-          >
-            <!-- Circle progress indicator -->
-            <svg class="h-3.5 w-3.5 -rotate-90" viewBox="0 0 24 24">
-              <circle
-                cx="12"
-                cy="12"
-                r="10.5"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                class="text-white/10"
-              />
-              <!-- Progress arc -->
-              <circle
-                cx="12"
-                cy="12"
-                r="10.5"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-dasharray="{(contextUsage / 100) * 65.97} 65.97"
-                stroke-linecap="round"
-                class="text-current"
-              />
-            </svg>
-            <span>Contexto</span>
-            {#if activeTab === "context"}
-              <div
-                role="button"
-                tabindex="0"
-                class="ml-1 rounded p-0.5 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  onClose();
-                }}
-                onkeydown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onClose();
-                  }
-                }}
-              >
-                <X size={12} strokeWidth={2} />
-              </div>
-            {/if}
-
-            <!-- Active indicator -->
-            {#if activeTab === "context"}
-              <div
-                class="absolute -bottom-[13px] left-0 right-0 h-[2px] bg-white"
-              ></div>
-            {/if}
-          </div>
+              <!-- Active indicator -->
+              {#if activeTab === tab.id}
+                <div
+                  class="absolute -bottom-3.25 left-0 right-0 h-0.5 bg-white"
+                ></div>
+              {/if}
+            </div>
+          {/each}
         </div>
 
         <!-- Right: Add Button -->
@@ -401,131 +420,40 @@
       <div class="flex-1 overflow-y-auto px-4 py-4">
         {#if activeTab === "context"}
           <!-- Session Info -->
-          <div class="mb-6 space-y-2 text-xs">
-            <div class="text-sm font-medium text-foreground">
-              {currentConversation?.title || "New Chat"}
-            </div>
-            <div class="grid grid-cols-2 gap-2 text-muted-foreground">
-              <div>Mensagens</div>
-              <div class="text-right text-foreground">
-                {chatStore.messages.length}
-              </div>
-
-              <div>Provedor</div>
-              <div class="text-right text-foreground">Kiro</div>
-
-              <div>Modelo</div>
-              <div class="text-right text-foreground">{mostUsedModel}</div>
-
-              <div>Limite de Contexto</div>
-              <div class="text-right text-foreground">
-                {tokenStats.contextLimit.toLocaleString()}
-              </div>
-
-              <div>Total de Tokens</div>
-              <div class="text-right text-foreground">
-                {tokenStats.totalTokens.toLocaleString()}
-              </div>
-
-              <div>Uso</div>
-              <div class="text-right text-foreground">
-                {tokenStats.usagePercent.toFixed(1)}%
-              </div>
-
-              <div>Tokens de Entrada</div>
-              <div class="text-right text-foreground">
-                {tokenStats.inputTokens.toLocaleString()}
-              </div>
-
-              <div>Tokens de Saída</div>
-              <div class="text-right text-foreground">
-                {tokenStats.outputTokens.toLocaleString()}
-              </div>
-
-              <div>Tokens de Raciocínio</div>
-              <div class="text-right text-foreground">0</div>
-
-              <div>Tokens de Cache</div>
-              <div class="text-right text-foreground">0/0</div>
-
-              <div>Mensagens de Usuário</div>
-              <div class="text-right text-foreground">{userMessageCount}</div>
-
-              <div>Mensagens do Assistente</div>
-              <div class="text-right text-foreground">
-                {assistantMessageCount}
-              </div>
-
-              <div>Custo Total</div>
-              <div class="text-right text-foreground">US$ 0,00</div>
-
-              <div>Sessão Criada</div>
-              <div class="text-right text-foreground">
-                {currentConversation
-                  ? formatTimestamp(currentConversation.updatedAt)
-                  : "N/A"}
-              </div>
-
-              <div>Última Atividade</div>
-              <div class="text-right text-foreground">
-                {chatStore.messages.length > 0
-                  ? formatTimestamp(
-                      chatStore.messages[chatStore.messages.length - 1]
-                        .timestamp,
-                    )
-                  : "N/A"}
-              </div>
+          <div class="mb-6 space-y-2 text-[13px]">
+            <div class="grid grid-cols-2 gap-3 text-muted-foreground">
+              {#each sessionInfoItems as item}
+                <div>
+                  <div class="">{item.label}</div>
+                  <div class="text-foreground font-medium">{item.value}</div>
+                </div>
+              {/each}
             </div>
           </div>
 
           <!-- Context Breakdown -->
           <div class="mb-6">
-            <div class="mb-2 text-xs font-medium text-foreground">
+            <div class="mb-2 text-sm font-medium text-muted-foreground">
               Detalhamento do Contexto
             </div>
             <div
               class="mb-2 flex h-1.5 overflow-hidden rounded-full bg-white/5"
             >
-              <div
-                class="bg-blue-500"
-                style="width: {breakdown.user}%"
-                title="Usuário {breakdown.user.toFixed(1)}%"
-              ></div>
-              <div
-                class="bg-green-500"
-                style="width: {breakdown.assistant}%"
-                title="Assistente {breakdown.assistant.toFixed(1)}%"
-              ></div>
-              <div
-                class="bg-purple-500"
-                style="width: {breakdown.tools}%"
-                title="Chamadas de Ferramentas {breakdown.tools.toFixed(1)}%"
-              ></div>
-              <div
-                class="bg-gray-500"
-                style="width: {breakdown.other}%"
-                title="Outros {breakdown.other.toFixed(1)}%"
-              ></div>
+              {#each breakdownItems as item}
+                <div
+                  class={item.color}
+                  style="width: {item.percent}%"
+                  title="{item.label} {item.percent.toFixed(1)}%"
+                ></div>
+              {/each}
             </div>
-            <div class="space-y-1 text-[11px] text-muted-foreground">
-              <div class="flex items-center gap-2">
-                <div class="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
-                <span>Usuário {breakdown.user.toFixed(1)}%</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <div class="h-1.5 w-1.5 rounded-full bg-gray-500"></div>
-                <span>Outros {breakdown.other.toFixed(1)}%</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <div class="h-1.5 w-1.5 rounded-full bg-green-500"></div>
-                <span>Assistente {breakdown.assistant.toFixed(1)}%</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <div class="h-1.5 w-1.5 rounded-full bg-purple-500"></div>
-                <span
-                  >Chamadas de Ferramentas {breakdown.tools.toFixed(1)}%</span
-                >
-              </div>
+            <div class="flex flex-wrap gap-2 text-[13px] text-muted-foreground">
+              {#each breakdownItems as item}
+                <div class="flex items-center gap-2">
+                  <div class="h-2.5 w-2.5 rounded-full {item.color}"></div>
+                  <span>{item.label} {item.percent.toFixed(1)}%</span>
+                </div>
+              {/each}
             </div>
           </div>
 
@@ -534,9 +462,9 @@
             <div class="mb-2 text-xs font-medium text-foreground">
               Mensagens brutas
             </div>
-            <div class="space-y-1">
+            <div class="">
               {#each chatStore.messages as message, index (index)}
-                <div class="rounded-md border border-border/50 bg-white/[0.02]">
+                <div class="rounded-md border border-border/50 bg-white/2">
                   <button
                     type="button"
                     class="flex w-full items-center justify-between px-3 py-2 text-left text-[11px] transition-colors hover:bg-white/5"
@@ -584,23 +512,11 @@
           <!-- Revision Content -->
           <div class="flex h-full items-center justify-center">
             <div class="text-center text-muted-foreground">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="48"
-                height="48"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+              <Diff
+                size={48}
+                strokeWidth={1.5}
                 class="mx-auto mb-3 opacity-30"
-              >
-                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                <path d="M3 21v-5h5" />
-              </svg>
+              />
               <p class="text-sm">Revision history</p>
               <p class="mt-1 text-xs opacity-60">Coming soon</p>
             </div>
