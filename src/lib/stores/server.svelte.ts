@@ -169,9 +169,8 @@ class ServerStore {
 
     async checkRunning() {
         try {
-            await this.fetchRunningServers();
             const running = await invokeCommand('is_server_running') as boolean;
-            this.isRunning = running || this.runningServers.length > 0;
+            this.isRunning = Boolean(running);
             if (running) {
                 const config = await invokeCommand('get_llama_config') as LlamaCppConfig;
                 this.currentConfig = config;

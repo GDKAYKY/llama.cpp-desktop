@@ -4,9 +4,11 @@ use crate::state::AppState;
 use serde::Serialize;
 use sha2::{ Digest, Sha256 };
 use tauri::command;
+use tauri::ipc::Channel;
 use tauri::AppHandle;
 use tauri::Manager;
 use tauri::State;
+use std::time::Duration;
 
 // ─── Comando: ensure_chat_template ────────────────────────────────────────────
 //
@@ -114,6 +116,49 @@ pub async fn get_running_llama_servers(
     state: State<'_, AppState>
 ) -> Result<Vec<RunningServerInfo>, String> {
     get_running_llama_servers_with_service(&state.llama_service).await
+}
+
+#[command]
+pub async fn proxy_llama_chat_completion(
+    state: State<'_, AppState>,
+    body: String,
+    on_event: Channel<serde_json::Value>
+) -> Result<(), String> {
+    let config = state
+        .llama_service
+        .get_config()
+        .await
+        .ok_or_else(|| "No llama.cpp server is running".to_string())?;
+    let url = format!("http://localhost:{}/v1/chat/completions", config.port);
+    let client = reqwest::Client::new();
+    let mut response = client
+        .post(&url)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .body(body)
+        .timeout(Duration::from_secs(300))
+        .send()
+        .await
+        .map_err(|e| format!("llama.cpp request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        return Err(format!("llama.cpp request failed: {} - {}", status, text));
+    }
+
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| format!("llama.cpp stream failed: {}", e))?
+    {
+        let text = String::from_utf8_lossy(&chunk).to_string();
+        if on_event.send(serde_json::json!({ "chunk": text })).is_err() {
+            return Ok(());
+        }
+    }
+
+    let _ = on_event.send(serde_json::json!({ "done": true }));
+    Ok(())
 }
 
 pub async fn start_llama_server_with_service(

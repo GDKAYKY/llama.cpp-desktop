@@ -14,13 +14,10 @@ pub fn configure_ipc(builder: Builder<Wry>) -> Builder<Wry> {
         tauri::generate_handler![
             commands::general::greet,
             commands::gpu::get_available_gpus,
-            commands::chat::send_message,
-            commands::chat::clear_chat,
             commands::chat_actions::chat_action_like,
             commands::chat_actions::chat_action_dislike,
             commands::chat_actions::chat_action_copy,
             commands::chat_actions::chat_action_share,
-            commands::chat_actions::chat_action_regenerate,
             commands::models::parse_model_manifest,
             commands::models::scan_models_directory,
             commands::models::save_model_library,
@@ -48,7 +45,6 @@ pub fn configure_ipc(builder: Builder<Wry>) -> Builder<Wry> {
             commands::mcp::mcp_resources_read,
             commands::mcp::mcp_parse_config,
             commands::mcp::mcp_import_config,
-            commands::mcp::refresh_mcp_capabilities,
             commands::llama_cpp::ensure_chat_template,
             commands::llama_cpp::start_llama_server,
             commands::llama_cpp::stop_llama_server,
@@ -59,8 +55,7 @@ pub fn configure_ipc(builder: Builder<Wry>) -> Builder<Wry> {
             commands::llama_cpp::get_llama_config,
             commands::llama_cpp::get_server_metrics,
             commands::llama_cpp::get_running_llama_servers,
-            commands::chat::load_history_context,
-            commands::chat::generate_chat_title
+            commands::llama_cpp::proxy_llama_chat_completion
         ]
     )
 }

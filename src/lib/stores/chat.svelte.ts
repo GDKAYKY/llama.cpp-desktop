@@ -1,9 +1,9 @@
 import { invokeCommand } from "$infrastructure/ipc";
-import { Channel } from "@tauri-apps/api/core";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { settingsStore } from "$lib/stores/settings.svelte";
 import { modelsStore } from "$lib/stores/models.svelte";
 import { serverStore } from "$lib/stores/server.svelte";
+import { generateLocalTitle, runLocalChat, type AiChatMessage } from "$lib/ai/llama";
 import {
   saveMessage,
   createConversation,
@@ -63,7 +63,7 @@ class ChatStore {
   async initialize() {
     this.error = null;
 
-    // Backend session: stable while the app is open.
+    // Stable local session id for persisted UI metadata and action logs.
     const savedSession = localStorage.getItem("llama_chat_session_id");
     if (savedSession) {
       this.sessionId = savedSession;
@@ -110,29 +110,8 @@ class ChatStore {
 
     this.activeConversationId = id;
 
-    // IMPORTANT:
-    // Do NOT regenerate sessionId here.
-    // The backend session should stay stable; otherwise context hydration and
-    // title generation can drift into different sessions like an amateur magician.
-
-    try {
-      // Business rule: backend context is rebuilt from the canonical transcript
-      // only. Persisted thinking/debug metadata may exist for UI rendering after
-      // reload, but it must never be re-injected into model context.
-      const contextPayload = history.map((h) => ({
-        role: h.role,
-        content: h.content,
-      }));
-
-      await invokeCommand("load_history_context", {
-        sessionId: this.sessionId,
-        messages: contextPayload,
-      });
-
-      // console.log('Backend context hydrated for session:', this.sessionId);
-    } catch (err) {
-      console.warn("Failed to hydrate backend context:", err);
-    }
+    // The AI SDK request is built from frontend history on each turn. Rust does
+    // not own or mirror conversation state.
   }
 
   appendChunk(chunk: string) {
@@ -193,128 +172,26 @@ class ChatStore {
     this.thinkingLineBuffer = "";
     this.currentAssistantResponse = "";
 
-    const onEvent = new Channel<any>();
-    let eventQueue = Promise.resolve();
-    let streamError: unknown = null;
-    onEvent.onmessage = (payload) => {
-      eventQueue = eventQueue
-        .then(async () => {
-          if (payload.thinking) {
-            this.thinkingProcess = [
-              ...this.thinkingProcess,
-              String(payload.thinking),
-            ];
-          }
-
-          if (payload.thinking_chunk) {
-            this.appendThinkingChunk(String(payload.thinking_chunk));
-          }
-
-          if (payload.tool_context) {
-            const ctx = payload.tool_context;
-            this.toolContext = [
-              ...this.toolContext,
-              {
-                serverId: ctx.server_id ? String(ctx.server_id) : undefined,
-                toolName: ctx.tool_name ? String(ctx.tool_name) : undefined,
-                arguments: ctx.arguments,
-                result: ctx.result,
-                toolCallId: ctx.tool_call_id ? String(ctx.tool_call_id) : undefined,
-              },
-            ];
-          }
-
-          if (payload.chunk) {
-            this.appendChunk(String(payload.chunk));
-          }
-
-          if (payload.status === "done") {
-            console.log("Stream finished");
-
-            try {
-              this.flushThinkingBuffer();
-
-              const lastMsg = this.messages[this.messages.length - 1];
-              const assistantContent =
-                this.currentAssistantResponse ||
-                (lastMsg?.role === "assistant" ? lastMsg.content : "");
-              const trimmedContent = assistantContent.trim();
-
-              if (!trimmedContent) {
-                console.warn("Assistant stream finished without content to persist");
-                return;
-              }
-
-              this.currentAssistantResponse = assistantContent;
-
-              const modelName = this.getRunningModelName();
-
-              await saveMessage(
-                conversationId,
-                "assistant",
-                assistantContent,
-                modelName,
-                this.buildAssistantDebugMeta(),
-              );
-
-              const lastAssistantIndex = this.messages.length - 1;
-              const lastAssistant = this.messages[lastAssistantIndex];
-              if (lastAssistant?.role === "assistant") {
-                this.messages = [
-                  ...this.messages.slice(0, lastAssistantIndex),
-                  { 
-                    ...lastAssistant, 
-                    model: modelName,
-                    tokens: estimateTokens(assistantContent)
-                  },
-                  ...this.messages.slice(lastAssistantIndex + 1),
-                ];
-              }
-
-              const userMessages = this.messages.filter((m) => m.role === "user");
-              const assistantMessages = this.messages.filter(
-                (m) => m.role === "assistant" && m.content.trim(),
-              );
-              if (
-                userMessages.length === 1 &&
-                assistantMessages.length === 1 &&
-                this.currentAssistantResponse
-              ) {
-                this.generateTitle(
-                  conversationId,
-                  userMessages[0].content,
-                  this.currentAssistantResponse,
-                ).catch((err) => {
-                  console.warn("Background title generation error:", err);
-                });
-              }
-
-              await this.loadRecentConversations();
-            } finally {
-              this.attachDebugToAssistantAt(this.messages.length - 1);
-              this.resetStreamingState();
-            }
-          }
-        })
-        .catch((err) => {
-          streamError ??= err;
-          this.error = err instanceof Error ? err.message : String(err);
-          console.error("Chat stream event failed:", err);
-        });
-    };
+    const requestMessages = this.buildAiMessages();
 
     try {
-      await invokeCommand("send_message", {
-        message: content,
-        sessionId: this.sessionId,
+      await runLocalChat({
+        port: this.getRunningPort(),
+        messages: requestMessages,
+        userInput: content,
         temperature: settingsStore.settings.temperature,
         maxTokens: settingsStore.settings.maxTokens,
-        onEvent,
+        ctxSize: this.getRunningCtxSize(),
+        enableThinking: this.hasExplicitChatTemplate(),
+        onText: (text) => this.appendChunk(text),
+        onThinkingChunk: (text) => this.appendThinkingChunk(text),
+        onStatus: (text) => this.appendThinkingStatus(text),
+        onToolContext: (context) => {
+          this.toolContext = [...this.toolContext, context];
+        },
       });
-      await eventQueue;
-      if (streamError) {
-        throw streamError;
-      }
+
+      await this.finishAssistantResponse(conversationId);
     } catch (err) {
       this.error = err instanceof Error ? err.message : String(err);
       console.error("ERRO NO CHAT:", err);
@@ -356,6 +233,7 @@ class ChatStore {
     const result = await invokeCommand("chat_action_share", {
       sessionId: this.sessionId,
       messageIndex,
+      content: this.messages[messageIndex]?.content ?? "",
     });
     return String(result);
   }
@@ -376,10 +254,7 @@ class ChatStore {
     this.isLoading = true;
     this.error = null;
 
-    const onEvent = new Channel<any>();
     let buffer = "";
-    let eventQueue = Promise.resolve();
-    let streamError: unknown = null;
 
     await this.refreshThinkingLabel();
     this.thinkingProcess = [];
@@ -387,99 +262,46 @@ class ChatStore {
     this.toolContext = [];
     this.thinkingLineBuffer = "";
 
-    onEvent.onmessage = (payload) => {
-      eventQueue = eventQueue
-        .then(async () => {
-          if (payload.thinking) {
-            this.thinkingProcess = [
-              ...this.thinkingProcess,
-              String(payload.thinking),
-            ];
-          }
-
-          if (payload.thinking_chunk) {
-            this.appendThinkingChunk(String(payload.thinking_chunk));
-          }
-
-          if (payload.tool_context) {
-            const ctx = payload.tool_context;
-            this.toolContext = [
-              ...this.toolContext,
-              {
-                serverId: ctx.server_id ? String(ctx.server_id) : undefined,
-                toolName: ctx.tool_name ? String(ctx.tool_name) : undefined,
-                arguments: ctx.arguments,
-                result: ctx.result,
-                toolCallId: ctx.tool_call_id ? String(ctx.tool_call_id) : undefined,
-              },
-            ];
-          }
-
-          if (payload.chunk) {
-            buffer += String(payload.chunk);
-            const msg = this.messages[messageIndex];
-            if (msg && msg.role === "assistant") {
-              const updated = { ...msg, content: buffer };
-              this.messages = [
-                ...this.messages.slice(0, messageIndex),
-                updated,
-                ...this.messages.slice(messageIndex + 1),
-              ];
-            }
-          }
-
-          if (payload.status === "done") {
-            try {
-              this.flushThinkingBuffer();
-
-              const modelName = this.getRunningModelName();
-              const msg = this.messages[messageIndex];
-              const finalContent =
-                buffer || (msg?.role === "assistant" ? msg.content : "");
-              if (msg && msg.role === "assistant") {
-                this.messages = [
-                  ...this.messages.slice(0, messageIndex),
-                  { 
-                    ...msg, 
-                    content: finalContent, 
-                    model: modelName,
-                    tokens: estimateTokens(finalContent)
-                  },
-                  ...this.messages.slice(messageIndex + 1),
-                ];
-              }
-
-              await updateConversationMessageAtIndex(conversationId, messageIndex, {
-                content: finalContent,
-                model: modelName,
-                ...this.buildAssistantDebugMeta(),
-              });
-              await this.loadRecentConversations();
-            } finally {
-              this.attachDebugToAssistantAt(messageIndex);
-              this.resetStreamingState();
-            }
-          }
-        })
-        .catch((err) => {
-          streamError ??= err;
-          this.error = err instanceof Error ? err.message : String(err);
-          console.error("Regenerate stream event failed:", err);
-        });
-    };
+    const historyBeforeTarget = this.messages.slice(0, messageIndex);
 
     try {
-      await invokeCommand("chat_action_regenerate", {
-        sessionId: this.sessionId,
-        messageIndex,
+      await runLocalChat({
+        port: this.getRunningPort(),
+        messages: this.buildAiMessages(historyBeforeTarget),
+        userInput: historyBeforeTarget.findLast((message) => message.role === "user")?.content ?? "",
         temperature: settingsStore.settings.temperature,
         maxTokens: settingsStore.settings.maxTokens,
-        onEvent,
+        ctxSize: this.getRunningCtxSize(),
+        enableThinking: this.hasExplicitChatTemplate(),
+        onText: (text) => {
+          buffer += text;
+          this.updateAssistantAt(messageIndex, { content: buffer });
+        },
+        onThinkingChunk: (text) => this.appendThinkingChunk(text),
+        onStatus: (text) => this.appendThinkingStatus(text),
+        onToolContext: (context) => {
+          this.toolContext = [...this.toolContext, context];
+        },
       });
-      await eventQueue;
-      if (streamError) {
-        throw streamError;
-      }
+
+      this.flushThinkingBuffer();
+      const modelName = this.getRunningModelName();
+      const msg = this.messages[messageIndex];
+      const finalContent = buffer || (msg?.role === "assistant" ? msg.content : "");
+      this.updateAssistantAt(messageIndex, {
+        content: finalContent,
+        model: modelName,
+        tokens: estimateTokens(finalContent),
+      });
+
+      await updateConversationMessageAtIndex(conversationId, messageIndex, {
+        content: finalContent,
+        model: modelName,
+        ...this.buildAssistantDebugMeta(),
+      });
+      await this.loadRecentConversations();
+      this.attachDebugToAssistantAt(messageIndex);
+      this.resetStreamingState();
     } catch (err) {
       this.error = err instanceof Error ? err.message : String(err);
       throw err;
@@ -499,7 +321,6 @@ class ChatStore {
     const truncatedMessages = this.messages.slice(0, index);
     await truncateConversationFromIndex(conversationId, index);
     this.messages = truncatedMessages;
-    await this.replaceBackendHistory(truncatedMessages);
     await this.send(content);
   }
 
@@ -524,12 +345,6 @@ class ChatStore {
   }
 
   async clear() {
-    try {
-      await invokeCommand("clear_chat", { sessionId: this.sessionId });
-    } catch (err) {
-      console.warn("Failed to clear backend chat session:", err);
-    }
-
     this.messages = [];
     this.error = null;
 
@@ -563,12 +378,13 @@ class ChatStore {
     console.log("=== Generating title for conversation", conversationId);
 
     try {
-      const result = await invokeCommand("generate_chat_title", {
-        firstUserMessage: userFirstMsg.slice(0, 500),
-        firstAssistantMessage: assistantFirstMsg.slice(0, 500),
-      });
+      const result = await generateLocalTitle(
+        this.getRunningPort(),
+        userFirstMsg.slice(0, 500),
+        assistantFirstMsg.slice(0, 500),
+      );
 
-      console.log("generate_chat_title raw result:", JSON.stringify(result));
+      console.log("generateLocalTitle raw result:", JSON.stringify(result));
 
       const rawTitle = typeof result === "string" ? result : "";
 
@@ -625,17 +441,6 @@ class ChatStore {
       (m) => m.model_file_path === runningModelPath,
     );
     return modelInLibrary?.name || "Unknown Model";
-  }
-
-  private async replaceBackendHistory(messages: Message[]) {
-    await invokeCommand("clear_chat", { sessionId: this.sessionId });
-    await invokeCommand("load_history_context", {
-      sessionId: this.sessionId,
-      messages: messages.map((message) => ({
-        role: message.role,
-        content: message.content,
-      })),
-    });
   }
 
   private resetStreamingState() {
@@ -703,6 +508,95 @@ class ChatStore {
       this.thinkingProcess = [...this.thinkingProcess, remaining];
     }
     this.thinkingLineBuffer = "";
+  }
+
+  private appendThinkingStatus(text: string) {
+    if (!text.trim()) return;
+    this.thinkingProcess = [...this.thinkingProcess, text.trim()];
+  }
+
+  private buildAiMessages(source: Message[] = this.messages): AiChatMessage[] {
+    return source
+      .filter((message) => message.role !== "assistant" || message.content.trim())
+      .map((message) => ({ role: message.role, content: message.content }));
+  }
+
+  private async finishAssistantResponse(conversationId: number) {
+    this.flushThinkingBuffer();
+
+    const lastMsg = this.messages[this.messages.length - 1];
+    const assistantContent =
+      this.currentAssistantResponse ||
+      (lastMsg?.role === "assistant" ? lastMsg.content : "");
+    const trimmedContent = assistantContent.trim();
+
+    if (!trimmedContent) {
+      console.warn("Assistant stream finished without content to persist");
+      return;
+    }
+
+    this.currentAssistantResponse = assistantContent;
+    const modelName = this.getRunningModelName();
+
+    await saveMessage(
+      conversationId,
+      "assistant",
+      assistantContent,
+      modelName,
+      this.buildAssistantDebugMeta(),
+    );
+
+    this.updateAssistantAt(this.messages.length - 1, {
+      model: modelName,
+      tokens: estimateTokens(assistantContent),
+    });
+
+    const userMessages = this.messages.filter((m) => m.role === "user");
+    const assistantMessages = this.messages.filter(
+      (m) => m.role === "assistant" && m.content.trim(),
+    );
+    if (
+      userMessages.length === 1 &&
+      assistantMessages.length === 1 &&
+      this.currentAssistantResponse
+    ) {
+      this.generateTitle(
+        conversationId,
+        userMessages[0].content,
+        this.currentAssistantResponse,
+      ).catch((err) => {
+        console.warn("Background title generation error:", err);
+      });
+    }
+
+    await this.loadRecentConversations();
+    this.attachDebugToAssistantAt(this.messages.length - 1);
+    this.resetStreamingState();
+  }
+
+  private updateAssistantAt(index: number, patch: Partial<Message>) {
+    const msg = this.messages[index];
+    if (!msg || msg.role !== "assistant") return;
+    this.messages = [
+      ...this.messages.slice(0, index),
+      { ...msg, ...patch },
+      ...this.messages.slice(index + 1),
+    ];
+  }
+
+  private getRunningPort() {
+    const port = serverStore.currentConfig?.port;
+    if (!port) throw new Error("No llama.cpp server is running");
+    return port;
+  }
+
+  private getRunningCtxSize() {
+    return serverStore.currentConfig?.ctx_size ?? 4096;
+  }
+
+  private hasExplicitChatTemplate() {
+    const config = serverStore.currentConfig;
+    return Boolean(config?.chat_template || config?.chat_template_file);
   }
 }
 

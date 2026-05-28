@@ -2,7 +2,7 @@
 
 ## Overview
 
-The chat API is now fully compatible with llama.cpp's OpenAI-compatible `/v1/chat/completions` endpoint. All types match the Rust backend implementation and the standard OpenAI chat format.
+Chat generation now runs in the frontend through Vercel AI SDK using llama.cpp's OpenAI-compatible `/v1/chat/completions` endpoint. Rust is infrastructure only for process lifecycle, raw llama.cpp HTTP proxying, and MCP server IPC; it no longer owns conversation session state or the MCP tool loop.
 
 ## Type Definitions
 

@@ -100,10 +100,9 @@ flowchart TB
 
 ### 3. Streaming Chat
 1. **Frontend**: User sends a prompt.
-2. **Frontend (ChatStore)**: Queries **Dexie DB** for relevant past context (Hybrid Search).
-3. **Frontend (ChatStore)**: Injects context into the prompt and calls `send_message` IPC.
-4. **Orchestrator**: Appends user message to in-memory session history.
-5. **Infra**: Sets up a `reqwest::Client` to stream SSE events.
-6. **Frontend**: Receives real-time chunks and updates the UI.
-7. **Frontend (ChatStore)**: Persists final response and metadata (model name, tokens) to **Dexie DB**.
+2. **Frontend (ChatStore)**: Builds model messages from the persisted frontend transcript.
+3. **Frontend AI SDK layer**: Uses Vercel AI SDK with an OpenAI-compatible llama.cpp provider.
+4. **Rust Infrastructure**: Proxies raw `/v1/chat/completions` bytes to the running llama.cpp server and exposes MCP tool list/call IPC.
+5. **Frontend AI SDK layer**: Owns streaming, MCP tool execution loops, thinking parsing, and final response assembly.
+6. **Frontend (ChatStore)**: Updates the UI in real time and persists final response/debug metadata to **Dexie DB**.
 

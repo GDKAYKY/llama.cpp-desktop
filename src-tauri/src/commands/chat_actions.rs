@@ -3,10 +3,7 @@ use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{ipc::Channel, AppHandle, Manager, State};
-
-use crate::models::ChatMessage;
-use crate::state::AppState;
+use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Serialize)]
 struct ChatActionLog {
@@ -82,26 +79,12 @@ pub fn share_message_to_dir(
     Ok(file_path)
 }
 
-async fn ensure_message_exists(
-    state: &State<'_, AppState>,
-    session_id: &str,
-    message_index: usize,
-) -> Result<ChatMessage, String> {
-    state
-        .orchestrator
-        .get_message(session_id, message_index)
-        .await
-        .ok_or_else(|| "Message not found".to_string())
-}
-
 #[tauri::command]
 pub async fn chat_action_like(
     app: AppHandle,
-    state: State<'_, AppState>,
     session_id: String,
     message_index: usize,
 ) -> Result<(), String> {
-    ensure_message_exists(&state, &session_id, message_index).await?;
     let base_dir = app_config_dir(&app)?;
     log_action_to_dir(&base_dir, &session_id, message_index, "like", Value::Null)?;
     Ok(())
@@ -110,11 +93,9 @@ pub async fn chat_action_like(
 #[tauri::command]
 pub async fn chat_action_dislike(
     app: AppHandle,
-    state: State<'_, AppState>,
     session_id: String,
     message_index: usize,
 ) -> Result<(), String> {
-    ensure_message_exists(&state, &session_id, message_index).await?;
     let base_dir = app_config_dir(&app)?;
     log_action_to_dir(
         &base_dir,
@@ -129,11 +110,9 @@ pub async fn chat_action_dislike(
 #[tauri::command]
 pub async fn chat_action_copy(
     app: AppHandle,
-    state: State<'_, AppState>,
     session_id: String,
     message_index: usize,
 ) -> Result<(), String> {
-    ensure_message_exists(&state, &session_id, message_index).await?;
     let base_dir = app_config_dir(&app)?;
     log_action_to_dir(&base_dir, &session_id, message_index, "copy", Value::Null)?;
     Ok(())
@@ -142,13 +121,12 @@ pub async fn chat_action_copy(
 #[tauri::command]
 pub async fn chat_action_share(
     app: AppHandle,
-    state: State<'_, AppState>,
     session_id: String,
     message_index: usize,
+    content: String,
 ) -> Result<String, String> {
-    let message = ensure_message_exists(&state, &session_id, message_index).await?;
     let base_dir = app_config_dir(&app)?;
-    let file_path = share_message_to_dir(&base_dir, &session_id, message_index, &message.content)?;
+    let file_path = share_message_to_dir(&base_dir, &session_id, message_index, &content)?;
     let file_path_string = file_path
         .to_str()
         .map(|s| s.to_string())
@@ -167,33 +145,3 @@ pub async fn chat_action_share(
         .ok_or_else(|| "Invalid share file path".to_string())
 }
 
-#[tauri::command]
-pub async fn chat_action_regenerate(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    session_id: String,
-    message_index: usize,
-    temperature: f32,
-    max_tokens: i32,
-    on_event: Channel<serde_json::Value>,
-) -> Result<(), String> {
-    state
-        .orchestrator
-        .regenerate_at(
-            &session_id,
-            message_index,
-            temperature,
-            max_tokens,
-            on_event,
-        )
-        .await?;
-    let base_dir = app_config_dir(&app)?;
-    log_action_to_dir(
-        &base_dir,
-        &session_id,
-        message_index,
-        "regenerate",
-        Value::Null,
-    )?;
-    Ok(())
-}
