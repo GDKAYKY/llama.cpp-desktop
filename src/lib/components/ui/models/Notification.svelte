@@ -5,16 +5,23 @@
     show = true,
     type = "default",
     loading = false,
+    progress = null,
   }: {
     message?: string;
     text?: string;
     show?: boolean;
     type?: "default" | "success" | "error" | "info" | "loading";
     loading?: boolean;
+    progress?: number | null;
   } = $props();
 
   const content = $derived(message || text || "");
   const isLoading = $derived(loading || type === "loading");
+  const progressLabel = $derived(
+    typeof progress === "number" && Number.isFinite(progress)
+      ? `${Math.max(0, Math.min(100, Math.round(progress)))}%`
+      : null,
+  );
 </script>
 
 {#if show && content}
@@ -23,12 +30,21 @@
   >
     {#if isLoading}
       <div
-        class="rounded-full bg-primary w-12 h-12 shadow-lg flex items-center justify-center"
+        class="inline-flex items-center gap-3 rounded-full bg-primary px-4 py-2 shadow-lg"
       >
-        <span
-          class="size-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent"
-          aria-hidden="true"
-        ></span>
+        <div
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15 text-[11px] font-semibold text-primary-foreground"
+        >
+          {#if progressLabel}
+            {progressLabel}
+          {:else}
+            <span
+              class="size-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent"
+              aria-hidden="true"
+            ></span>
+          {/if}
+        </div>
+        <span class="text-sm font-medium text-primary-foreground">{content}</span>
       </div>
     {:else}
       <div

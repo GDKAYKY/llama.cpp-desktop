@@ -123,6 +123,25 @@ fn ensure_clean_segment(segment: &str, label: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn is_within_path(path: &Path, root: &Path) -> bool {
+    path.starts_with(root)
+}
+
+fn remove_empty_parent_dirs(mut current: PathBuf, stop_at: &Path) {
+    while current != stop_at {
+        match fs::remove_dir(&current) {
+            Ok(_) => {
+                if let Some(parent) = current.parent() {
+                    current = parent.to_path_buf();
+                } else {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+}
+
 /// Splits "name:version" using the last colon so names with colons still work.
 fn split_name_version(value: &str) -> Result<(String, String), String> {
     let mut parts = value.rsplitn(2, ':');
@@ -1050,9 +1069,11 @@ fn read_value(reader: &mut BufReader<std::fs::File>, value_type: u32) -> Result<
                 .read_exact(&mut buf)
                 .map_err(|e| format!("Failed to read f32: {}", e))?;
             let value = f32::from_le_bytes(buf);
-            serde_json::Number::from_f64(value as f64)
-                .map(Value::Number)
-                .ok_or_else(|| "Invalid f32 value".to_string())
+            if let Some(number) = serde_json::Number::from_f64(value as f64) {
+                Ok(Value::Number(number))
+            } else {
+                Ok(Value::String(value.to_string()))
+            }
         }
         GGUF_VALUE_TYPE_BOOL => {
             let mut buf = [0u8; 1];
@@ -1239,6 +1260,75 @@ pub async fn load_model_library(
         }
     }
     Ok(library.models)
+}
+
+// ---------------------------------------------------------------------------
+// Tauri command — model deletion
+// ---------------------------------------------------------------------------
+
+#[command]
+pub async fn remove_model_by_manifest_path(
+    manifest_path: String,
+    models_root: String,
+) -> Result<bool, String> {
+    let manifest_path = PathBuf::from(&manifest_path);
+    let models_root = PathBuf::from(&models_root);
+    let manifests_root = models_root.join("manifests");
+
+    if !is_within_path(&manifest_path, &manifests_root) {
+        return Err("Manifest path must be inside the models manifests directory".to_string());
+    }
+
+    if !manifest_path.exists() {
+        return Ok(false);
+    }
+
+    fs::remove_file(&manifest_path).map_err(|e| {
+        format!(
+            "Failed to remove manifest file {}: {}",
+            manifest_path.display(),
+            e
+        )
+    })?;
+
+    if let Some(version_dir) = manifest_path.parent() {
+        remove_empty_parent_dirs(version_dir.to_path_buf(), &manifests_root);
+    }
+
+    Ok(true)
+}
+
+#[command]
+pub async fn remove_model_by_identifier(
+    full_identifier: String,
+    models_root: String,
+) -> Result<bool, String> {
+    let mut parts = full_identifier.splitn(3, ':');
+    let provider = parts.next().ok_or_else(|| "Invalid model identifier".to_string())?;
+    let name = parts.next().ok_or_else(|| "Invalid model identifier".to_string())?;
+    let version = parts.next().ok_or_else(|| "Invalid model identifier".to_string())?;
+
+    ensure_clean_segment(provider, "Provider")?;
+    ensure_clean_segment(DEFAULT_LIBRARY, "Library")?;
+    ensure_clean_segment(name, "Name")?;
+    ensure_clean_segment(version, "Version")?;
+
+    let manifest_path = PathBuf::from(&models_root)
+        .join("manifests")
+        .join(provider)
+        .join(DEFAULT_LIBRARY)
+        .join(name)
+        .join(version)
+        .join("manifest.json");
+
+    remove_model_by_manifest_path(
+        manifest_path
+            .to_str()
+            .ok_or_else(|| "Failed to build manifest path string".to_string())?
+            .to_string(),
+        models_root,
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------

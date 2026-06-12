@@ -25,6 +25,7 @@
   <Notification
     message={$notificationState.message}
     loading={$notificationState.loading}
+    progress={$notificationState.progress}
   />
 {/if}
 

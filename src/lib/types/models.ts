@@ -18,4 +18,5 @@ export interface Model {
     };
     tokenizer_metadata?: Record<string, unknown>;
     model_file_path?: string;
+    manifest_path?: string;
 }

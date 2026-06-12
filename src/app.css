@@ -389,6 +389,7 @@
   color: var(--code-block-text);
   padding: 1rem 1.25rem;
   font-family: var(--code-block-font);
+  font-size: 14px;
 }
 
 .copy-code-btn {

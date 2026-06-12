@@ -182,9 +182,11 @@
   <!-- Main container with chat and panel -->
   <div class="flex h-full overflow-hidden">
     <!-- Chat area -->
-    <div 
+    <div
       class="flex h-full flex-col overflow-hidden rounded-tl-lg bg-background transition-all duration-300"
-      style="width: {isSessionPanelOpen ? `calc(100% - ${sessionPanelWidth}px)` : '100%'}"
+      style="width: {isSessionPanelOpen
+        ? `calc(100% - ${sessionPanelWidth}px)`
+        : '100%'}"
     >
       <!-- Header (pill-style, matches ChatMessageWindow header) -->
       <ChatHeader
@@ -211,7 +213,7 @@
             <div class="flex grow items-center justify-center">
               <div class="w-full max-w-3xl text-center">
                 <h1 class="mb-2 text-3xl font-semibold tracking-tight">
-                  llama.cpp
+                  Llama Desktop
                 </h1>
                 <p class="mb-10 text-lg text-muted-foreground">
                   Type a message or upload files to get started
@@ -248,7 +250,9 @@
               class="pointer-events-none sticky bottom-0 z-10 mt-auto flex w-full flex-col items-center pb-2"
               style="background: linear-gradient(to bottom, transparent 40%, #212121 40%)"
             >
-              <div class="pointer-events-auto w-full flex flex-col items-center">
+              <div
+                class="pointer-events-auto w-full flex flex-col items-center"
+              >
                 <ChatForm
                   bind:userInput
                   modelLoaded={serverStore.isRunning}
@@ -270,6 +274,10 @@
     </div>
 
     <!-- Session Info Panel -->
-    <SessionInfoPanel isOpen={isSessionPanelOpen} onClose={toggleSessionPanel} bind:width={sessionPanelWidth} />
+    <SessionInfoPanel
+      isOpen={isSessionPanelOpen}
+      onClose={toggleSessionPanel}
+      bind:width={sessionPanelWidth}
+    />
   </div>
 </div>

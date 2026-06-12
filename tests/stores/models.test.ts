@@ -17,13 +17,15 @@ vi.mock("$lib/services/models", () => ({
   scanModelsDirectory: (...args: unknown[]) => mockScanModelsDirectory(...args),
   loadModelLibrary: (...args: unknown[]) => mockLoadModelLibrary(...args),
   saveModelLibrary: (...args: unknown[]) => mockSaveModelLibrary(...args),
-  selectModelsDirectory: (...args: unknown[]) => mockSelectModelsDirectory(...args),
+  selectModelsDirectory: (...args: unknown[]) =>
+    mockSelectModelsDirectory(...args),
 }));
 
 const mockDownloadModelFromRegistry = vi.fn();
 
 vi.mock("$lib/services/model_downloads", () => ({
-  downloadModelFromRegistry: (...args: unknown[]) => mockDownloadModelFromRegistry(...args),
+  downloadModelFromRegistry: (...args: unknown[]) =>
+    mockDownloadModelFromRegistry(...args),
 }));
 
 const mockSettingsStore = {
@@ -35,7 +37,9 @@ vi.mock("$lib/stores/settings.svelte", () => ({
   settingsStore: mockSettingsStore,
 }));
 
-function makeModel(overrides: Partial<{ name: string; full_identifier: string }> = {}) {
+function makeModel(
+  overrides: Partial<{ name: string; full_identifier: string }> = {},
+) {
   return {
     name: overrides.name ?? "test-model",
     version: "latest",
@@ -43,7 +47,11 @@ function makeModel(overrides: Partial<{ name: string; full_identifier: string }>
     library: "ollama",
     full_identifier: overrides.full_identifier ?? "meta:test-model:latest",
     manifest_data: {
-      config: { mediaType: "application/json", digest: "sha256:abc", size: 100 },
+      config: {
+        mediaType: "application/json",
+        digest: "sha256:abc",
+        size: 100,
+      },
       layers: [],
     },
   };
@@ -76,7 +84,7 @@ describe("modelsStore", () => {
       mockSettingsStore.settings.modelsDirectory = null as any;
       const { modelsStore } = await import("$lib/stores/models.svelte");
 
-      await modelsStore.scan();
+      await modelsStore.scanModelsDirectory();
 
       expect(modelsStore.error).toBe("Please select a models directory first");
     });
@@ -86,12 +94,12 @@ describe("modelsStore", () => {
       mockScanModelsDirectory.mockResolvedValue(models);
 
       const { modelsStore } = await import("$lib/stores/models.svelte");
-      await modelsStore.scan();
+      await modelsStore.scanModelsDirectory();
 
       expect(mockScanModelsDirectory).toHaveBeenCalledWith("/models");
       expect(mockSaveModelLibrary).toHaveBeenCalledWith(
         "/models/modelLibrary.json",
-        models
+        models,
       );
       expect(modelsStore.models).toEqual(models);
       expect(modelsStore.successMessage).toContain("1 model(s)");
@@ -102,10 +110,10 @@ describe("modelsStore", () => {
       mockScanModelsDirectory.mockResolvedValue([]);
 
       const { modelsStore } = await import("$lib/stores/models.svelte");
-      await modelsStore.scan();
+      await modelsStore.scanModelsDirectory();
 
       expect(modelsStore.error).toBe(
-        "No models found in the selected directory"
+        "No models found in the selected directory",
       );
     });
 
@@ -113,7 +121,7 @@ describe("modelsStore", () => {
       mockScanModelsDirectory.mockRejectedValue(new Error("Scan failed"));
 
       const { modelsStore } = await import("$lib/stores/models.svelte");
-      await modelsStore.scan();
+      await modelsStore.scanModelsDirectory();
 
       expect(modelsStore.error).toContain("Failed to scan directory");
       expect(modelsStore.error).toContain("Scan failed");
@@ -124,7 +132,7 @@ describe("modelsStore", () => {
       mockScanModelsDirectory.mockRejectedValue("raw error");
 
       const { modelsStore } = await import("$lib/stores/models.svelte");
-      await modelsStore.scan();
+      await modelsStore.scanModelsDirectory();
 
       expect(modelsStore.error).toContain("raw error");
     });
@@ -139,7 +147,7 @@ describe("modelsStore", () => {
       await modelsStore.loadLibrary();
 
       expect(mockLoadModelLibrary).toHaveBeenCalledWith(
-        "/models/modelLibrary.json"
+        "/models/modelLibrary.json",
       );
       expect(modelsStore.models).toEqual(models);
       expect(modelsStore.isLoading).toBe(false);
@@ -198,7 +206,7 @@ describe("modelsStore", () => {
 
     it("sets error on failure", async () => {
       mockSelectModelsDirectory.mockRejectedValue(
-        new Error("Dialog cancelled")
+        new Error("Dialog cancelled"),
       );
 
       const { modelsStore } = await import("$lib/stores/models.svelte");
@@ -227,7 +235,7 @@ describe("modelsStore", () => {
 
       expect(mockDownloadModelFromRegistry).toHaveBeenCalledWith(
         "/models",
-        "new-model:v1"
+        "new-model:v1",
       );
       expect(modelsStore.models).toContainEqual(model);
       expect(modelsStore.successMessage).toContain("meta:new-model:v1");
@@ -257,9 +265,7 @@ describe("modelsStore", () => {
       const { modelsStore } = await import("$lib/stores/models.svelte");
       await modelsStore.download("model:v1");
 
-      expect(modelsStore.error).toBe(
-        "Please select a models directory first"
-      );
+      expect(modelsStore.error).toBe("Please select a models directory first");
     });
 
     it("sets error when reference is empty", async () => {
@@ -278,13 +284,13 @@ describe("modelsStore", () => {
 
       expect(mockDownloadModelFromRegistry).toHaveBeenCalledWith(
         "/models",
-        "model:v1"
+        "model:v1",
       );
     });
 
     it("sets error on download failure", async () => {
       mockDownloadModelFromRegistry.mockRejectedValue(
-        new Error("Network timeout")
+        new Error("Network timeout"),
       );
 
       const { modelsStore } = await import("$lib/stores/models.svelte");
@@ -426,13 +432,15 @@ describe("modelsStore", () => {
       const { modelsStore } = await import("$lib/stores/models.svelte");
 
       // Get the callback that was passed to listen during construction
-      const call = vi.mocked(listen).mock.calls.find(c => c[0] === "download:progress");
+      const call = vi
+        .mocked(listen)
+        .mock.calls.find((c) => c[0] === "download:progress");
       if (!call) throw new Error("listen not called with download:progress");
       const callback = call[1] as (event: { payload: any }) => void;
 
       // 1. Initial progress
       callback({
-        payload: { filename: "test.gguf", downloaded: 100, total: 1000 }
+        payload: { filename: "test.gguf", downloaded: 100, total: 1000 },
       });
 
       expect(modelsStore.downloads["test.gguf"]).toBeDefined();
@@ -441,10 +449,10 @@ describe("modelsStore", () => {
       // 2. Further progress (speed calculation)
       // Mock Date.now to test speed
       const now = Date.now();
-      vi.spyOn(Date, 'now').mockReturnValue(now + 1000); // 1 second later
+      vi.spyOn(Date, "now").mockReturnValue(now + 1000); // 1 second later
 
       callback({
-        payload: { filename: "test.gguf", downloaded: 300, total: 1000 }
+        payload: { filename: "test.gguf", downloaded: 300, total: 1000 },
       });
 
       expect(modelsStore.downloads["test.gguf"].downloaded).toBe(300);
@@ -453,13 +461,13 @@ describe("modelsStore", () => {
       // 3. Completion (should trigger timeout to clear)
       vi.useFakeTimers();
       callback({
-        payload: { filename: "test.gguf", downloaded: 1000, total: 1000 }
+        payload: { filename: "test.gguf", downloaded: 1000, total: 1000 },
       });
 
       expect(modelsStore.downloads["test.gguf"].downloaded).toBe(1000);
       vi.advanceTimersByTime(2000);
       expect(modelsStore.downloads["test.gguf"]).toBeUndefined();
-      
+
       vi.useRealTimers();
       vi.restoreAllMocks();
     });

@@ -24,7 +24,7 @@
 </script>
 
 <div
-  class="min-h-screen py-6 md:py-10 mx-8 flex text-foreground bg-background font-sans selection:bg-primary/30"
+  class="min-h-screen py-6 md:py-10 mx-auto w-full max-w-[1400px] px-8 flex text-foreground bg-background font-sans selection:bg-primary/30"
 >
   <!-- Main Content -->
   <main class="flex-1 flex flex-col gap-10">
@@ -234,7 +234,7 @@
             <button
               onclick={() => setChatHeaderStyle("default")}
               class="px-4 py-2 rounded-lg text-sm font-medium transition-all {settingsStore
-              .settings.chatHeaderStyle === 'default'
+                .settings.chatHeaderStyle === 'default'
                 ? 'bg-zinc-700/60 text-white shadow-sm border border-zinc-600/50'
                 : 'text-zinc-400 hover:text-zinc-200 border border-transparent'}"
             >
@@ -243,7 +243,7 @@
             <button
               onclick={() => setChatHeaderStyle("capsule")}
               class="px-4 py-2 rounded-lg text-sm font-medium transition-all {settingsStore
-              .settings.chatHeaderStyle === 'capsule'
+                .settings.chatHeaderStyle === 'capsule'
                 ? 'bg-zinc-700/60 text-white shadow-sm border border-zinc-600/50'
                 : 'text-zinc-400 hover:text-zinc-200 border border-transparent'}"
             >

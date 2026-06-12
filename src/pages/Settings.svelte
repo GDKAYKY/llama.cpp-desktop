@@ -126,7 +126,8 @@
   }
 
   function formatGpuOption(gpu: GpuInfo) {
-    const vram = gpu.vram_total_mb > 0 ? ` • ${formatVramUsage(gpu.vram_total_mb)}` : "";
+    const vram =
+      gpu.vram_total_mb > 0 ? ` • ${formatVramUsage(gpu.vram_total_mb)}` : "";
     return `${gpu.index}: ${gpu.name}${vram}`;
   }
 
@@ -290,53 +291,57 @@
   }
 </script>
 
-<div class="p-6 pt-8">
-  <div class="mb-4 flex items-center justify-between pb-6">
-    <div>
-      <div class="flex items-center gap-3">
-        <div
-          class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"
-        >
-          <SlidersIcon size={20} />
-        </div>
-        <h1 class="text-3xl font-bold tracking-tight">Settings</h1>
-      </div>
-      <p class="mt-1 text-sm text-muted-foreground">
-        Manage your preferences and application configuration
-      </p>
-    </div>
-    <div class="flex items-center gap-2">
-      <button
-        class="inline-flex items-center gap-2 rounded-lg bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
-        onclick={handleReset}
-        disabled={loading || saving}
-      >
-        <RotateCcw size={16} />
-        <span class="hidden sm:inline">Reset</span>
-      </button>
-      <button
-        class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-        onclick={handleSave}
-        disabled={loading || saving || !unsavedChanges}
-      >
-        {#if saving}
+<div class="flex h-full flex-col overflow-hidden">
+  <div class="mx-auto w-full max-w-[1400px] flex-none px-6 pt-8">
+    <div class="pb-4 flex items-center justify-between">
+      <div>
+        <div class="flex items-center gap-3">
           <div
-            class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-          ></div>
-        {:else}
-          <Save size={16} />
-        {/if}
-        {saving ? "Saving..." : "Save"}
-      </button>
+            class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"
+          >
+            <SlidersIcon size={20} />
+          </div>
+          <h1 class="text-3xl font-bold tracking-tight">Settings</h1>
+        </div>
+        <p class="mt-1 text-sm text-muted-foreground">
+          Manage your preferences and application configuration
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button
+          class="inline-flex items-center gap-2 rounded-lg bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
+          onclick={handleReset}
+          disabled={loading || saving}
+        >
+          <RotateCcw size={16} />
+          <span class="hidden sm:inline">Reset</span>
+        </button>
+        <button
+          class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          onclick={handleSave}
+          disabled={loading || saving || !unsavedChanges}
+        >
+          {#if saving}
+            <div
+              class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+            ></div>
+          {:else}
+            <Save size={16} />
+          {/if}
+          {saving ? "Saving..." : "Save"}
+        </button>
+      </div>
     </div>
   </div>
 
-  {#if loading}
-    <div class="py-10 text-center text-muted-foreground">
-      Loading configuration...
-    </div>
-  {:else}
-    <div class="flex flex-col gap-6">
+  <div
+    class="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col gap-6 overflow-y-auto px-6 pb-6"
+  >
+    {#if loading}
+      <div class="py-10 text-center text-muted-foreground">
+        Loading configuration...
+      </div>
+    {:else}
       <!-- Models Section -->
       <section class="rounded-xl bg-card p-6 shadow-sm">
         <div class="mb-6 flex items-center gap-3 pb-4">
@@ -1003,6 +1008,6 @@
           {/if}
         </div>
       </section>
-    </div>
-  {/if}
+    {/if}
+  </div>
 </div>

@@ -201,7 +201,7 @@
 <div
   bind:this={containerRef}
   class={cn(
-    "text-[15px] leading-6 md:text-base md:leading-relaxed break-words",
+    "text-[14px] leading-6 md:text-base md:leading-relaxed break-words",
     "[&_p]:mb-4 [&_p:last-child]:mb-0",
     "[&_ul]:mb-4 [&_ul]:list-disc [&_ul]:pl-6",
     "[&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:pl-6",

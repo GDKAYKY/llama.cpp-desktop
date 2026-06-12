@@ -4,12 +4,14 @@ type NotificationOptions = {
   id?: string | number;
   duration?: number;
   loading?: boolean;
+  progress?: number | null;
 };
 
 type NotificationState = {
   id: string | number | null;
   message: string;
   loading: boolean;
+  progress: number | null;
   visible: boolean;
 };
 
@@ -21,6 +23,7 @@ export const notificationState = writable<NotificationState>({
   id: null,
   message: "",
   loading: false,
+  progress: null,
   visible: false,
 });
 
@@ -39,14 +42,15 @@ function show(message: string, options: NotificationOptions = {}) {
     id,
     message,
     loading: options.loading ?? false,
+    progress: options.progress ?? null,
     visible: true,
   });
 
   if (!(options.loading ?? false)) {
     hideTimeout = setTimeout(() => {
       notificationState.update((current) =>
-        current.id === id
-          ? { ...current, visible: false, message: "", loading: false }
+          current.id === id
+          ? { ...current, visible: false, message: "", loading: false, progress: null }
           : current,
       );
       hideTimeout = null;
@@ -88,6 +92,7 @@ export const notifications = {
         visible: false,
         message: "",
         loading: false,
+        progress: null,
       };
     });
 

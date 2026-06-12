@@ -9,8 +9,8 @@
     TriangleAlert,
     Box,
     Bot,
-    Square,
     ChevronDown,
+    X,
   } from "lucide-svelte";
   import { serverStore } from "$lib/stores/server.svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
@@ -29,6 +29,25 @@
   let showAddModal = $state(false);
   let downloadReference = $state("");
   let showModels = $state(true);
+  let visibleSuccessMessage = $state("");
+  const SUCCESS_MESSAGE_DURATION_MS = 3000;
+
+  $effect(() => {
+    const message = modelsStore.successMessage;
+    visibleSuccessMessage = message;
+    if (!message) return;
+
+    const timeout = window.setTimeout(() => {
+      if (modelsStore.successMessage === message) {
+        modelsStore.successMessage = "";
+      }
+      if (visibleSuccessMessage === message) {
+        visibleSuccessMessage = "";
+      }
+    }, SUCCESS_MESSAGE_DURATION_MS);
+
+    return () => window.clearTimeout(timeout);
+  });
 
   function toggleDropdown(id: string, e: MouseEvent) {
     e.stopPropagation();
@@ -73,7 +92,7 @@
   }
 
   async function handleScanDirectory() {
-    await modelsStore.scan();
+    await modelsStore.scanModelsDirectory();
   }
 
   function handleSelectModel(model: Model) {
@@ -146,8 +165,8 @@
 
 <div class="mx-auto max-w-7xl p-6 text-foreground">
   <div class="w-full bg-background text-foreground">
-    <div class="mx-auto">
-      <div class="flex items-start justify-between">
+    <div class="mx-auto w-full">
+      <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div class="flex items-center gap-3">
             <div
@@ -167,11 +186,11 @@
           </p>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <button
             onclick={() => (showAddModal = true)}
             disabled={modelsStore.isLoading || modelsStore.isDownloading}
-            class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-[#171717] px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
+            class="cursor-pointer inline-flex items-center gap-2 rounded-3xl bg-[#171717] px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
           >
             <Plus size={16} />
             Add New
@@ -180,7 +199,7 @@
           <button
             onclick={handleSelectDirectory}
             disabled={modelsStore.isLoading || modelsStore.isDownloading}
-            class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-[#171717] px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
+            class="cursor-pointer inline-flex items-center gap-2 rounded-3xl bg-[#171717] px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
           >
             <FolderOpen size={16} />
             Select Models Directory
@@ -190,7 +209,7 @@
             <button
               onclick={handleScanDirectory}
               disabled={modelsStore.isLoading || modelsStore.isDownloading}
-              class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-blue-500/15 px-4 py-2 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/25 disabled:opacity-50"
+              class="cursor-pointer inline-flex items-center gap-2 rounded-3xl bg-blue-500/15 px-4 py-2 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/25 disabled:opacity-50"
             >
               <Scan
                 size={16}
@@ -224,7 +243,7 @@
     </div>
   {/if}
 
-  {#if modelsStore.successMessage}
+  {#if visibleSuccessMessage}
     <div
       class="mb-6 flex animate-in fade-in slide-in-from-top-2 duration-300 items-center justify-between gap-3 rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary"
     >
@@ -235,14 +254,17 @@
           <ModelLogo name={modelsStore.selectedModel?.name || ""} size={18} />
         </div>
         <div>
-          <p class="font-semibold text-foreground">Model selected</p>
+          <p class="font-semibold text-foreground">Model found</p>
           <p class="text-xs text-muted-foreground">
-            {modelsStore.successMessage}
+            {visibleSuccessMessage}
           </p>
         </div>
       </div>
       <button
-        onclick={() => modelsStore.clearMessages()}
+        onclick={() => {
+          visibleSuccessMessage = "";
+          modelsStore.clearMessages();
+        }}
         class="text-muted-foreground hover:text-foreground transition-colors"
       >
         <Check size={18} />
@@ -263,7 +285,7 @@
         onclick={() => modelsStore.clearMessages()}
         class="opacity-60 hover:opacity-100 transition-opacity"
       >
-        <Square size={14} />
+        <X size={14} />
       </button>
     </div>
   {/if}
@@ -271,27 +293,26 @@
   {#if Object.keys(modelsStore.downloads ?? {}).length > 0}
     <div class="mb-6 space-y-3">
       <h3
-        class="flex items-center gap-2 text-sm font-medium text-muted-foreground uppercase tracking-wider"
+        class="flex items-center gap-2 text-sm font-medium text-muted-foreground tracking-wider"
       >
         Active Downloads
       </h3>
-      {#each Object.values(modelsStore.downloads) as download}
-        {@const d = download as any}
+      {#each Object.entries(modelsStore.downloads) as [id, download]}
         <div class="rounded-xl bg-[#171717] p-4">
           <div class="flex items-center justify-between mb-2">
-            <span class="font-mono text-sm text-foreground">{d.reference}</span>
+            <span class="font-mono text-sm text-foreground">{id}</span>
             <span class="text-xs text-muted-foreground">
-              {(d.downloaded / 1024 / 1024).toFixed(1)} MB / {(
-                d.total /
+              {(download.downloaded / 1024 / 1024).toFixed(1)} MB / {(
+                download.total /
                 1024 /
                 1024
-              ).toFixed(1)} MB ({(d.speed / 1024 / 1024).toFixed(1)} MB/s)
+              ).toFixed(1)} MB ({(download.speed / 1024 / 1024).toFixed(1)} MB/s)
             </span>
           </div>
           <div class="h-2 w-full overflow-hidden rounded-full bg-neutral-800">
             <div
               class="h-full bg-blue-500 transition-all duration-300"
-              style={`width: ${Math.min(100, Math.max(0, (d.downloaded / d.total) * 100))}%`}
+              style={`width: ${download.percentage}%`}
             ></div>
           </div>
         </div>
@@ -311,7 +332,7 @@
         </h3>
         <div
           class={cn(
-            "flex h-[33px] w-[33px] items-center justify-center rounded-[7px] bg-[#212121] transition-all duration-200 group-hover:bg-[#2f2f33]",
+            "flex h-[33px] w-[33px] items-center justify-center rounded-[7px] bg-[#212121] transition-all duration-200",
           )}
         >
           <ChevronDown
