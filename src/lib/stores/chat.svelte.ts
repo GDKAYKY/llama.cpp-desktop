@@ -36,6 +36,13 @@ export interface ToolContext {
   toolCallId?: string;
 }
 
+export interface PendingPermission {
+  serverId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  resolve: (allow: boolean) => void;
+}
+
 class ChatStore {
   messages = $state<Message[]>([]);
   thinkingProcess = $state<string[]>([]);
@@ -46,6 +53,7 @@ class ChatStore {
   isLoading = $state(false);
   error = $state<string | null>(null);
   modelLoaded = $state(true);
+  pendingPermission = $state<PendingPermission | null>(null);
 
   // DB IDs
   activeConversationId = $state<number | null>(null);
@@ -188,6 +196,19 @@ class ChatStore {
         onStatus: (text) => this.appendThinkingStatus(text),
         onToolContext: (context) => {
           this.toolContext = [...this.toolContext, context];
+        },
+        onRequestPermission: (serverId, toolName, args) => {
+          return new Promise<boolean>((resolve) => {
+            this.pendingPermission = {
+              serverId,
+              toolName,
+              args,
+              resolve: (allow) => {
+                this.pendingPermission = null;
+                resolve(allow);
+              }
+            };
+          });
         },
       });
 
@@ -431,7 +452,7 @@ class ChatStore {
         ? [...this.thinkingProcess]
         : undefined,
       modelThinking: this.modelThinking || undefined,
-      toolContext: this.toolContext.length ? [...this.toolContext] : undefined,
+      toolContext: this.toolContext.length ? JSON.parse(JSON.stringify(this.toolContext)) : undefined,
     };
   }
 

@@ -640,10 +640,7 @@ impl McpService {
     }
 
     pub async fn tools_list(&self, id: &str) -> Result<Vec<ToolDefinition>, String> {
-        let allowlist = self
-            .get_server_allowlist(id, true)
-            .await?
-            .unwrap_or_default();
+        let allowlist = self.get_server_tool_allowlist(id).await?;
         let mut conns = self.connections.lock().await;
         let conn = conns
             .get_mut(id)
@@ -673,7 +670,7 @@ impl McpService {
             },
         };
 
-        let filtered = apply_allowlist_by_field(&tools, &allowlist, "name");
+        let filtered = apply_tool_allowlist(&tools, allowlist.as_ref());
         conn.tools_cache = filtered.clone();
         conn.last_error = None;
         let mut caps_map = self.capabilities.lock().await;
@@ -691,11 +688,8 @@ impl McpService {
         tool_name: &str,
         arguments: serde_json::Value,
     ) -> Result<serde_json::Value, String> {
-        let allowlist = self
-            .get_server_allowlist(id, true)
-            .await?
-            .unwrap_or_default();
-        if !allowlist_allows(&allowlist) && !allowlist.contains(&tool_name.to_string()) {
+        let allowlist = self.get_server_tool_allowlist(id).await?;
+        if is_tool_denied(tool_name, allowlist.as_ref()) {
             return Err("Tool not allowed".to_string());
         }
 
@@ -725,10 +719,6 @@ impl McpService {
     }
 
     pub async fn resources_list(&self, id: &str) -> Result<Vec<ResourceDefinition>, String> {
-        let allowlist = self
-            .get_server_allowlist(id, false)
-            .await?
-            .unwrap_or_default();
         let mut conns = self.connections.lock().await;
         let conn = conns
             .get_mut(id)
@@ -757,26 +747,17 @@ impl McpService {
             },
         };
 
-        let filtered = apply_allowlist_by_field(&resources, &allowlist, "uri");
-        conn.resources_cache = filtered.clone();
+        conn.resources_cache = resources.clone();
         conn.last_error = None;
         let mut caps_map = self.capabilities.lock().await;
         let caps = caps_map.entry(id.to_string()).or_default();
         caps.has_resources_list = true;
         caps.supports_resources_read = true;
         caps.last_error = None;
-        Ok(filtered)
+        Ok(resources)
     }
 
     pub async fn resources_read(&self, id: &str, uri: &str) -> Result<serde_json::Value, String> {
-        let allowlist = self
-            .get_server_allowlist(id, false)
-            .await?
-            .unwrap_or_default();
-        if !allowlist_allows(&allowlist) && !allowlist.contains(&uri.to_string()) {
-            return Err("Resource not allowed".to_string());
-        }
-
         let mut conns = self.connections.lock().await;
         let conn = conns
             .get_mut(id)
@@ -802,22 +783,17 @@ impl McpService {
         }
     }
 
-    async fn get_server_allowlist(
+    async fn get_server_tool_allowlist(
         &self,
         id: &str,
-        tools: bool,
-    ) -> Result<Option<Vec<String>>, String> {
+    ) -> Result<Option<HashMap<String, String>>, String> {
         let cfg = self.config.lock().await;
         let server = cfg
             .servers
             .iter()
             .find(|s| s.id == id)
             .ok_or_else(|| "Server not found".to_string())?;
-        if tools {
-            Ok(server.tool_allowlist.clone())
-        } else {
-            Ok(server.resource_allowlist.clone())
-        }
+        Ok(server.tool_allowlist.clone())
     }
 }
 
@@ -859,26 +835,29 @@ fn extract_inferred_tools(tools: &[ToolDefinition]) -> Vec<McpInferredTool> {
         .collect()
 }
 
-pub fn apply_allowlist_by_field(
+pub fn apply_tool_allowlist(
     items: &[serde_json::Value],
-    allowlist: &[String],
-    field: &str,
+    allowlist: Option<&HashMap<String, String>>,
 ) -> Vec<serde_json::Value> {
-    if allowlist_allows(allowlist) {
+    let Some(map) = allowlist else {
         return items.to_vec();
-    }
+    };
+
     items
         .iter()
         .filter(|item| {
-            item.get(field)
-                .and_then(|v| v.as_str())
-                .map(|name| allowlist.contains(&name.to_string()))
-                .unwrap_or(false)
+            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let permission = map.get(name).map(|s| s.as_str()).unwrap_or("ask");
+            permission != "deny"
         })
         .cloned()
         .collect()
 }
 
-fn allowlist_allows(allowlist: &[String]) -> bool {
-    allowlist.is_empty() || allowlist.iter().any(|item| item == "*")
+fn is_tool_denied(tool_name: &str, allowlist: Option<&HashMap<String, String>>) -> bool {
+    let Some(map) = allowlist else {
+        return false;
+    };
+    let permission = map.get(tool_name).map(|s| s.as_str()).unwrap_or("ask");
+    permission == "deny"
 }

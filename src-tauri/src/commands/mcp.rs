@@ -260,8 +260,7 @@ fn build_server_from_object(obj: &serde_json::Map<String, Value>) -> Option<McpS
             .and_then(|v| v.as_str())
             .map(|v| v.to_string()),
         headers: parse_string_map(obj.get("headers")),
-        tool_allowlist: parse_string_list(obj.get("tool_allowlist")),
-        resource_allowlist: parse_string_list(obj.get("resource_allowlist")),
+        tool_allowlist: parse_string_map(obj.get("tool_allowlist")),
     })
 }
 
@@ -298,8 +297,7 @@ fn build_server_from_legacy_map(
             .and_then(|v| v.as_str())
             .map(|v| v.to_string()),
         headers: parse_string_map(obj.get("headers")),
-        tool_allowlist: parse_string_list(obj.get("tool_allowlist")),
-        resource_allowlist: parse_string_list(obj.get("resource_allowlist")),
+        tool_allowlist: parse_string_map(obj.get("tool_allowlist")),
     }
 }
 

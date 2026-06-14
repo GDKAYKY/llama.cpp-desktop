@@ -108,7 +108,6 @@ fn default_tavily_config() -> McpConfig {
             url: Some("https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>".to_string()),
             headers: None,
             tool_allowlist: None,
-            resource_allowlist: None,
         }],
     }
 }

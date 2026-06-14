@@ -24,6 +24,11 @@
     Server,
     FileCode,
     ClipboardPaste,
+    ChevronDown,
+    Hand,
+    Ban,
+    CheckCircle,
+    MoreHorizontal,
   } from "lucide-svelte";
   import { SiModelcontextprotocol } from "@icons-pack/svelte-simple-icons";
   import Dropdown from "$components/ui/Dropdown.svelte";
@@ -33,6 +38,26 @@
   let selectedId = $state<string | null>(null);
   let saving = $state(false);
   let initializing = $state(true);
+
+  type ToolPermission = "allow" | "ask" | "deny";
+  interface ToolItem {
+    id: string;
+    name: string;
+    category: "read" | "write";
+    permission: ToolPermission;
+  }
+
+  let toolsList = $state<ToolItem[]>([
+    { id: "snapshot", name: "Snapshot", category: "read", permission: "ask" },
+    { id: "screenshot", name: "Screenshot", category: "read", permission: "ask" },
+    { id: "wait", name: "Wait", category: "read", permission: "ask" },
+    { id: "scrape", name: "Scrape", category: "read", permission: "ask" },
+    { id: "app", name: "App", category: "write", permission: "ask" },
+    { id: "powershell", name: "PowerShell", category: "write", permission: "ask" },
+  ]);
+
+  let readExpanded = $state(true);
+  let writeExpanded = $state(true);
   const defaultServerIds = $derived.by(
     () => new Set(mcpStore.defaultServers.map((server) => server.id)),
   );
@@ -56,8 +81,6 @@
     env: "",
     url: "",
     headers: "",
-    tool_allowlist: "",
-    resource_allowlist: "",
   });
 
   onMount(async () => {
@@ -90,10 +113,9 @@
       env: "",
       url: "",
       headers: "",
-      tool_allowlist: "",
-      resource_allowlist: "",
     };
     selectedId = null;
+    toolsList = [];
   }
 
   function selectServer(server: McpServerConfig) {
@@ -109,9 +131,29 @@
       env: mapToText(server.env ?? {}),
       url: server.url ?? "",
       headers: mapToText(server.headers ?? {}),
-      tool_allowlist: (server.tool_allowlist ?? []).join("\n"),
-      resource_allowlist: (server.resource_allowlist ?? []).join("\n"),
     };
+
+    const savedPermissions = server.tool_allowlist ?? {};
+    const existingTools = mcpStore.toolsMap[server.id] ?? [];
+    if (existingTools.length > 0) {
+      toolsList = existingTools.map((t) => {
+        const name = String(t.name || "");
+        const isRead = name.startsWith("get_") || name.startsWith("read_") || name.startsWith("list_");
+        return {
+          id: name,
+          name: name,
+          category: isRead ? "read" : "write",
+          permission: (savedPermissions[name] as ToolPermission) || "ask"
+        };
+      });
+    } else {
+      toolsList = [];
+    }
+  }
+
+  function setBatchPermission(category: "read" | "write", permission: string) {
+    if (permission === "custom") return;
+    toolsList = toolsList.map(t => t.category === category ? { ...t, permission: permission as ToolPermission } : t);
   }
 
   function mapToText(map: Record<string, string>) {
@@ -149,8 +191,12 @@
     const env = form.transport === "stdio" ? textToMap(form.env) : {};
     const headers =
       form.transport === "http_sse" ? textToMap(form.headers) : {};
-    const toolAllow = textToList(form.tool_allowlist);
-    const resourceAllow = textToList(form.resource_allowlist);
+    
+    const toolAllow = toolsList.reduce((acc, tool) => {
+      acc[tool.name] = tool.permission;
+      return acc;
+    }, {} as Record<string, string>);
+
     return {
       id: form.id.trim(),
       name: form.name.trim(),
@@ -172,8 +218,7 @@
             ? headers
             : null
           : null,
-      tool_allowlist: toolAllow.length ? toolAllow : null,
-      resource_allowlist: resourceAllow.length ? resourceAllow : null,
+      tool_allowlist: Object.keys(toolAllow).length ? toolAllow : null,
     };
   }
 
@@ -300,9 +345,24 @@
       env: transport === "stdio" ? mapToText(server.env ?? {}) : "",
       url: transport === "http_sse" ? (server.url ?? "") : "",
       headers: transport === "http_sse" ? mapToText(server.headers ?? {}) : "",
-      tool_allowlist: (server.tool_allowlist ?? []).join("\n"),
-      resource_allowlist: (server.resource_allowlist ?? []).join("\n"),
     };
+
+    const savedPermissions = server.tool_allowlist ?? {};
+    const existingTools = server.id ? (mcpStore.toolsMap[server.id] ?? []) : [];
+    if (existingTools.length > 0) {
+      toolsList = existingTools.map((t: any) => {
+        const name = String(t.name || "");
+        const isRead = name.startsWith("get_") || name.startsWith("read_") || name.startsWith("list_");
+        return {
+          id: name,
+          name: name,
+          category: isRead ? "read" : "write",
+          permission: (savedPermissions[name] as ToolPermission) || "ask"
+        };
+      });
+    } else {
+      toolsList = [];
+    }
   }
 
   async function handlePasteConfig() {
@@ -749,36 +809,127 @@
           {/if}
 
           <div class="mt-6 grid gap-4 md:grid-cols-2">
-            <div class="space-y-1.5">
-              <label
-                for="mcp-tool-allowlist"
-                class="text-xs font-medium text-muted-foreground flex items-center gap-2"
-              >
-                <KeyRound size={14} />
-                Tool Allowlist (one per line)
-              </label>
-              <textarea
-                id="mcp-tool-allowlist"
-                class="h-24 w-full rounded-md bg-muted/50 px-3 py-2 text-xs font-mono outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
-                bind:value={form.tool_allowlist}
-                placeholder="tool.one\ntool.two"
-              ></textarea>
+            <div class="space-y-6 text-[#e5e5e5] p-4 bg-[#1e1e1e] rounded-lg font-sans md:col-span-2 border border-[#27272a]">
+              <div class="space-y-1">
+                <h2 class="text-lg font-semibold text-white">Permissões de ferramentas</h2>
+                <p class="text-sm text-[#a1a1aa]">Escolha quando o Claude pode usar essas ferramentas.</p>
+              </div>
+
+              <div class="space-y-4">
+                <!-- Read Tools -->
+                <div class="space-y-1">
+                  <div class="flex items-center justify-between py-2">
+                    <button 
+                      class="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
+                      onclick={() => readExpanded = !readExpanded}
+                    >
+                      <ChevronDown size={16} class={`text-[#e5e5e5] transition-transform ${!readExpanded ? '-rotate-90' : ''}`} />
+                      <span class="text-sm font-medium">Ferramentas somente leitura</span>
+                      <span class="bg-[#27272a] text-[#a1a1aa] text-xs px-2 py-0.5 rounded-md">4</span>
+                    </button>
+                    <Dropdown 
+                      items={[
+                        { label: "Always allow", value: "allow", icon: CheckCircle },
+                        { label: "Ask permission", value: "ask", icon: Hand },
+                        { label: "Blocked", value: "deny", icon: Ban },
+                        { label: "Custom", value: "custom", icon: MoreHorizontal }
+                      ]}
+                      value="custom"
+                      onSelect={(val) => setBatchPermission('read', val)}
+                      triggerClass="bg-[#27272a] hover:bg-[#3f3f46] border-[#3f3f46] text-[#e5e5e5] h-8 px-3 rounded-lg"
+                      contentClass="w-[200px]"
+                    />
+                  </div>
+
+                  {#if readExpanded}
+                    <div class="flex flex-col">
+                      {#each toolsList.filter(t => t.category === 'read') as tool}
+                        <div class="flex items-center justify-between py-3 border-t border-[#27272a] ml-[26px]">
+                          <span class="text-sm text-[#a1a1aa] font-medium">{tool.name}</span>
+                          <div class="flex items-center bg-[#18181b] p-1 rounded-lg border border-[#27272a]">
+                            <button 
+                              onclick={() => tool.permission = 'allow'}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'allow' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                            >
+                              <CheckCircle size={16} />
+                            </button>
+                            <button 
+                              onclick={() => tool.permission = 'ask'}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'ask' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                            >
+                              <Hand size={16} />
+                            </button>
+                            <button 
+                              onclick={() => tool.permission = 'deny'}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'deny' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                            >
+                              <Ban size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+
+                <!-- Write Tools -->
+                <div class="space-y-1">
+                  <div class="flex items-center justify-between py-2">
+                    <button 
+                      class="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
+                      onclick={() => writeExpanded = !writeExpanded}
+                    >
+                      <ChevronDown size={16} class={`text-[#e5e5e5] transition-transform ${!writeExpanded ? '-rotate-90' : ''}`} />
+                      <span class="text-sm font-medium">Ferramentas de gravação/exclusão</span>
+                      <span class="bg-[#27272a] text-[#a1a1aa] text-xs px-2 py-0.5 rounded-md">14</span>
+                    </button>
+                    <Dropdown 
+                      items={[
+                        { label: "Always allow", value: "allow", icon: CheckCircle },
+                        { label: "Ask permission", value: "ask", icon: Hand },
+                        { label: "Blocked", value: "deny", icon: Ban },
+                        { label: "Custom", value: "custom", icon: MoreHorizontal }
+                      ]}
+                      value="custom"
+                      onSelect={(val) => setBatchPermission('write', val)}
+                      triggerClass="bg-[#27272a] hover:bg-[#3f3f46] border-[#3f3f46] text-[#e5e5e5] h-8 px-3 rounded-lg"
+                      contentClass="w-[200px]"
+                    />
+                  </div>
+
+                  {#if writeExpanded}
+                    <div class="flex flex-col">
+                      {#each toolsList.filter(t => t.category === 'write') as tool}
+                        <div class="flex items-center justify-between py-3 border-t border-[#27272a] ml-[26px]">
+                          <span class="text-sm text-[#a1a1aa] font-medium">{tool.name}</span>
+                          <div class="flex items-center bg-[#18181b] p-1 rounded-lg border border-[#27272a]">
+                            <button 
+                              onclick={() => tool.permission = 'allow'}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'allow' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                            >
+                              <CheckCircle size={16} />
+                            </button>
+                            <button 
+                              onclick={() => tool.permission = 'ask'}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'ask' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                            >
+                              <Hand size={16} />
+                            </button>
+                            <button 
+                              onclick={() => tool.permission = 'deny'}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'deny' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                            >
+                              <Ban size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              </div>
             </div>
-            <div class="space-y-1.5">
-              <label
-                for="mcp-resource-allowlist"
-                class="text-xs font-medium text-muted-foreground flex items-center gap-2"
-              >
-                <Cable size={14} />
-                Resource Allowlist (one per line)
-              </label>
-              <textarea
-                id="mcp-resource-allowlist"
-                class="h-24 w-full rounded-md bg-muted/50 px-3 py-2 text-xs font-mono outline-none transition-colors hover:bg-muted/60 focus:ring-1 focus:ring-primary/20"
-                bind:value={form.resource_allowlist}
-                placeholder="file:///path\nmcp://resource"
-              ></textarea>
-            </div>
+
           </div>
 
           <div class="mt-6 flex items-center gap-2">

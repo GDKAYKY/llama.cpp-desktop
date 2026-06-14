@@ -21,8 +21,7 @@ pub struct McpServerConfig {
     pub env: Option<HashMap<String, String>>,
     pub url: Option<String>,
     pub headers: Option<HashMap<String, String>>,
-    pub tool_allowlist: Option<Vec<String>>,
-    pub resource_allowlist: Option<Vec<String>>,
+    pub tool_allowlist: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

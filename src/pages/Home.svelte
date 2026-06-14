@@ -2,6 +2,7 @@
   import { tick, onMount } from "svelte";
   import ChatHeader from "$components/layout/chat/ChatHeader.svelte";
   import ChatMessages from "$components/chat/ChatMessageList.svelte";
+  import ToolPermissionPrompt from "$components/chat/ToolPermissionPrompt.svelte";
   import ChatForm from "$components/chat/ChatForm.svelte";
   import SessionInfoPanel from "$components/layout/chat/SessionInfoPanel.svelte";
   import { notifications } from "$lib/shared/notifications";
@@ -248,10 +249,15 @@
             <!-- Floating Chat Form at the bottom -->
             <div
               class="pointer-events-none sticky bottom-0 z-10 mt-auto flex w-full flex-col items-center pb-2"
-              style="background: linear-gradient(to bottom, transparent 40%, #212121 40%)"
             >
+              {#if chatStore.pendingPermission}
+                <ToolPermissionPrompt permission={chatStore.pendingPermission} />
+              {/if}
+
+              <!-- Gradient overlay to blend bottom edge -->
               <div
                 class="pointer-events-auto w-full flex flex-col items-center"
+                style="background: linear-gradient(to bottom, transparent 40%, #212121 40%)"
               >
                 <ChatForm
                   bind:userInput

@@ -225,8 +225,7 @@ export interface McpServerConfig {
   env?: Record<string, string> | null;
   url?: string | null;
   headers?: Record<string, string> | null;
-  tool_allowlist?: string[] | null;
-  resource_allowlist?: string[] | null;
+  tool_allowlist?: Record<string, string> | null;
 }
 
 export interface McpConfig {

@@ -37,6 +37,7 @@ export interface RunLocalChatOptions {
   onThinkingChunk: (text: string) => void;
   onStatus: (text: string) => void;
   onToolContext: (context: ToolContext) => void;
+  onRequestPermission?: (serverId: string, toolName: string, args: Record<string, unknown>) => Promise<boolean>;
 }
 
 export async function runLocalChat(options: RunLocalChatOptions): Promise<string> {
@@ -47,6 +48,7 @@ export async function runLocalChat(options: RunLocalChatOptions): Promise<string
     userInput: options.userInput,
     onStatus: options.onStatus,
     onToolContext: options.onToolContext,
+    onRequestPermission: options.onRequestPermission,
   });
   const parser = new ThinkingStreamParser();
   let fullText = "";
@@ -194,6 +196,7 @@ async function buildMcpTools(options: {
   userInput: string;
   onStatus: (text: string) => void;
   onToolContext: (context: ToolContext) => void;
+  onRequestPermission?: (serverId: string, toolName: string, args: Record<string, unknown>) => Promise<boolean>;
 }): Promise<ToolSet> {
   const { mentionedIds, cleanedInput } = extractMcpIds(options.userInput);
   const servers = (await invokeCommand("mcp_list_servers", {})) as McpServerConfig[];
@@ -207,6 +210,7 @@ async function buildMcpTools(options: {
     const connected = await ensureMcpConnected(server.id);
     if (!connected) continue;
 
+    const toolAllowlist = server.tool_allowlist ?? {};
     const definitions = await safeListTools(server.id);
     for (const definition of definitions) {
       const toolName = getToolName(definition);
@@ -220,6 +224,19 @@ async function buildMcpTools(options: {
         inputSchema: jsonSchema(schema as any),
         execute: async (input, execution) => {
           const args = isRecord(input) ? input : {};
+
+          const permission = toolAllowlist[toolName] || "ask";
+          if (permission === "deny") {
+            throw new Error(`Tool ${toolName} execution denied by configuration.`);
+          }
+          if (permission === "ask" && options.onRequestPermission) {
+            options.onStatus(`Waiting for permission to run ${toolName}...`);
+            const allowed = await options.onRequestPermission(server.id, toolName, args);
+            if (!allowed) {
+              throw new Error(`User denied permission to execute tool ${toolName}.`);
+            }
+          }
+
           options.onStatus(`Calling MCP tool ${server.id}::${toolName}`);
           const result = await invokeCommand("mcp_tools_call", {
             id: server.id,
