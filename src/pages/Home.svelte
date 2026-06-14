@@ -205,10 +205,10 @@
       />
 
       <!-- Background mock behind the rounded chat window -->
-      <div class="bg-[#171717]" style="height: calc(100% - 60px)">
+      <div class="bg-[#171717]" style="height: {uiStore.isSidebarHidden ? '100%' : 'calc(100% - 60px)'}">
         <!-- Body — scrollable chat content -->
         <div
-          class="flex h-full min-h-0 flex-col overflow-y-auto rounded-t-lg bg-background"
+          class="flex h-full min-h-0 flex-col overflow-y-auto rounded-t-lg bg-background {uiStore.isSidebarHidden ? 'pt-[60px]' : ''}"
         >
           {#if isEmpty}
             <div class="flex grow items-center justify-center">
