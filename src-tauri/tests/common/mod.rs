@@ -1,6 +1,6 @@
 use llama_desktop_lib::models::*;
 use tempfile::TempDir;
-use tokio::process::{Child, Command};
+use tokio::process::{ Child, Command };
 
 pub fn sample_llama_config() -> LlamaCppConfig {
     LlamaCppConfig {
@@ -10,10 +10,12 @@ pub fn sample_llama_config() -> LlamaCppConfig {
         ctx_size: 2048,
         parallel: 1,
         n_gpu_layers: 0,
+        gpu_device: "0".to_string(),
         jinja: true,
         extra_args: Vec::new(),
         chat_template: None,
         chat_template_file: None,
+        gpu_layer_strategy: todo!(),
     }
 }
 
@@ -50,13 +52,7 @@ pub fn temp_dir() -> TempDir {
 
 pub fn spawn_sleep_process() -> std::io::Result<Child> {
     if cfg!(windows) {
-        Command::new("cmd")
-            .arg("/C")
-            .arg("timeout")
-            .arg("/T")
-            .arg("1000")
-            .arg("/NOBREAK")
-            .spawn()
+        Command::new("cmd").arg("/C").arg("timeout").arg("/T").arg("1000").arg("/NOBREAK").spawn()
     } else {
         Command::new("sleep").arg("1000").spawn()
     }

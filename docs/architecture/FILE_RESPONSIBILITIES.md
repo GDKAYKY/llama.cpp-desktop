@@ -5,15 +5,25 @@ This document provides a detailed breakdown of the responsibilities for each maj
 ## 1. Infrastructure Layer (`src-tauri/src/infrastructure`)
 *The "Interface" to the outside world. No business state, only IO.*
 
-- **`nvidia_smi.rs`**: 
-    - **Owner**: Hardware Telemetry
-    - **Logic**: Executes `nvidia-smi`, parses CSV output.
-    - **Responsibilities**: Converting external command results into usable Rust types (`f32` percentages).
+- **`gpu/hardware_metrics.rs`**: 
+    - **Owner**: Centralized Hardware Metrics Collection
+    - **Logic**: Aggregates CPU/RAM/GPU metrics from multiple platform-specific sources.
+    - **Components**:
+        - `SystemMetricsProvider`: Provides CPU usage (%) and RAM usage (bytes) via `sysinfo` crate.
+        - `NvmlMetricsProvider`: NVIDIA GPU metrics (VRAM, utilization, temperature) via NVIDIA NVML SDK (Windows only).
+        - `PdhMetricsProvider`: Windows GPU metrics (VRAM, utilization) via Windows PDH (Performance Data Helper) counters.
+        - `WgpuDetector`: GPU enumeration (name, vendor, index) via wgpu, includes integrated GPUs and non-NVIDIA cards.
+        - `FallbackGpuMetricsProvider`: Tries NVML → PDH → wgpu in fallback order for complete coverage.
+        - `MetricsProvider` trait: Single interface for all metrics snapshotting.
+    - **Responsibilities**: 
+        - Produce `ServerMetrics` snapshots (CPU, RAM, GPU, VRAM) for a given PID.
+        - Automatically select and compose best available metrics provider for the platform.
+        - Handle platform-specific APIs (Windows PDH, NVIDIA NVML) transparently.
 
-- **`metrics.rs`**:
-    - **Owner**: Metrics Snapshotting
-    - **Logic**: Uses `sysinfo` for CPU/RAM and `nvidia-smi` for GPU/VRAM.
-    - **Responsibilities**: Produces `ServerMetrics` snapshots for a given PID.
+- **`gpu/mod.rs`**:
+    - **Owner**: Module API Surface
+    - **Responsibilities**: Re-export public types and providers from `hardware_metrics.rs`.
+
 
 - **`llama/process.rs`**:
     - **Owner**: Process Registry

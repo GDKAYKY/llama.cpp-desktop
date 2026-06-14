@@ -16,8 +16,6 @@ pub mod infrastructure {
         pub mod process;
         pub mod server;
     }
-    pub mod metrics;
-    pub mod nvidia_smi;
 }
 
 #[cfg(not(test))]

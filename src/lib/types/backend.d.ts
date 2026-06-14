@@ -196,6 +196,7 @@ export interface StartServerBaseOptions {
   port: number;
   ctxSize: number;
   nGpuLayers: number;
+  gpuDevice?: string;
   jinja: boolean;
   parallel?: number;
   extraArgs?: string[];

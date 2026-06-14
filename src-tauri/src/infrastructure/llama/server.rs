@@ -1,8 +1,8 @@
-use crate::models::{ChatRequest, LlamaCppConfig, ModelInfo};
-use std::path::{Path, PathBuf};
+use crate::models::{ ChatRequest, LlamaCppConfig, ModelInfo };
+use std::path::{ Path, PathBuf };
 use std::process::Stdio;
 use std::time::Duration;
-use tokio::process::{Child, Command};
+use tokio::process::{ Child, Command };
 use tokio::sync::mpsc;
 pub struct LlamaServer;
 
@@ -17,7 +17,7 @@ fn ensure_non_empty_input(value: &str, label: &str) -> Result<(), String> {
 fn validate_existing_file_with_extension(
     value: impl AsRef<Path>,
     label: &str,
-    expected_extensions: &[&str],
+    expected_extensions: &[&str]
 ) -> Result<PathBuf, String> {
     let path = value.as_ref();
     let value = path.to_string_lossy();
@@ -44,9 +44,10 @@ fn validate_existing_file_with_extension(
             format!("{} must have an extension of {}", label, extensions)
         })?;
 
-    if expected_extensions
-        .iter()
-        .any(|expected| extension.eq_ignore_ascii_case(expected.trim_start_matches('.')))
+    if
+        expected_extensions
+            .iter()
+            .any(|expected| extension.eq_ignore_ascii_case(expected.trim_start_matches('.')))
     {
         Ok(path)
     } else {
@@ -55,10 +56,7 @@ fn validate_existing_file_with_extension(
             .map(|ext| format!(".{}", ext.trim_start_matches('.')))
             .collect::<Vec<_>>()
             .join(" or ");
-        Err(format!(
-            "{} must have an extension of {}",
-            label, extensions
-        ))
+        Err(format!("{} must have an extension of {}", label, extensions))
     }
 }
 
@@ -98,14 +96,13 @@ fn validate_binary_path(value: &str) -> Result<PathBuf, String> {
                 )
             })?;
 
-        if !["exe", "cmd", "bat"]
-            .iter()
-            .any(|expected| extension.eq_ignore_ascii_case(expected))
-        {
-            return Err(format!(
-                "binary_path must point to a .exe, .cmd, or .bat file when using a file path: {}",
-                path.display()
-            ));
+        if !["exe", "cmd", "bat"].iter().any(|expected| extension.eq_ignore_ascii_case(expected)) {
+            return Err(
+                format!(
+                    "binary_path must point to a .exe, .cmd, or .bat file when using a file path: {}",
+                    path.display()
+                )
+            );
         }
     }
 
@@ -117,10 +114,7 @@ fn validate_inline_chat_template(template: &str) -> Result<(), String> {
 }
 
 fn matches_managed_flag(arg: &str, flag: &str) -> bool {
-    arg == flag
-        || arg
-            .strip_prefix(flag)
-            .is_some_and(|suffix| suffix.starts_with('='))
+    arg == flag || arg.strip_prefix(flag).is_some_and(|suffix| suffix.starts_with('='))
 }
 
 fn validate_extra_args(extra_args: &[String]) -> Result<(), String> {
@@ -143,15 +137,14 @@ fn validate_extra_args(extra_args: &[String]) -> Result<(), String> {
     for arg in extra_args {
         ensure_non_empty_input(arg, "extra_args entry")?;
 
-        if let Some(flag) = MANAGED_FLAGS
-            .iter()
-            .copied()
-            .find(|flag| matches_managed_flag(arg, flag))
+        if
+            let Some(flag) = MANAGED_FLAGS.iter()
+                .copied()
+                .find(|flag| matches_managed_flag(arg, flag))
         {
-            return Err(format!(
-                "extra_args cannot override managed flag {}. Update the corresponding app setting instead.",
-                flag
-            ));
+            return Err(
+                format!("extra_args cannot override managed flag {}. Update the corresponding app setting instead.", flag)
+            );
         }
     }
 
@@ -162,7 +155,7 @@ impl LlamaServer {
     pub async fn spawn(
         model_entry: Option<ModelInfo>,
         config: LlamaCppConfig,
-        client: reqwest::Client,
+        client: reqwest::Client
     ) -> Result<(u16, Child), String> {
         println!("Starting model with config: {:?}", config);
         let model_path = if let Some(entry) = model_entry {
@@ -205,7 +198,7 @@ impl LlamaServer {
                         "build/bin/Release/llama-server.exe",
                         "build/bin/Release/llama-server.cmd",
                         "bin/llama-server.exe",
-                        "bin/llama-server.cmd",
+                        "bin/llama-server.cmd"
                     ]
                 } else {
                     vec!["build/bin/Release/llama-server", "bin/llama-server"]
@@ -221,20 +214,13 @@ impl LlamaServer {
             }
 
             if !found && !is_exec {
-                let suffix = if cfg!(windows) {
-                    "llama-server.exe"
-                } else {
-                    "llama-server"
-                };
+                let suffix = if cfg!(windows) { "llama-server.exe" } else { "llama-server" };
                 llama_server_path = llama_server_path.join(suffix);
             }
         }
 
         if !llama_server_path.exists() {
-            return Err(format!(
-                "llama-server executable not found: {:?}",
-                llama_server_path
-            ));
+            return Err(format!("llama-server executable not found: {:?}", llama_server_path));
         }
 
         if config.chat_template.is_some() && config.chat_template_file.is_some() {
@@ -253,7 +239,8 @@ impl LlamaServer {
 
         println!(
             "[Infrastructure] Spawning llama-server at: {:?} with port {}",
-            llama_server_path, config.port
+            llama_server_path,
+            config.port
         );
         let binary_dir = llama_server_path.parent().unwrap_or(Path::new("."));
 
@@ -274,9 +261,22 @@ impl LlamaServer {
             .arg("-c")
             .arg(config.ctx_size.to_string())
             .arg("-np")
-            .arg(config.parallel.to_string())
-            .arg("-ngl")
-            .arg(config.n_gpu_layers.to_string());
+            .arg(config.parallel.to_string());
+
+        // Handle GPU layer allocation strategy
+        match config.gpu_layer_strategy {
+            crate::models::GpuLayerStrategy::Manual => {
+                cmd.arg("-ngl").arg(config.n_gpu_layers.to_string());
+            }
+            crate::models::GpuLayerStrategy::Fit => {
+                cmd.arg("--fit");
+            }
+            crate::models::GpuLayerStrategy::All => {
+                cmd.arg("-ngl").arg("99");
+            }
+        }
+
+        cmd.arg("-mg").arg(&config.gpu_device);
 
         if config.jinja {
             cmd.arg("--jinja");
@@ -294,9 +294,7 @@ impl LlamaServer {
             cmd.arg("--chat-template-file").arg(template_file);
         }
 
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| format!("Failed to spawn llama-server: {}", e))?;
+        let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn llama-server: {}", e))?;
 
         Self::pipe_output(&mut child);
 
@@ -316,12 +314,7 @@ impl LlamaServer {
                 return Err(format!("llama-server exited early with status: {}", status));
             }
 
-            if let Ok(res) = client
-                .get(&health_url)
-                .timeout(Duration::from_secs(1))
-                .send()
-                .await
-            {
+            if let Ok(res) = client.get(&health_url).timeout(Duration::from_secs(1)).send().await {
                 if res.status().is_success() {
                     return Ok((port, child));
                 }
@@ -369,7 +362,7 @@ impl LlamaServer {
     pub async fn stream_chat(
         client: reqwest::Client,
         port: u16,
-        request: ChatRequest,
+        request: ChatRequest
     ) -> Result<mpsc::Receiver<String>, String> {
         let url = format!("http://localhost:{}/v1/chat/completions", port);
         let (tx, rx) = mpsc::channel(32);
@@ -379,14 +372,11 @@ impl LlamaServer {
                 .post(&url)
                 .json(&request)
                 .timeout(Duration::from_secs(300))
-                .send()
-                .await;
+                .send().await;
             match res {
                 Ok(mut response) => {
                     if !response.status().is_success() {
-                        let _ = tx
-                            .send(format!("Error: Status {}", response.status()))
-                            .await;
+                        let _ = tx.send(format!("Error: Status {}", response.status())).await;
                         return;
                     }
                     let mut buffer = String::new();
@@ -416,7 +406,9 @@ impl LlamaServer {
                                     return;
                                 }
 
-                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(payload)
+                                if
+                                    let Ok(json) =
+                                        serde_json::from_str::<serde_json::Value>(payload)
                                 {
                                     let chunks = extract_stream_chunks(&json);
                                     if !chunks.is_empty() {
@@ -442,15 +434,14 @@ impl LlamaServer {
     pub async fn chat_completion(
         client: reqwest::Client,
         port: u16,
-        request: ChatRequest,
+        request: ChatRequest
     ) -> Result<serde_json::Value, String> {
         let url = format!("http://localhost:{}/v1/chat/completions", port);
         let response = client
             .post(&url)
             .json(&request)
             .timeout(Duration::from_secs(300))
-            .send()
-            .await
+            .send().await
             .map_err(|e| format!("HTTP request failed: {}", e))?;
 
         if !response.status().is_success() {
@@ -463,8 +454,7 @@ impl LlamaServer {
         }
 
         response
-            .json::<serde_json::Value>()
-            .await
+            .json::<serde_json::Value>().await
             .map_err(|e| format!("Failed to parse response: {}", e))
     }
 }

@@ -5,6 +5,7 @@ import type {
     ServerMetrics,
     StartServerOptions,
 } from '$lib/types/backend';
+import { withMainGpuArg } from '$lib/services/gpu_args';
 
 export interface ServerStatus {
     isRunning: boolean;
@@ -61,7 +62,7 @@ class ServerStore {
             return;
         }
 
-        const extraArgs = this.normalizeArgs(options.extraArgs);
+        const extraArgs = this.normalizeArgs(withMainGpuArg(options.extraArgs, options.gpuDevice));
 
         if (
             this.isRunning &&

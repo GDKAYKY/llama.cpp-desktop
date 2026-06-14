@@ -1,10 +1,13 @@
 use llama_desktop_lib::commands::llama_cpp::{
-    check_server_health_with_service, get_llama_config_with_service,
-    get_server_metrics_with_service, is_server_running_with_service,
-    start_llama_server_with_service, stop_llama_server_with_service,
+    check_server_health_with_service,
+    get_llama_config_with_service,
+    get_server_metrics_with_service,
+    is_server_running_with_service,
+    start_llama_server_with_service,
+    stop_llama_server_with_service,
 };
-use llama_desktop_lib::models::{LlamaCppConfig, ServerMetrics};
-use llama_desktop_lib::services::llama::{ActorMessage, LlamaCppService};
+use llama_desktop_lib::models::{ LlamaCppConfig, ServerMetrics };
+use llama_desktop_lib::services::llama::{ ActorMessage, LlamaCppService };
 use tokio::sync::mpsc;
 
 fn sample_config() -> LlamaCppConfig {
@@ -15,6 +18,7 @@ fn sample_config() -> LlamaCppConfig {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        gpu_device: "0".to_string(),
         jinja: true,
         extra_args: Vec::new(),
         chat_template: None,
@@ -76,20 +80,14 @@ async fn start_stop_and_status_helpers_work() {
         None,
         None,
         None,
-        None,
-    )
-    .await
-    .expect("start");
+        None
+    ).await.expect("start");
     assert_eq!(pid, "123");
 
-    let stopped = stop_llama_server_with_service(&service)
-        .await
-        .expect("stop");
+    let stopped = stop_llama_server_with_service(&service).await.expect("stop");
     assert_eq!(stopped, "Server stopped");
 
-    let running = is_server_running_with_service(&service)
-        .await
-        .expect("status");
+    let running = is_server_running_with_service(&service).await.expect("status");
     assert!(!running);
 }
 
@@ -97,8 +95,7 @@ async fn start_stop_and_status_helpers_work() {
 async fn config_and_metrics_helpers_return_values() {
     let service = mock_service(false);
 
-    let config = get_llama_config_with_service(&service)
-        .await
+    let config = get_llama_config_with_service(&service).await
         .expect("config")
         .expect("config should be some");
     let expected_config = sample_config();
@@ -106,8 +103,7 @@ async fn config_and_metrics_helpers_return_values() {
     assert_eq!(config.model_path, expected_config.model_path);
     assert_eq!(config.port, expected_config.port);
 
-    let metrics = get_server_metrics_with_service(&service)
-        .await
+    let metrics = get_server_metrics_with_service(&service).await
         .expect("metrics")
         .expect("metrics should be some");
     let expected_metrics = sample_metrics();
@@ -118,8 +114,6 @@ async fn config_and_metrics_helpers_return_values() {
 #[tokio::test]
 async fn check_server_health_returns_false_when_not_running() {
     let service = mock_service(false);
-    let healthy = check_server_health_with_service(&service)
-        .await
-        .expect("health");
+    let healthy = check_server_health_with_service(&service).await.expect("health");
     assert!(!healthy);
 }

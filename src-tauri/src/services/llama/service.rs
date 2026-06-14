@@ -1,6 +1,6 @@
 use super::actor::{ ActorMessage, LlamaActor };
 use crate::infrastructure::llama::process::LlamaProcessManager;
-use crate::infrastructure::metrics::SystemMetricsProvider;
+use crate::infrastructure::gpu::SystemMetricsProvider;
 use crate::models::{
     ChatMessage,
     ChatRequest,

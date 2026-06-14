@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::models::GpuLayerStrategy;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
@@ -15,6 +16,8 @@ pub struct AppConfig {
     pub server_port: u16,
     pub llama_server_parallel: u32,
     pub llama_server_gpu_layers: i32,
+    pub llama_server_gpu_layer_strategy: GpuLayerStrategy,
+    pub llama_server_gpu_device: String,
     pub llama_server_jinja: bool,
     pub llama_server_extra_args: Vec<String>,
     pub web_search_provider: String,
@@ -54,6 +57,8 @@ impl Default for AppConfig {
             server_port: 8080,
             llama_server_parallel: 1,
             llama_server_gpu_layers: 33,
+            llama_server_gpu_layer_strategy: GpuLayerStrategy::Manual,
+            llama_server_gpu_device: "0".to_string(),
             llama_server_jinja: true,
             llama_server_extra_args: Vec::new(),
             web_search_provider: "tavily".to_string(),

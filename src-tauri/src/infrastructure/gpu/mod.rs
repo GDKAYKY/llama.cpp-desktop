@@ -1,11 +1,6 @@
-pub mod composite;
-pub mod models;
-pub mod nvml;
-pub mod pdh;
-pub mod registry;
-pub mod traits;
+pub mod hardware_metrics;
 
-pub use composite::CompositeGpuMetricsProvider;
-pub use models::{GpuInfo, GpuUtilization, GpuVendor, ProcessGpuMetrics};
-pub use registry::{build_gpu_metrics_provider, NullGpuMetricsProvider};
-pub use traits::GpuMetricsProvider;
+pub use hardware_metrics::{
+    build_gpu_metrics_provider, GpuInfo, GpuMetricsProvider, GpuUtilization, GpuVendor,
+    MetricsProvider, NullGpuMetricsProvider, ProcessGpuMetrics, SystemMetricsProvider,
+};

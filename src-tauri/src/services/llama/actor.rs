@@ -4,7 +4,7 @@ use tokio::sync::{ mpsc, oneshot, Mutex as TokioMutex };
 
 use crate::infrastructure::llama::process::ProcessManager;
 use crate::infrastructure::llama::server::LlamaServer;
-use crate::infrastructure::metrics::MetricsProvider;
+use crate::infrastructure::gpu::MetricsProvider;
 use crate::models::{
     ActiveModel,
     ChatRequest,

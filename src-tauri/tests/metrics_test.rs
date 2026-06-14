@@ -1,4 +1,4 @@
-use llama_desktop_lib::infrastructure::metrics::{MetricsProvider, SystemMetricsProvider};
+use llama_desktop_lib::infrastructure::gpu::{MetricsProvider, SystemMetricsProvider};
 
 #[test]
 fn snapshot_for_current_pid_returns_metrics() {

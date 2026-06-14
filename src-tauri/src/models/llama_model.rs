@@ -1,9 +1,23 @@
-use serde::{Deserialize, Serialize};
+use serde::{ Deserialize, Serialize };
 
 use crate::infrastructure::gpu::ProcessGpuMetrics;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ModelId(pub String);
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum GpuLayerStrategy {
+    Manual,  // Use specific n_gpu_layers value
+    Fit,     // Use --fit flag (auto-calculate)
+    All,     // Use -ngl 99 (all layers)
+}
+
+impl Default for GpuLayerStrategy {
+    fn default() -> Self {
+        Self::Manual
+    }
+}
 
 impl std::fmt::Display for ModelId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -19,6 +33,9 @@ pub struct LlamaCppConfig {
     pub ctx_size: u32,
     pub parallel: u32,
     pub n_gpu_layers: i32,
+    #[serde(default)]
+    pub gpu_layer_strategy: GpuLayerStrategy,
+    pub gpu_device: String,
     pub jinja: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_args: Vec<String>,

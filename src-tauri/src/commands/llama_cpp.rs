@@ -33,6 +33,8 @@ pub async fn start_llama_server(
     port: u16,
     ctx_size: u32,
     n_gpu_layers: i32,
+    gpu_layer_strategy: Option<String>,
+    gpu_device: Option<String>,
     jinja: bool,
     parallel: Option<u32>,
     extra_args: Option<Vec<String>>,
@@ -45,6 +47,13 @@ pub async fn start_llama_server(
         chat_template,
         chat_template_file
     )?;
+    
+    let strategy = match gpu_layer_strategy.as_deref() {
+        Some("fit") => crate::models::GpuLayerStrategy::Fit,
+        Some("all") => crate::models::GpuLayerStrategy::All,
+        _ => crate::models::GpuLayerStrategy::Manual,
+    };
+    
     start_llama_server_with_service(
         &state.llama_service,
         binary_path,
@@ -52,6 +61,8 @@ pub async fn start_llama_server(
         port,
         ctx_size,
         n_gpu_layers,
+        strategy,
+        gpu_device.unwrap_or_else(|| "0".to_string()),
         jinja,
         parallel,
         extra_args,
@@ -124,10 +135,8 @@ pub async fn proxy_llama_chat_completion(
     body: String,
     on_event: Channel<serde_json::Value>
 ) -> Result<(), String> {
-    let config = state
-        .llama_service
-        .get_config()
-        .await
+    let config = state.llama_service
+        .get_config().await
         .ok_or_else(|| "No llama.cpp server is running".to_string())?;
     let url = format!("http://localhost:{}/v1/chat/completions", config.port);
     let client = reqwest::Client::new();
@@ -136,8 +145,7 @@ pub async fn proxy_llama_chat_completion(
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .body(body)
         .timeout(Duration::from_secs(300))
-        .send()
-        .await
+        .send().await
         .map_err(|e| format!("llama.cpp request failed: {}", e))?;
 
     if !response.status().is_success() {
@@ -146,10 +154,10 @@ pub async fn proxy_llama_chat_completion(
         return Err(format!("llama.cpp request failed: {} - {}", status, text));
     }
 
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|e| format!("llama.cpp stream failed: {}", e))?
+    while
+        let Some(chunk) = response
+            .chunk().await
+            .map_err(|e| format!("llama.cpp stream failed: {}", e))?
     {
         let text = String::from_utf8_lossy(&chunk).to_string();
         if on_event.send(serde_json::json!({ "chunk": text })).is_err() {
@@ -168,6 +176,8 @@ pub async fn start_llama_server_with_service(
     port: u16,
     ctx_size: u32,
     n_gpu_layers: i32,
+    gpu_layer_strategy: crate::models::GpuLayerStrategy,
+    gpu_device: String,
     jinja: bool,
     parallel: Option<u32>,
     extra_args: Option<Vec<String>>,
@@ -181,6 +191,8 @@ pub async fn start_llama_server_with_service(
         ctx_size,
         parallel: parallel.unwrap_or(1),
         n_gpu_layers,
+        gpu_layer_strategy,
+        gpu_device,
         jinja,
         extra_args: extra_args.unwrap_or_default(),
         chat_template,

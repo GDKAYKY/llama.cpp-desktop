@@ -171,12 +171,13 @@ Business logic layer:
 
 ### Infrastructure (`src-tauri/src/infrastructure/`)
 Low-level system interactions:
+- **`gpu/`** - Hardware metrics collection (CPU, RAM, GPU)
+  - `hardware_metrics.rs` - Centralized metrics providers: `SystemMetricsProvider` (CPU/RAM via sysinfo), `NvmlMetricsProvider` (NVIDIA GPU via NVML), `PdhMetricsProvider` (Windows GPU via PDH counters), `WgpuDetector` (GPU enumeration via wgpu), `FallbackGpuMetricsProvider` (provider chain with fallback logic)
+  - `mod.rs` - Module exports and public API
+
 - **`llama/`** - Llama.cpp process management
   - `process.rs` - `ProcessRegistry` - Track running llama-server processes
   - `server.rs` - `LlamaServer` - Spawn llama-server.exe, handle SSE streaming
-  
-- `metrics.rs` - `get_system_metrics()` - CPU/RAM usage via sysinfo
-- `nvidia_smi.rs` - `get_gpu_metrics()` - GPU/VRAM usage via nvidia-smi
 
 ### Root Files
 - `main.rs` - Application entry point (calls `lib::run()`)

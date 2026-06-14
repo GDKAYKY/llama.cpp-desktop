@@ -1,10 +1,11 @@
 use llama_desktop_lib::commands::chat::{
-    clear_chat_with_orchestrator, load_history_context_with_orchestrator,
+    clear_chat_with_orchestrator,
+    load_history_context_with_orchestrator,
     send_message_with_orchestrator,
 };
 use llama_desktop_lib::models::ChatMessage;
 use llama_desktop_lib::models::McpConfig;
-use llama_desktop_lib::services::llama::{ActorMessage, LlamaCppService};
+use llama_desktop_lib::services::llama::{ ActorMessage, LlamaCppService };
 use llama_desktop_lib::services::mcp::McpService;
 use llama_desktop_lib::services::orchestrator::ChatOrchestrator;
 use tauri::ipc::Channel;
@@ -19,6 +20,7 @@ fn sample_config() -> llama_desktop_lib::models::LlamaCppConfig {
         ctx_size: 128,
         parallel: 1,
         n_gpu_layers: 0,
+        gpu_device: "0".to_string(),
         jinja: true,
         extra_args: Vec::new(),
         chat_template: None,
@@ -26,27 +28,29 @@ fn sample_config() -> llama_desktop_lib::models::LlamaCppConfig {
     }
 }
 
-fn test_channel() -> (
-    Channel<serde_json::Value>,
-    mpsc::Receiver<serde_json::Value>,
-) {
+fn test_channel() -> (Channel<serde_json::Value>, mpsc::Receiver<serde_json::Value>) {
     let (tx, rx) = mpsc::channel::<serde_json::Value>(8);
 
-    let channel = Channel::new(move |payload: InvokeResponseBody| -> tauri::Result<()> {
-        // Converte InvokeResponseBody em serde_json::Value
-        let value: serde_json::Value = match payload {
-            InvokeResponseBody::Json(text) => {
-                serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text))
-            }
-            InvokeResponseBody::Raw(bytes) => serde_json::from_slice(&bytes).unwrap_or(
-                serde_json::Value::String(String::from_utf8_lossy(&bytes).to_string()),
-            ),
-        };
+    let channel = Channel::new(
+        move |payload: InvokeResponseBody| -> tauri::Result<()> {
+            // Converte InvokeResponseBody em serde_json::Value
+            let value: serde_json::Value = match payload {
+                InvokeResponseBody::Json(text) => {
+                    serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text))
+                }
+                InvokeResponseBody::Raw(bytes) =>
+                    serde_json
+                        ::from_slice(&bytes)
+                        .unwrap_or(
+                            serde_json::Value::String(String::from_utf8_lossy(&bytes).to_string())
+                        ),
+            };
 
-        // Envia pro canal
-        let _ = tx.try_send(value);
-        Ok(())
-    });
+            // Envia pro canal
+            let _ = tx.try_send(value);
+            Ok(())
+        }
+    );
 
     (channel, rx)
 }
@@ -87,10 +91,8 @@ async fn send_message_with_orchestrator_streams_and_records() {
         "Hi".to_string(),
         0.5,
         10,
-        channel,
-    )
-    .await
-    .expect("send");
+        channel
+    ).await.expect("send");
 
     let mut events = Vec::new();
     while let Ok(event) = rx.try_recv() {
@@ -99,7 +101,10 @@ async fn send_message_with_orchestrator_streams_and_records() {
     assert!(events.iter().any(|e| e.get("chunk").is_some()));
 
     let message = orchestrator.get_message("session-1", 1).await;
-    assert_eq!(message.map(|m| m.content), Some("Hello world".to_string()));
+    assert_eq!(
+        message.map(|m| m.content),
+        Some("Hello world".to_string())
+    );
 }
 
 #[tokio::test]
@@ -107,22 +112,18 @@ async fn clear_chat_with_orchestrator_removes_history() {
     let service = mock_service(vec!["ok"]);
     let mcp_service = McpService::new(McpConfig::default());
     let orchestrator = ChatOrchestrator::new(service, mcp_service);
-    orchestrator
-        .set_session_history(
-            "session-1",
-            vec![ChatMessage {
-                role: "user".to_string(),
-                content: "hi".to_string(),
-                name: None,
-                tool_call_id: None,
-                tool_calls: None,
-            }],
-        )
-        .await;
+    orchestrator.set_session_history(
+        "session-1",
+        vec![ChatMessage {
+            role: "user".to_string(),
+            content: "hi".to_string(),
+            name: None,
+            tool_call_id: None,
+            tool_calls: None,
+        }]
+    ).await;
 
-    clear_chat_with_orchestrator(&orchestrator, "session-1".to_string())
-        .await
-        .expect("clear");
+    clear_chat_with_orchestrator(&orchestrator, "session-1".to_string()).await.expect("clear");
     let message = orchestrator.get_message("session-1", 0).await;
     assert!(message.is_none());
 }
@@ -140,9 +141,11 @@ async fn load_history_context_with_orchestrator_sets_history() {
         tool_calls: None,
     }];
 
-    load_history_context_with_orchestrator(&orchestrator, "session-1".to_string(), history.clone())
-        .await
-        .expect("load");
+    load_history_context_with_orchestrator(
+        &orchestrator,
+        "session-1".to_string(),
+        history.clone()
+    ).await.expect("load");
 
     let message = orchestrator.get_message("session-1", 0).await;
     assert_eq!(
