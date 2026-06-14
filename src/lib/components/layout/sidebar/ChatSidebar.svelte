@@ -24,7 +24,7 @@
   import { page } from "$app/state";
   import { chatStore } from "$lib/stores/chat.svelte";
 
-  let { isSidebarOpen, toggleSidebar } = $props();
+  let { isSidebarOpen, isSidebarHidden, toggleSidebar, hideSidebar } = $props();
 
   let showChatHistory = $state(true);
   let showProfileMenu = $state(false);
@@ -97,35 +97,29 @@
 
 <aside
   class={cn(
-    "z-[100] flex h-screen shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-300 ease-in-out",
-    isSidebarOpen ? "w-[260px]" : "w-[60px]",
+    "z-[100] flex h-full shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-300 ease-in-out",
+    isSidebarHidden ? "w-0" : isSidebarOpen ? "w-[260px]" : "w-[60px]",
   )}
 >
   <div class="flex h-full flex-col">
-    <!-- HEADER -->
-    <div class="mb-auto shrink-0 pt-2.5 pb-2.5">
-      <div class="flex w-[60px] shrink-0 items-center justify-center">
-        <button
-          class="flex h-10 w-10 items-center justify-center rounded-lg text-[#b4b4b4] transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:bg-[#2f2f2f] hover:text-white"
-          onclick={toggleSidebar}
-        >
-          {#if isSidebarOpen}
-            <PanelLeftClose size={20} strokeWidth={1.5} />
-          {:else}
-            <PanelLeftOpen size={20} strokeWidth={1.5} />
-          {/if}
-        </button>
-      </div>
-      <div
-        class={cn(
-          "overflow-hidden whitespace-nowrap transition-all duration-300",
-          isSidebarOpen ? "w-32 opacity-100" : "w-0 opacity-0",
-        )}
-      ></div>
-    </div>
-
     <!-- TOP NAVIGATION (FIXED) -->
     <nav class="flex shrink-0 flex-col">
+      <!-- Header: toggle collapse + hide button -->
+      <div class="mb-auto shrink-0 pt-2.5 pb-2.5">
+        <div class="flex w-[60px] shrink-0 items-center justify-center">
+          <button
+            class="flex h-10 w-10 items-center justify-center rounded-lg text-[#b4b4b4] transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:bg-[#2f2f2f] hover:text-white"
+            onclick={toggleSidebar}
+          >
+            {#if isSidebarOpen}
+              <PanelLeftClose size={20} strokeWidth={1.5} />
+            {:else}
+              <PanelLeftOpen size={20} strokeWidth={1.5} />
+            {/if}
+          </button>
+        </div>
+      </div>
+
       <!-- New Chat Button -->
       <button
         class="group relative flex h-12 w-full cursor-pointer items-center border-none bg-transparent transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]"

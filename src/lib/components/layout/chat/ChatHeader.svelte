@@ -28,6 +28,7 @@
    * }} */
   let {
     isSidebarOpen,
+    isSidebarHidden,
     toggleSidebar,
     isLoading,
     toggleDropdown,
@@ -86,19 +87,27 @@
 
 <header
   class={cn(
-    "sticky top-0 z-50 flex h-[60px] items-center px-4 p-2",
-    settingsStore.settings.chatHeaderStyle === "capsule"
-      ? "bg-[#171717]"
-      : "bg-background",
+    "z-50 flex h-[60px] items-center px-4 p-2",
+    isSidebarHidden
+      ? "absolute top-0 left-0 right-0 bg-transparent"
+      : cn(
+          "sticky top-0",
+          settingsStore.settings.chatHeaderStyle === "capsule"
+            ? "bg-[#171717]"
+            : "bg-background",
+        ),
   )}
 >
-  <div class="flex min-w-[80px] shrink-0"></div>
+  <div class={cn("flex min-w-[80px] shrink-0", isSidebarHidden && "invisible")}></div>
 
   <div class="relative flex grow justify-center font-inter">
     <div class="relative flex w-full max-w-[400px] justify-center">
       <button
         type="button"
-        class="flex max-w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-white/5"
+        class={cn(
+          "flex max-w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-white/5",
+          isSidebarHidden && "bg-white/5 backdrop-blur-md backdrop-saturate-150 border border-white/10 shadow-sm",
+        )}
         aria-haspopup="listbox"
         aria-expanded={isDropdownOpen ? "true" : "false"}
         onclick={toggleDropdown}
@@ -181,7 +190,7 @@
     </div>
   </div>
 
-  <div class="flex min-w-[80px] shrink-0 items-center justify-end gap-1.5">
+  <div class={cn("flex min-w-[80px] shrink-0 items-center justify-end gap-1.5", isSidebarHidden && "invisible")}>
     {#if isLoading}
       <div
         class="flex items-center justify-center text-muted-foreground"

@@ -2,7 +2,6 @@
   import { tick, onMount } from "svelte";
   import ChatHeader from "$components/layout/chat/ChatHeader.svelte";
   import ChatMessages from "$components/chat/ChatMessageList.svelte";
-  import ToolPermissionPrompt from "$components/chat/ToolPermissionPrompt.svelte";
   import ChatForm from "$components/chat/ChatForm.svelte";
   import SessionInfoPanel from "$components/layout/chat/SessionInfoPanel.svelte";
   import { notifications } from "$lib/shared/notifications";
@@ -184,7 +183,7 @@
   <div class="flex h-full overflow-hidden">
     <!-- Chat area -->
     <div
-      class="flex h-full flex-col overflow-hidden rounded-tl-lg bg-background transition-all duration-300"
+      class="relative flex h-full flex-col overflow-hidden rounded-tl-lg bg-background transition-all duration-300"
       style="width: {isSessionPanelOpen
         ? `calc(100% - ${sessionPanelWidth}px)`
         : '100%'}"
@@ -192,6 +191,7 @@
       <!-- Header (pill-style, matches ChatMessageWindow header) -->
       <ChatHeader
         isSidebarOpen={uiStore.isSidebarOpen}
+        isSidebarHidden={uiStore.isSidebarHidden}
         toggleSidebar={() => uiStore.toggleSidebar()}
         isLoading={chatStore.isLoading}
         {toggleDropdown}
@@ -250,10 +250,6 @@
             <div
               class="pointer-events-none sticky bottom-0 z-10 mt-auto flex w-full flex-col items-center pb-2"
             >
-              {#if chatStore.pendingPermission}
-                <ToolPermissionPrompt permission={chatStore.pendingPermission} />
-              {/if}
-
               <!-- Gradient overlay to blend bottom edge -->
               <div
                 class="pointer-events-auto w-full flex flex-col items-center"
