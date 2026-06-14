@@ -1,15 +1,42 @@
 <script lang="ts">
-  import { ChevronDown, ChevronUp, X, Plus, Diff } from "lucide-svelte";
+  import {
+    ChevronDown,
+    ChevronUp,
+    X,
+    Plus,
+    Diff,
+    Maximize2,
+    Minimize2,
+  } from "lucide-svelte";
   import { chatStore, type Message } from "$lib/stores/chat.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
   import { serverStore } from "$lib/stores/server.svelte";
+  import RevisionHistory from "./RevisionHistory.svelte";
 
-  let { isOpen = false, onClose, width = $bindable(400), isResizing = $bindable(false) } = $props();
+  let {
+    isOpen = false,
+    onClose,
+    width = $bindable(400),
+    isResizing = $bindable(false),
+  } = $props();
 
   let expandedMessageIndex = $state<number | null>(null);
   let activeTab = $state<"context" | "revision">("context");
   let startX = $state(0);
   let startWidth = $state(400);
+  let isExpanded = $state(false);
+  let previousWidth = $state(400);
+
+  function toggleExpand() {
+    if (isExpanded) {
+      width = previousWidth;
+      isExpanded = false;
+    } else {
+      previousWidth = width;
+      width = window.innerWidth - 60; // Assuming 60px sidebar
+      isExpanded = true;
+    }
+  }
 
   function toggleMessage(index: number) {
     expandedMessageIndex = expandedMessageIndex === index ? null : index;
@@ -86,7 +113,11 @@
     }, 0);
 
     const totalTokens =
-      userTokens + assistantTokens + systemTokens + toolTokens + reasoningTokens;
+      userTokens +
+      assistantTokens +
+      systemTokens +
+      toolTokens +
+      reasoningTokens;
     const contextLimit = serverStore.currentConfig?.ctx_size ?? 8192;
     const usagePercent =
       totalTokens > 0 ? (totalTokens / contextLimit) * 100 : 0;
@@ -166,7 +197,11 @@
     }, 0);
 
     const totalTokens =
-      userTokens + assistantTokens + systemTokens + toolTokens + reasoningTokens;
+      userTokens +
+      assistantTokens +
+      systemTokens +
+      toolTokens +
+      reasoningTokens;
     const contextLimit = serverStore.currentConfig?.ctx_size ?? 8192;
     const usagePercent =
       totalTokens > 0 ? (totalTokens / contextLimit) * 100 : 0;
@@ -268,9 +303,18 @@
       value: tokenStats.totalTokens.toLocaleString(),
     },
     { label: "Uso", value: `${tokenStats.usagePercent.toFixed(1)}%` },
-    { label: "Tokens de Entrada", value: tokenStats.inputTokens.toLocaleString() },
-    { label: "Tokens de Saída", value: tokenStats.outputTokens.toLocaleString() },
-    { label: "Tokens de Raciocínio", value: tokenStats.reasoningTokens.toLocaleString() },
+    {
+      label: "Tokens de Entrada",
+      value: tokenStats.inputTokens.toLocaleString(),
+    },
+    {
+      label: "Tokens de Saída",
+      value: tokenStats.outputTokens.toLocaleString(),
+    },
+    {
+      label: "Tokens de Raciocínio",
+      value: tokenStats.reasoningTokens.toLocaleString(),
+    },
     { label: "Tokens de Cache (L/E)", value: "N/A" },
     { label: "Mensagens de Usuário", value: userMessageCount },
     { label: "Mensagens do Assistente", value: assistantMessageCount },
@@ -423,14 +467,28 @@
           {/each}
         </div>
 
-        <!-- Right: Add Button -->
-        <button
-          type="button"
-          class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-          aria-label="Add tab"
-        >
-          <Plus size={14} strokeWidth={2} />
-        </button>
+        <!-- Right: Actions -->
+        <div class="flex items-center gap-1">
+          <button
+            type="button"
+            class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            onclick={toggleExpand}
+            title={isExpanded ? "Restaurar painel" : "Expandir painel"}
+          >
+            {#if isExpanded}
+              <Minimize2 size={14} strokeWidth={2} />
+            {:else}
+              <Maximize2 size={14} strokeWidth={2} />
+            {/if}
+          </button>
+          <button
+            type="button"
+            class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            aria-label="Add tab"
+          >
+            <Plus size={14} strokeWidth={2} />
+          </button>
+        </div>
       </div>
 
       <!-- Content -->
@@ -527,16 +585,8 @@
           </div>
         {:else if activeTab === "revision"}
           <!-- Revision Content -->
-          <div class="flex h-full items-center justify-center">
-            <div class="text-center text-muted-foreground">
-              <Diff
-                size={48}
-                strokeWidth={1.5}
-                class="mx-auto mb-3 opacity-30"
-              />
-              <p class="text-sm">Revision history</p>
-              <p class="mt-1 text-xs opacity-60">Coming soon</p>
-            </div>
+          <div class="h-full w-full">
+            <RevisionHistory />
           </div>
         {/if}
       </div>

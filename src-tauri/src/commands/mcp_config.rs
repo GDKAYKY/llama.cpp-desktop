@@ -96,19 +96,40 @@ pub fn build_default_mcp_config_path_from_dir(mut app_dir: PathBuf) -> PathBuf {
 
 fn default_tavily_config() -> McpConfig {
     McpConfig {
-        servers: vec![McpServerConfig {
-            id: "tavily".to_string(),
-            name: "Tavily MCP (Remote)".to_string(),
-            enabled: true,
-            transport: McpTransport::HttpSse,
-            command: None,
-            args: None,
-            cwd: None,
-            env: None,
-            url: Some("https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>".to_string()),
-            headers: None,
-            tool_allowlist: None,
-        }],
+        servers: vec![
+            McpServerConfig {
+                id: "tavily".to_string(),
+                name: "Tavily MCP (Remote)".to_string(),
+                enabled: true,
+                transport: McpTransport::HttpSse,
+                command: None,
+                args: None,
+                cwd: None,
+                env: None,
+                url: Some("https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>".to_string()),
+                headers: None,
+                tool_allowlist: None,
+            },
+            McpServerConfig {
+                id: "filesystem".to_string(),
+                name: "Filesystem MCP".to_string(),
+                enabled: true,
+                transport: McpTransport::Stdio,
+                command: Some("cmd".to_string()),
+                args: Some(vec![
+                    "/c".to_string(),
+                    "npx".to_string(),
+                    "-y".to_string(),
+                    "@modelcontextprotocol/server-filesystem".to_string(),
+                    "E:/src/repos/llama.cpp-desktop".to_string(),
+                ]),
+                cwd: None,
+                env: None,
+                url: None,
+                headers: None,
+                tool_allowlist: None,
+            },
+        ],
     }
 }
 
