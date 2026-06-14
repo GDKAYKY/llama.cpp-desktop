@@ -1,6 +1,7 @@
 class UIStore {
   isSidebarOpen = $state(true);
   isSidebarHidden = $state(false);
+  isSessionPanelOpen = $state(false);
 
   toggleSidebar() {
     this.isSidebarOpen = !this.isSidebarOpen;
@@ -14,6 +15,18 @@ class UIStore {
   showSidebar() {
     this.isSidebarHidden = false;
     this.isSidebarOpen = true;
+  }
+
+  toggleSessionPanel() {
+    this.isSessionPanelOpen = !this.isSessionPanelOpen;
+  }
+
+  hideSessionPanel() {
+    this.isSessionPanelOpen = false;
+  }
+
+  showSessionPanel() {
+    this.isSessionPanelOpen = true;
   }
 }
 

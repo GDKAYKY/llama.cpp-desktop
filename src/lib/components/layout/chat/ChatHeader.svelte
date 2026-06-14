@@ -73,7 +73,7 @@
 
     const totalTokens =
       userTokens + assistantTokens + systemTokens + toolTokens;
-    const contextLimit = 200000;
+    const contextLimit = serverStore.currentConfig?.ctx_size ?? 8192;
     const usagePercent =
       totalTokens > 0 ? (totalTokens / contextLimit) * 100 : 0;
 

@@ -16,8 +16,8 @@
   let messagesEnd: any = $state();
   let textarea: any = $state();
   let isDropdownOpen = $state(false);
-  let isSessionPanelOpen = $state(false);
   let sessionPanelWidth = $state(400);
+  let isResizingPanel = $state(false);
 
   $effect(() => {
     if (chatStore.messages.length) {
@@ -169,7 +169,7 @@
   }
 
   function toggleSessionPanel() {
-    isSessionPanelOpen = !isSessionPanelOpen;
+    uiStore.toggleSessionPanel();
   }
 
   let isEmpty = $derived(
@@ -183,8 +183,8 @@
   <div class="flex h-full overflow-hidden">
     <!-- Chat area -->
     <div
-      class="relative flex h-full flex-col overflow-hidden rounded-tl-lg bg-background transition-all duration-300"
-      style="width: {isSessionPanelOpen
+      class="relative flex h-full flex-col overflow-hidden rounded-tl-lg bg-background {isResizingPanel ? '' : 'transition-all duration-300'}"
+      style="width: {uiStore.isSessionPanelOpen
         ? `calc(100% - ${sessionPanelWidth}px)`
         : '100%'}"
     >
@@ -277,9 +277,10 @@
 
     <!-- Session Info Panel -->
     <SessionInfoPanel
-      isOpen={isSessionPanelOpen}
+      isOpen={uiStore.isSessionPanelOpen}
       onClose={toggleSessionPanel}
       bind:width={sessionPanelWidth}
+      bind:isResizing={isResizingPanel}
     />
   </div>
 </div>

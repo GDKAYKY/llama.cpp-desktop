@@ -35,6 +35,8 @@
     isSidebarHidden={uiStore.isSidebarHidden}
     hideSidebar={() => uiStore.hideSidebar()}
     showSidebar={() => uiStore.showSidebar()}
+    isSessionPanelOpen={uiStore.isSessionPanelOpen}
+    toggleSessionPanel={() => uiStore.toggleSessionPanel()}
   />
   <div class="flex flex-1 overflow-hidden">
     <ChatSidebar

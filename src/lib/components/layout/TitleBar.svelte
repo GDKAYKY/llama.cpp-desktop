@@ -3,13 +3,18 @@
   import {
     PanelLeftOpen,
     PanelLeftClose,
+    PanelRightOpen,
+    PanelRightClose,
     Minus,
     Square,
     X,
   } from "lucide-svelte";
   import { cn } from "$shared/cn.js";
 
-  let { isSidebarHidden, hideSidebar, showSidebar } = $props();
+  let { 
+    isSidebarHidden, hideSidebar, showSidebar,
+    isSessionPanelOpen, toggleSessionPanel 
+  } = $props();
 
   const appWindow = getCurrentWindow();
 
@@ -47,6 +52,21 @@
 
   <!-- Drag region -->
   <div data-tauri-drag-region class="flex-1"></div>
+
+  <!-- Right sidebar toggle -->
+  <div class="flex items-center justify-center mr-2">
+    <button
+      class="flex h-7 w-7 items-center justify-center rounded-md text-[#b4b4b4] transition-colors duration-[120ms] hover:bg-[#2f2f2f] hover:text-white"
+      onclick={toggleSessionPanel}
+      title={isSessionPanelOpen ? "Hide context panel" : "Show context panel"}
+    >
+      {#if isSessionPanelOpen}
+        <PanelRightOpen size={16} strokeWidth={1.5} />
+      {:else}
+        <PanelRightClose size={16} strokeWidth={1.5} />
+      {/if}
+    </button>
+  </div>
 
   <!-- Window controls -->
   <div class="flex items-center">

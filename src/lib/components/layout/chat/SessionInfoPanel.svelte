@@ -4,11 +4,10 @@
   import { modelsStore } from "$lib/stores/models.svelte";
   import { serverStore } from "$lib/stores/server.svelte";
 
-  let { isOpen = false, onClose, width = $bindable(400) } = $props();
+  let { isOpen = false, onClose, width = $bindable(400), isResizing = $bindable(false) } = $props();
 
   let expandedMessageIndex = $state<number | null>(null);
   let activeTab = $state<"context" | "revision">("context");
-  let isResizing = $state(false);
   let startX = $state(0);
   let startWidth = $state(400);
 
@@ -78,9 +77,17 @@
       return sum;
     }, 0);
 
+    // Estimate reasoning tokens
+    const reasoningTokens = chatStore.messages.reduce((sum, m) => {
+      if (m.modelThinking) {
+        return sum + Math.ceil(m.modelThinking.length / 4);
+      }
+      return sum;
+    }, 0);
+
     const totalTokens =
-      userTokens + assistantTokens + systemTokens + toolTokens;
-    const contextLimit = 200000;
+      userTokens + assistantTokens + systemTokens + toolTokens + reasoningTokens;
+    const contextLimit = serverStore.currentConfig?.ctx_size ?? 8192;
     const usagePercent =
       totalTokens > 0 ? (totalTokens / contextLimit) * 100 : 0;
 
@@ -150,9 +157,17 @@
       return sum;
     }, 0);
 
+    // Estimate reasoning tokens
+    const reasoningTokens = chatStore.messages.reduce((sum, m) => {
+      if (m.modelThinking) {
+        return sum + Math.ceil(m.modelThinking.length / 4);
+      }
+      return sum;
+    }, 0);
+
     const totalTokens =
-      userTokens + assistantTokens + systemTokens + toolTokens;
-    const contextLimit = 200000;
+      userTokens + assistantTokens + systemTokens + toolTokens + reasoningTokens;
+    const contextLimit = serverStore.currentConfig?.ctx_size ?? 8192;
     const usagePercent =
       totalTokens > 0 ? (totalTokens / contextLimit) * 100 : 0;
 
@@ -161,6 +176,7 @@
       assistantTokens,
       systemTokens,
       toolTokens,
+      reasoningTokens,
       totalTokens,
       inputTokens: userTokens + systemTokens,
       outputTokens: assistantTokens,
@@ -175,18 +191,20 @@
     const total = stats.totalTokens;
 
     if (total === 0) {
-      return { user: 0, assistant: 0, tools: 0, other: 0 };
+      return { user: 0, assistant: 0, tools: 0, reasoning: 0, other: 0 };
     }
 
     const userPercent = (stats.userTokens / total) * 100;
     const assistantPercent = (stats.assistantTokens / total) * 100;
     const toolPercent = (stats.toolTokens / total) * 100;
+    const reasoningPercent = (stats.reasoningTokens / total) * 100;
     const otherPercent = (stats.systemTokens / total) * 100;
 
     return {
       user: userPercent,
       assistant: assistantPercent,
       tools: toolPercent,
+      reasoning: reasoningPercent,
       other: otherPercent,
     };
   }
@@ -250,19 +268,13 @@
       value: tokenStats.totalTokens.toLocaleString(),
     },
     { label: "Uso", value: `${tokenStats.usagePercent.toFixed(1)}%` },
-    {
-      label: "Tokens de Entrada",
-      value: tokenStats.inputTokens.toLocaleString(),
-    },
-    {
-      label: "Tokens de Saída",
-      value: tokenStats.outputTokens.toLocaleString(),
-    },
-    { label: "Tokens de Raciocínio", value: "0" },
-    { label: "Tokens de Cache (Leitura/Escrita)", value: "0/0" },
+    { label: "Tokens de Entrada", value: tokenStats.inputTokens.toLocaleString() },
+    { label: "Tokens de Saída", value: tokenStats.outputTokens.toLocaleString() },
+    { label: "Tokens de Raciocínio", value: tokenStats.reasoningTokens.toLocaleString() },
+    { label: "Tokens de Cache (L/E)", value: "N/A" },
     { label: "Mensagens de Usuário", value: userMessageCount },
     { label: "Mensagens do Assistente", value: assistantMessageCount },
-    { label: "Custo Total", value: "US$ 0,00" },
+    { label: "Custo Total", value: "Gratuito" },
     {
       label: "Sessão Criada",
       value: currentConversation
@@ -301,6 +313,11 @@
       percent: breakdown.assistant,
     },
     {
+      color: "bg-yellow-500",
+      label: "Raciocínio",
+      percent: breakdown.reasoning,
+    },
+    {
       color: "bg-purple-500",
       label: "Chamadas de Ferramentas",
       percent: breakdown.tools,
@@ -311,7 +328,7 @@
 
 {#if isOpen}
   <div
-    class="fixed inset-y-0 right-0 z-30 border-l border-border bg-background"
+    class="relative flex h-full flex-col shrink-0 border-l border-border bg-background"
     style="width: {width}px"
     role="dialog"
     aria-label="Session Information"
