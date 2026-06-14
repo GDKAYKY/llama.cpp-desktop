@@ -1,38 +1,64 @@
 <script lang="ts">
-  import { ShieldAlert, Check, X } from "lucide-svelte";
+  import { ChevronRight } from "lucide-svelte";
   import type { PendingPermission } from "$lib/stores/chat.svelte";
 
   let { permission } = $props<{ permission: PendingPermission }>();
+  
+  let toolIcon = $derived((permission.toolName || "F").charAt(0).toUpperCase());
 </script>
 
-<div class="pointer-events-auto mb-4 flex w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[#3f3f46] bg-[#1e1e1e] shadow-lg">
-  <div class="flex items-center gap-3 border-b border-[#3f3f46] bg-[#27272a] px-4 py-3">
-    <ShieldAlert size={18} class="text-amber-500" />
-    <h3 class="text-sm font-semibold text-[#e5e5e5]">Permissão Necessária</h3>
-  </div>
-  <div class="p-4 text-sm text-[#a1a1aa]">
-    <p class="mb-3">
-      O servidor MCP <strong class="text-white">{permission.serverId}</strong> está solicitando permissão para executar a ferramenta:
-    </p>
-    <div class="mb-4 rounded-md bg-[#18181b] p-3 font-mono text-xs text-[#e5e5e5] border border-[#27272a] max-h-[200px] overflow-auto">
-      <div class="font-bold text-purple-400 mb-1">{permission.toolName}</div>
-      <pre class="whitespace-pre-wrap">{JSON.stringify(permission.args, null, 2)}</pre>
+<div class="my-3 text-[13px] text-muted-foreground/90 font-sans pointer-events-auto">
+  <div class="mt-3 relative">
+    
+    <!-- Header mirroring ToolContextItem -->
+    <div class="flex items-center gap-2.5 relative z-10">
+      <div class="flex h-[22px] w-[22px] items-center justify-center rounded-[6px] bg-[#27272a] text-[10px] font-bold text-[#a1a1aa]">
+        {toolIcon}
+      </div>
+      <span class="font-medium text-[#e5e5e5] text-[13px] tracking-wide">{permission.toolName || "Tool"}</span>
     </div>
-    <div class="flex justify-end gap-2">
-      <button 
-        class="flex items-center gap-2 rounded-md border border-[#3f3f46] bg-[#27272a] px-4 py-2 text-sm font-medium text-[#e5e5e5] transition-colors hover:bg-[#3f3f46]"
-        onclick={() => permission.resolve(false)}
-      >
-        <X size={16} />
-        Negar
-      </button>
-      <button 
-        class="flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700"
-        onclick={() => permission.resolve(true)}
-      >
-        <Check size={16} />
-        Permitir
-      </button>
+
+    <!-- Connecting line to the prompt box -->
+    <div class="relative ml-[11px] border-l border-[#3f3f46] pl-[18px] py-2.5">
+      
+      <!-- Permission Box exactly as in image.png -->
+      <div class="flex w-full flex-col overflow-hidden rounded-xl border border-[#3f3f46] bg-[#1e1e1e] p-2 shadow-lg max-w-[500px]">
+        
+        <!-- Inner Header row -->
+        <div class="flex items-center justify-between px-2 pt-1 pb-2">
+          <div class="flex items-center gap-2.5">
+            <div class="flex h-[22px] w-[22px] items-center justify-center rounded-[6px] bg-[#27272a] text-[10px] font-bold text-[#a1a1aa]">
+              {toolIcon}
+            </div>
+            <span class="text-[13px] text-[#e5e5e5] font-medium tracking-wide">
+              Claude quer usar {permission.toolName} de {permission.serverId}
+            </span>
+          </div>
+          <ChevronRight size={14} class="text-[#a1a1aa]" />
+        </div>
+
+        <!-- Action buttons -->
+        <div class="flex items-center gap-2 px-1 pb-1 pt-1">
+          <button 
+            class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#e5e5e5] px-3 py-1.5 text-[13px] font-semibold text-black transition-opacity hover:opacity-90"
+            onclick={() => permission.resolve(true)}
+          >
+            Sempre permitir 
+            <div class="flex items-center gap-0.5 rounded-[4px] bg-black/10 px-1 py-0.5 text-[10px] text-black/60 font-medium">
+              Enter
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </button>
+          <button 
+            class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#27272a] px-3 py-1.5 text-[13px] font-semibold text-[#e5e5e5] transition-colors hover:bg-[#3f3f46] border border-[#3f3f46]"
+            onclick={() => permission.resolve(false)}
+          >
+            Negar 
+            <span class="rounded-[4px] bg-black/20 px-1 py-0.5 text-[10px] text-[#a1a1aa] font-medium">Esc</span>
+          </button>
+        </div>
+      </div>
+      
     </div>
   </div>
 </div>

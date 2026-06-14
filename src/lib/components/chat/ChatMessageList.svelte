@@ -1,7 +1,6 @@
 <script>
   import ChatMessage from "./ChatMessage.svelte";
   import MessageAvatar from "$components/ui/MessageAvatar.svelte";
-  import ToolPermissionPrompt from "./ToolPermissionPrompt.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
   import { chatStore } from "$lib/stores/chat.svelte";
 
@@ -32,6 +31,7 @@
       <ChatMessage
         message={msg}
         index={i}
+        isLast={isLast}
         isStreaming={isLoading && isLast}
         thinkingProcess={useLiveThinking
           ? thinkingProcess
@@ -47,11 +47,6 @@
         {pill}
       />
     {/each}
-    {#if chatStore.pendingPermission}
-      <div class="px-4 py-2 flex justify-center">
-        <ToolPermissionPrompt permission={chatStore.pendingPermission} />
-      </div>
-    {/if}
     <div bind:this={messagesEnd} class="mt-[-1px] h-px"></div>
   </div>
 </div>

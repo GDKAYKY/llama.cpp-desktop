@@ -14,12 +14,15 @@
   import { chatStore } from "$lib/stores/chat.svelte";
   import { notifications } from "$lib/shared/notifications";
   import EditableMessage from "./EditableMessage.svelte";
+  import ToolContextItem from "$components/ui/tools/ToolContextItem.svelte";
+  import ToolPermissionPrompt from "./ToolPermissionPrompt.svelte";
   import ThinkingPanel from "./ThinkingPanel.svelte";
 
-  /** @type {{ message: { role: string, content: string, model?: string, timestamp?: number }, index: number, isStreaming?: boolean, thinkingProcess?: string[], modelThinking?: string, thinkingLabel?: string, thinkingTags?: string[], toolContext?: any[] }} */
+  /** @type {{ message: { role: string, content: string, model?: string, timestamp?: number }, index: number, isLast?: boolean, isStreaming?: boolean, thinkingProcess?: string[], modelThinking?: string, thinkingLabel?: string, thinkingTags?: string[], toolContext?: any[] }} */
   let {
     message,
     index,
+    isLast = false,
     isStreaming = false,
     thinkingProcess = [],
     modelThinking = "",
@@ -30,6 +33,44 @@
 
   let isEditing = $state(false);
   let editText = $state("");
+
+  let messageParts = $derived.by(() => {
+    const result = [];
+    let lastIndex = 0;
+    
+    const sortedTools = [...toolContext].sort((a, b) => (a.textIndex || 0) - (b.textIndex || 0));
+    const content = message.content || "";
+    
+    for (const ctx of sortedTools) {
+      const idx = ctx.textIndex;
+      if (idx !== undefined && idx !== null && idx >= lastIndex && idx <= content.length) {
+        if (idx > lastIndex) {
+          const textChunk = content.slice(lastIndex, idx);
+          if (textChunk.trim()) {
+            result.push({ type: 'text', content: textChunk });
+          }
+        }
+        result.push({ type: 'tool', ctx });
+        lastIndex = idx;
+      }
+    }
+    
+    if (lastIndex < content.length) {
+      const textChunk = content.slice(lastIndex);
+      if (textChunk.trim()) {
+        result.push({ type: 'text', content: textChunk });
+      }
+    }
+    
+    for (const ctx of sortedTools) {
+      const idx = ctx.textIndex;
+      if (idx === undefined || idx === null || idx < 0 || idx > content.length) {
+         result.push({ type: 'tool', ctx });
+      }
+    }
+    
+    return result;
+  });
 
   function startEditing() {
     editText = message.content;
@@ -219,13 +260,25 @@
               {modelThinking}
               {thinkingLabel}
               {thinkingTags}
-              {toolContext}
               {isStreaming}
               messageContent={message.content}
               messageTimestamp={message.timestamp ?? null}
             />
           {/if}
-          <MarkdownContent content={message.content} />
+          
+          <div class="flex flex-col mt-2 gap-2">
+            {#each messageParts as part}
+              {#if part.type === 'text'}
+                <MarkdownContent content={part.content} />
+              {:else if part.type === 'tool'}
+                <ToolContextItem ctx={part.ctx} {isStreaming} />
+              {/if}
+            {/each}
+
+            {#if chatStore.pendingPermission && isLast}
+              <ToolPermissionPrompt permission={chatStore.pendingPermission} />
+            {/if}
+          </div>
           <div
             class="mt-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
           >

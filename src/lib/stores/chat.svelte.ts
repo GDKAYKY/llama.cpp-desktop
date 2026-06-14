@@ -34,6 +34,7 @@ export interface ToolContext {
   arguments?: unknown;
   result?: unknown;
   toolCallId?: string;
+  textIndex?: number;
 }
 
 export interface PendingPermission {
@@ -195,7 +196,9 @@ class ChatStore {
         onThinkingChunk: (text) => this.appendThinkingChunk(text),
         onStatus: (text) => this.appendThinkingStatus(text),
         onToolContext: (context) => {
-          this.toolContext = [...this.toolContext, context];
+          const currentMsg = this.messages[this.messages.length - 1];
+          const textIndex = currentMsg ? currentMsg.content.length : 0;
+          this.toolContext = [...this.toolContext, { ...context, textIndex }];
         },
         onRequestPermission: (serverId, toolName, args) => {
           return new Promise<boolean>((resolve) => {
@@ -301,7 +304,9 @@ class ChatStore {
         onThinkingChunk: (text) => this.appendThinkingChunk(text),
         onStatus: (text) => this.appendThinkingStatus(text),
         onToolContext: (context) => {
-          this.toolContext = [...this.toolContext, context];
+          const currentMsg = this.messages[messageIndex];
+          const textIndex = currentMsg ? currentMsg.content.length : 0;
+          this.toolContext = [...this.toolContext, { ...context, textIndex }];
         },
       });
 

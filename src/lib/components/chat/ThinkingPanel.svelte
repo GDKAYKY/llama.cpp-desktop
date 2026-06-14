@@ -14,7 +14,6 @@
     modelThinking = "",
     thinkingLabel = "Thinking",
     thinkingTags = [],
-    toolContext = [],
     messageContent = "",
     isStreaming = false,
     messageTimestamp = null,
@@ -29,7 +28,7 @@
     summarizeThinking(
       thinkingProcess,
       modelThinking,
-      toolContext,
+      [],
       thinkingLabel,
       messageContent,
       thinkingTags,
@@ -49,7 +48,7 @@
   }
 
   $effect(() => {
-    if (thinkingProcess.length > 0 || modelThinking || toolContext.length > 0) {
+    if (thinkingProcess.length > 0 || modelThinking) {
       thinkingOpen = true;
     }
   });
@@ -162,16 +161,6 @@
                   </ul>
                 {/if}
               {/each}
-            {/if}
-            {#if toolContext.length > 0}
-              <div class="mt-2 text-[11px] text-muted-foreground/60">
-                <div class="mb-1 uppercase tracking-wider"></div>
-                <div class="flex flex-col gap-2">
-                  {#each toolContext as ctx}
-                    <ToolContextItem {ctx} {isStreaming} />
-                  {/each}
-                </div>
-              </div>
             {/if}
           </div>
         </div>
