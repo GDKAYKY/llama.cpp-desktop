@@ -11,9 +11,12 @@
   } from "lucide-svelte";
   import { cn } from "$shared/cn.js";
 
-  let { 
-    isSidebarHidden, hideSidebar, showSidebar,
-    isSessionPanelOpen, toggleSessionPanel 
+  let {
+    isSidebarHidden,
+    hideSidebar,
+    showSidebar,
+    isSessionPanelOpen,
+    toggleSessionPanel,
   } = $props();
 
   const appWindow = getCurrentWindow();

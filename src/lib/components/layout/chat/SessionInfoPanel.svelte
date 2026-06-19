@@ -11,6 +11,7 @@
   import { chatStore, type Message } from "$lib/stores/chat.svelte";
   import { modelsStore } from "$lib/stores/models.svelte";
   import { serverStore } from "$lib/stores/server.svelte";
+  import { uiStore } from "$lib/stores/ui.svelte";
   import RevisionHistory from "./RevisionHistory.svelte";
 
   let {
@@ -33,7 +34,14 @@
       isExpanded = false;
     } else {
       previousWidth = width;
-      width = window.innerWidth - 60; // Assuming 60px sidebar
+      let sidebarWidth = 60;
+      if (uiStore.isSidebarHidden) {
+        sidebarWidth = 0;
+      } else if (uiStore.isSidebarOpen) {
+        sidebarWidth = 260;
+      }
+      const minChatWidth = 351;
+      width = Math.max(300, window.innerWidth - sidebarWidth - minChatWidth);
       isExpanded = true;
     }
   }
@@ -52,8 +60,30 @@
   function handleResizeMove(e: MouseEvent) {
     if (!isResizing) return;
 
+    let sidebarWidth = 60;
+    if (uiStore.isSidebarHidden) {
+      sidebarWidth = 0;
+    } else if (uiStore.isSidebarOpen) {
+      sidebarWidth = 260;
+    }
+
+    const minChatWidth = 351;
+    const maxAllowedWidth = window.innerWidth - sidebarWidth - minChatWidth;
+    const calculatedMaxWidth = Math.max(300, maxAllowedWidth);
+
     const delta = startX - e.clientX;
-    const newWidth = Math.min(Math.max(startWidth + delta, 300), 700);
+    let newWidth = startWidth + delta;
+
+    if (newWidth < 300) {
+      newWidth = 300;
+      startX = e.clientX;
+      startWidth = 300;
+    } else if (newWidth > calculatedMaxWidth) {
+      newWidth = calculatedMaxWidth;
+      startX = e.clientX;
+      startWidth = calculatedMaxWidth;
+    }
+
     width = newWidth;
   }
 
@@ -372,7 +402,7 @@
 
 {#if isOpen}
   <div
-    class="relative flex h-full flex-col shrink-0 border-l border-border bg-background"
+    class="flex-col bg-[#1e1e1e] border-l border-[#333333] hidden lg:flex shrink-0 relative"
     style="width: {width}px"
     role="dialog"
     aria-label="Session Information"
@@ -380,215 +410,217 @@
     <!-- Resize handle -->
     <button
       type="button"
-      class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-white/20 active:bg-white/30 border-0 p-0"
+      class="absolute left-0 top-0 bottom-0 w-2 -translate-x-1/2 z-50 cursor-col-resize hover:bg-white/20 active:bg-white/30 border-0 p-0"
       aria-label="Resize panel"
       onmousedown={handleResizeStart}
     ></button>
 
-    <div class="flex h-full flex-col">
-      <!-- Tab Header -->
-      <div
-        class="flex h-15 items-center justify-between border-b border-border/50 px-3 bg-background"
-      >
-        <!-- Left from right: Active Tabs -->
-        <div class="flex items-center gap-1">
-          {#each tabs as tab}
-            <div
-              role="button"
-              tabindex="0"
-              class="group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors {activeTab ===
-              tab.id
-                ? 'bg-white/5 text-foreground hover:bg-white/10'
-                : 'text-muted-foreground hover:bg-white/5'}"
-              onclick={() => (activeTab = tab.id)}
-              onkeydown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  activeTab = tab.id;
-                }
-              }}
-            >
-              {#if tab.showProgress}
-                <!-- Circle progress indicator -->
-                <svg class="h-3.5 w-3.5 -rotate-90" viewBox="0 0 24 24">
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10.5"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    class="text-white/10"
-                  />
-                  <!-- Progress arc -->
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10.5"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-dasharray="{(contextUsage / 100) * 65.97} 65.97"
-                    stroke-linecap="round"
-                    class="text-current"
-                  />
-                </svg>
-              {:else if tab.iconType === "diff"}
-                <Diff size={12} strokeWidth={2} />
-              {/if}
-              <span>{tab.label}</span>
-              {#if activeTab === tab.id}
-                <div
-                  role="button"
-                  tabindex="0"
-                  class="ml-1 rounded p-0.5 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
-                  onclick={(e) => {
-                    e.stopPropagation();
-                    onClose();
-                  }}
-                  onkeydown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
+    <div class="flex-1 flex overflow-hidden relative w-full">
+      <div class="flex h-full flex-col w-full">
+        <!-- Tab Header -->
+        <div class="flex h-12 items-center justify-between px-3 bg-background">
+          <!-- Left from right: Active Tabs -->
+          <div class="flex items-center gap-1">
+            {#each tabs as tab}
+              <div
+                role="button"
+                tabindex="0"
+                class="group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] transition-colors {activeTab ===
+                tab.id
+                  ? 'bg-white/5 text-foreground hover:bg-white/10'
+                  : 'text-muted-foreground hover:bg-white/5'}"
+                onclick={() => (activeTab = tab.id)}
+                onkeydown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    activeTab = tab.id;
+                  }
+                }}
+              >
+                {#if tab.showProgress}
+                  <!-- Circle progress indicator -->
+                  <svg class="h-3.5 w-3.5 -rotate-90" viewBox="0 0 24 24">
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10.5"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      class="text-white/10"
+                    />
+                    <!-- Progress arc -->
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10.5"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-dasharray="{(contextUsage / 100) * 65.97} 65.97"
+                      stroke-linecap="round"
+                      class="text-current"
+                    />
+                  </svg>
+                {:else if tab.iconType === "diff"}
+                  <Diff size={12} strokeWidth={2} />
+                {/if}
+                <span>{tab.label}</span>
+                {#if activeTab === tab.id}
+                  <div
+                    role="button"
+                    tabindex="0"
+                    class="ml-1 rounded p-0.5 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
+                    onclick={(e) => {
+                      e.stopPropagation();
                       onClose();
-                    }
-                  }}
-                >
-                  <X size={12} strokeWidth={2} />
-                </div>
-              {/if}
-
-              <!-- Active indicator -->
-              {#if activeTab === tab.id}
-                <div
-                  class="absolute -bottom-3.25 left-0 right-0 h-0.5 bg-white"
-                ></div>
-              {/if}
-            </div>
-          {/each}
-        </div>
-
-        <!-- Right: Actions -->
-        <div class="flex items-center gap-1">
-          <button
-            type="button"
-            class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-            onclick={toggleExpand}
-            title={isExpanded ? "Restaurar painel" : "Expandir painel"}
-          >
-            {#if isExpanded}
-              <Minimize2 size={14} strokeWidth={2} />
-            {:else}
-              <Maximize2 size={14} strokeWidth={2} />
-            {/if}
-          </button>
-          <button
-            type="button"
-            class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-            aria-label="Add tab"
-          >
-            <Plus size={14} strokeWidth={2} />
-          </button>
-        </div>
-      </div>
-
-      <!-- Content -->
-      <div class="flex-1 overflow-y-auto px-4 py-4">
-        {#if activeTab === "context"}
-          <!-- Session Info -->
-          <div class="mb-6 space-y-2 text-[13px]">
-            <div class="grid grid-cols-2 gap-3 text-muted-foreground">
-              {#each sessionInfoItems as item}
-                <div>
-                  <div class="">{item.label}</div>
-                  <div class="text-foreground font-medium">{item.value}</div>
-                </div>
-              {/each}
-            </div>
-          </div>
-
-          <!-- Context Breakdown -->
-          <div class="mb-6">
-            <div class="mb-2 text-sm font-medium text-muted-foreground">
-              Detalhamento do Contexto
-            </div>
-            <div
-              class="mb-2 flex h-1.5 overflow-hidden rounded-full bg-white/5"
-            >
-              {#each breakdownItems as item}
-                <div
-                  class={item.color}
-                  style="width: {item.percent}%"
-                  title="{item.label} {item.percent.toFixed(1)}%"
-                ></div>
-              {/each}
-            </div>
-            <div class="flex flex-wrap gap-2 text-[13px] text-muted-foreground">
-              {#each breakdownItems as item}
-                <div class="flex items-center gap-2">
-                  <div class="h-2.5 w-2.5 rounded-full {item.color}"></div>
-                  <span>{item.label} {item.percent.toFixed(1)}%</span>
-                </div>
-              {/each}
-            </div>
-          </div>
-
-          <!-- Raw Messages -->
-          <div>
-            <div class="mb-2 text-xs font-medium text-foreground">
-              Mensagens brutas
-            </div>
-            <div class="">
-              {#each chatStore.messages as message, index (index)}
-                <div class="rounded-md border border-border/50 bg-white/2">
-                  <button
-                    type="button"
-                    class="flex w-full items-center justify-between px-3 py-2 text-left text-[11px] transition-colors hover:bg-white/5"
-                    onclick={() => toggleMessage(index)}
+                    }}
+                    onkeydown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onClose();
+                      }
+                    }}
                   >
-                    <div class="flex items-center gap-2">
-                      <span class="font-mono text-white">{message.role}</span>
-                      <span class="text-muted-foreground/50">·</span>
-                      <span class="font-mono text-muted-foreground"
-                        >{getMessageId(index)}</span
-                      >
-                      <span class="text-muted-foreground/50">·</span>
-                      <span class="text-muted-foreground"
-                        >{formatTimestamp(message.timestamp)}</span
-                      >
-                    </div>
-                    {#if expandedMessageIndex === index}
-                      <ChevronUp
-                        size={12}
-                        class="shrink-0 text-muted-foreground"
-                      />
-                    {:else}
-                      <ChevronDown
-                        size={12}
-                        class="shrink-0 text-muted-foreground"
-                      />
-                    {/if}
-                  </button>
+                    <X size={12} strokeWidth={2} />
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
 
-                  {#if expandedMessageIndex === index}
-                    <div class="border-t border-border/50 px-3 py-2">
-                      <pre
-                        class="overflow-x-auto text-[10px] text-muted-foreground">{JSON.stringify(
-                          buildMessagePayload(message, index),
-                          null,
-                          2,
-                        )}</pre>
+          <!-- Right: Actions -->
+          <div class="flex items-center gap-1">
+            <button
+              type="button"
+              class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+              onclick={toggleExpand}
+              title={isExpanded ? "Restaurar painel" : "Expandir painel"}
+            >
+              {#if isExpanded}
+                <Minimize2 size={14} strokeWidth={2} />
+              {:else}
+                <Maximize2 size={14} strokeWidth={2} />
+              {/if}
+            </button>
+            <button
+              type="button"
+              class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+              aria-label="Add tab"
+            >
+              <Plus size={14} strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="flex-1 flex flex-col bg-background overflow-hidden">
+          {#if activeTab === "context"}
+            <!-- Wrapper with padding for context tab -->
+            <div class="flex-1 overflow-y-auto px-4 py-4">
+              <!-- Session Info -->
+              <div class="mb-6 space-y-2 text-[13px]">
+                <div class="grid grid-cols-2 gap-3 text-muted-foreground">
+                  {#each sessionInfoItems as item}
+                    <div>
+                      <div class="">{item.label}</div>
+                      <div class="text-foreground font-medium">
+                        {item.value}
+                      </div>
                     </div>
-                  {/if}
+                  {/each}
                 </div>
-              {/each}
+              </div>
+
+              <!-- Context Breakdown -->
+              <div class="mb-6">
+                <div class="mb-2 text-sm font-medium text-muted-foreground">
+                  Detalhamento do Contexto
+                </div>
+                <div
+                  class="mb-2 flex h-1.5 overflow-hidden rounded-full bg-white/5"
+                >
+                  {#each breakdownItems as item}
+                    <div
+                      class={item.color}
+                      style="width: {item.percent}%"
+                      title="{item.label} {item.percent.toFixed(1)}%"
+                    ></div>
+                  {/each}
+                </div>
+                <div
+                  class="flex flex-wrap gap-2 text-[13px] text-muted-foreground"
+                >
+                  {#each breakdownItems as item}
+                    <div class="flex items-center gap-2">
+                      <div class="h-2.5 w-2.5 rounded-full {item.color}"></div>
+                      <span>{item.label} {item.percent.toFixed(1)}%</span>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+
+              <!-- Raw Messages -->
+              <div>
+                <div class="mb-2 text-xs font-medium text-foreground">
+                  Mensagens brutas
+                </div>
+                <div class="">
+                  {#each chatStore.messages as message, index (index)}
+                    <div class="rounded-md border border-border/50 bg-white/2">
+                      <button
+                        type="button"
+                        class="flex w-full items-center justify-between px-3 py-2 text-left text-[11px] transition-colors hover:bg-white/5"
+                        onclick={() => toggleMessage(index)}
+                      >
+                        <div class="flex items-center gap-2">
+                          <span class="font-mono text-white"
+                            >{message.role}</span
+                          >
+                          <span class="text-muted-foreground/50">·</span>
+                          <span class="font-mono text-muted-foreground"
+                            >{getMessageId(index)}</span
+                          >
+                          <span class="text-muted-foreground/50">·</span>
+                          <span class="text-muted-foreground"
+                            >{formatTimestamp(message.timestamp)}</span
+                          >
+                        </div>
+                        {#if expandedMessageIndex === index}
+                          <ChevronUp
+                            size={12}
+                            class="shrink-0 text-muted-foreground"
+                          />
+                        {:else}
+                          <ChevronDown
+                            size={12}
+                            class="shrink-0 text-muted-foreground"
+                          />
+                        {/if}
+                      </button>
+
+                      {#if expandedMessageIndex === index}
+                        <div class="border-t border-border/50 px-3 py-2">
+                          <pre
+                            class="overflow-x-auto text-[10px] text-muted-foreground">{JSON.stringify(
+                              buildMessagePayload(message, index),
+                              null,
+                              2,
+                            )}</pre>
+                        </div>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              </div>
             </div>
-          </div>
-        {:else if activeTab === "revision"}
-          <!-- Revision Content -->
-          <div class="h-full w-full">
-            <RevisionHistory />
-          </div>
-        {/if}
+          {:else if activeTab === "revision"}
+            <!-- Revision Content (no padding) -->
+            <div class="flex-1 h-full w-full overflow-hidden">
+              <RevisionHistory parentWidth={width} />
+            </div>
+          {/if}
+        </div>
       </div>
     </div>
   </div>

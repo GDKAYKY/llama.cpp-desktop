@@ -32,7 +32,6 @@ pub fn sample_mcp_server(id: &str) -> McpServerConfig {
         url: None,
         headers: None,
         tool_allowlist: None,
-        resource_allowlist: None,
     }
 }
 
