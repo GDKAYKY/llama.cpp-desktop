@@ -40,12 +40,36 @@
 
   let userSetSidebarWidth = $state(250);
   const minDiffWidth = 180; // Minimum width to keep the diff view readable
+  let collapseButtonText = $state(false);
+  let headerBarRef: HTMLDivElement;
+  let leftSectionRef: HTMLDivElement;
+  let rightSectionRef: HTMLDivElement;
 
   // Keep track of the user's preferred width when resizing the filetree directly
   $effect(() => {
     if (isResizing) {
       userSetSidebarWidth = sidebarWidth;
     }
+  });
+
+  // Detect collision between left and right sections
+  $effect(() => {
+    if (!headerBarRef || !leftSectionRef || !rightSectionRef) return;
+
+    const checkCollision = () => {
+      const leftRect = leftSectionRef.getBoundingClientRect();
+      const rightRect = rightSectionRef.getBoundingClientRect();
+      const gap = 16; // Minimum gap in pixels before collapsing
+
+      collapseButtonText = leftRect.right + gap >= rightRect.left;
+    };
+
+    checkCollision();
+
+    const resizeObserver = new ResizeObserver(checkCollision);
+    resizeObserver.observe(headerBarRef);
+
+    return () => resizeObserver.disconnect();
   });
 
   // Dynamically adjust sidebarWidth when parentWidth changes
@@ -171,20 +195,38 @@
   class="flex flex-col h-full w-full text-[#cccccc] bg-background font-sans overflow-hidden text-[13px]"
 >
   <!-- Top Header Bar -->
-  <div class="flex items-center justify-between px-3 py-1.5 shrink-0">
-    <div class="flex items-center space-x-2 shrink-0">
-      <span class=" text-[#ffffff]">Não marcadas para commit</span>
+  <div
+    bind:this={headerBarRef}
+    class="flex items-center justify-between px-2 md:px-3 py-1.5 shrink-0 gap-1 md:gap-2 min-w-0"
+  >
+    <div
+      bind:this={leftSectionRef}
+      class="flex items-center gap-1 md:gap-1.5 lg:gap-2 shrink min-w-0 overflow-hidden"
+    >
+      <span class="text-[#ffffff] hidden md:inline truncate flex-shrink-0"
+        >Não marcadas para commit</span
+      >
       <span
-        class="bg-[#333333] text-[#cccccc] px-1.5 py-0.5 rounded-md text-xs font-medium"
+        class="bg-[#333333] text-[#cccccc] px-1.5 py-0.5 rounded-md text-xs font-medium flex-shrink-0"
         >7</span
       >
-      <ChevronDown size={14} class="text-[#cccccc]" />
-      <span class="text-[#00C853] text-xs ml-2">+348</span>
-      <span class="text-[#ED5B37] text-xs ml-1">-89</span>
+      <ChevronDown
+        size={14}
+        class="text-[#cccccc] flex-shrink-0 hidden md:block"
+      />
+      <span class="text-[#00C853] text-xs flex-shrink-0 hidden sm:inline"
+        >+348</span
+      >
+      <span class="text-[#ED5B37] text-xs flex-shrink-0 hidden sm:inline"
+        >-89</span
+      >
     </div>
 
-    <div class="flex items-center space-x-1.5 shrink-0 ml-2">
-      <div class="relative">
+    <div
+      bind:this={rightSectionRef}
+      class="flex items-center gap-1 md:gap-1.5 shrink-0 flex-nowrap overflow-x-auto scrollbar-hide"
+    >
+      <div class="relative shrink-0">
         <button
           class="p-1.5 rounded transition-colors {showMoreMenu
             ? 'bg-[#333333] text-[#ffffff]'
@@ -203,7 +245,7 @@
             onclick={() => (showMoreMenu = false)}
           ></div>
           <div
-            class="absolute right-0 top-full mt-1 w-72 bg-[#252526] border border-[#454545] shadow-lg rounded-md py-1 z-50 text-[13px] text-[#cccccc]"
+            class="absolute right-0 top-full mt-1 w-72 max-w-[calc(100vw-2rem)] bg-[#252526] border border-[#454545] shadow-lg rounded-md py-1 z-50 text-[13px] text-[#cccccc]"
           >
             <button
               class="w-full text-left px-4 py-1.5 hover:bg-[#04395e] hover:text-white flex items-center"
@@ -250,15 +292,15 @@
       </div>
 
       <button
-        class="p-1.5 hover:bg-[#333333] rounded text-[#cccccc] transition-colors"
+        class="p-1.5 hover:bg-[#333333] rounded text-[#cccccc] transition-colors hidden md:inline-flex"
         title="Ir para o arquivo"><FileSearchCorner size={14} /></button
       >
       <button
-        class="p-1.5 hover:bg-[#333333] rounded text-[#cccccc] transition-colors"
+        class="p-1.5 hover:bg-[#333333] rounded text-[#cccccc] transition-colors hidden md:inline-flex"
         title="Mudar para git dividido"><Columns size={14} /></button
       >
       <button
-        class="p-1.5 rounded transition-colors mr-1 {showFileTree
+        class="p-1.5 rounded transition-colors mr-1 shrink-0 hidden sm:inline-flex {showFileTree
           ? 'bg-[#333333] text-[#ffffff]'
           : 'hover:bg-[#333333] text-[#cccccc]'}"
         title="Mostrar arquivos"
@@ -268,17 +310,27 @@
       </button>
 
       <button
-        class="flex items-center border gap-1 border-[#454545] bg-[#2d2d2d] hover:bg-[#3d3d3d] text-[#ececec] px-3 py-1 rounded-lg text-s transition-colors ml-1"
+        class="flex items-center border gap-1 border-[#454545] bg-[#2d2d2d] hover:bg-[#3d3d3d] text-[#ececec] py-1 rounded-lg text-s transition-colors ml-0.5 md:ml-1 shrink-0 {collapseButtonText
+          ? 'px-2'
+          : 'px-2 md:px-3'}"
+        title="Comitar ou enviar"
       >
-        <GitCommitHorizontal size={14} />
-        <span>Comitar ou enviar</span>
+        <GitCommitHorizontal size={14} class="shrink-0" />
+        {#if !collapseButtonText}
+          <span class="hidden md:inline">Comitar ou enviar</span>
+        {/if}
       </button>
 
       <button
-        class="flex items-center border border-[#333333] bg-transparent text-[#666666] px-3 py-1 rounded-lg text-s ml-1 cursor-not-allowed"
+        class="flex items-center border border-[#333333] bg-transparent text-[#666666] py-1 rounded-lg text-s ml-1 cursor-not-allowed shrink-0 {collapseButtonText
+          ? 'px-2'
+          : 'px-2 md:px-3'}"
+        title="Criar PR"
       >
-        <GitPullRequest size={14} />
-        <span>Criar PR</span>
+        <GitPullRequest size={14} class="shrink-0" />
+        {#if !collapseButtonText}
+          <span class="hidden md:inline">Criar PR</span>
+        {/if}
       </button>
     </div>
   </div>
@@ -1035,7 +1087,7 @@
 
       <!-- Floating Action Bar at the Bottom -->
       <div
-        class="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center bg-[#2d2d2d] rounded-full px-1 py-1 shadow-lg border border-[#454545] whitespace-nowrap scale-[0.6] origin-bottom z-10"
+        class="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center bg-[#2d2d2d] rounded-full px-1 py-1 shadow-lg border border-[#454545] whitespace-nowrap scale-[0.5] sm:scale-[0.6] md:scale-75 lg:scale-90 xl:scale-100 origin-bottom z-10 max-w-[calc(100vw-2rem)]"
       >
         <button
           class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full hover:bg-[#3d3d3d] text-[#cccccc] text-xs transition-colors shrink-0"
@@ -1240,5 +1292,13 @@
   }
   .always-scrollbar::-webkit-scrollbar-thumb:hover {
     background-color: rgba(100, 100, 100, 0.7);
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 </style>

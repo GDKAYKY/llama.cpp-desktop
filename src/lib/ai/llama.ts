@@ -20,6 +20,38 @@ const DEFAULT_TOP_P = 0.95;
 const DEFAULT_TOP_K = 40;
 const MAX_TOOL_STEPS = 3;
 
+/**
+ * Final sanitization pass to remove any leaked thinking tags from assistant content.
+ * This catches orphaned closing tags and malformed thinking markers that may have
+ * slipped through streaming or tool integration.
+ */
+function sanitizeAssistantContent(content: string): string {
+  if (!content) return content;
+
+  let sanitized = content;
+
+  // Remove orphaned closing tags
+  sanitized = sanitized
+    .replace(/<\/think>/g, "")
+    .replace(/<\/analysis>/g, "")
+    .replace(/<\/reasoning>/g, "");
+
+  // Remove empty thinking blocks
+  sanitized = sanitized
+    .replace(/<think>\s*<\/think>/g, "")
+    .replace(/<analysis>\s*<\/analysis>/g, "")
+    .replace(/<reasoning>\s*<\/reasoning>/g, "");
+
+  // Remove any stray opening tags without closing tags (fallback)
+  // This handles cases where a thinking block was started but never closed properly
+  sanitized = sanitized
+    .replace(/<think>(?![^]*<\/think>)/g, "")
+    .replace(/<analysis>(?![^]*<\/analysis>)/g, "")
+    .replace(/<reasoning>(?![^]*<\/reasoning>)/g, "");
+
+  return sanitized;
+}
+
 export interface AiChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -38,25 +70,41 @@ export interface RunLocalChatOptions {
   onThinkingChunk: (text: string) => void;
   onStatus: (text: string) => void;
   onToolContext: (context: ToolContext) => void;
-  onRequestPermission?: (serverId: string, toolName: string, args: Record<string, unknown>) => Promise<boolean>;
+  onRequestPermission?: (
+    serverId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ) => Promise<boolean>;
 }
 
-export async function runLocalChat(options: RunLocalChatOptions): Promise<string> {
+export async function runLocalChat(
+  options: RunLocalChatOptions,
+): Promise<string> {
   const model = createLlamaProvider(options.port)(MODEL_ID);
   const { cleanedInput } = extractMcpIds(options.userInput);
-  const messages = replaceLastUserInput(options.messages, options.userInput, cleanedInput);
+  const messages = replaceLastUserInput(
+    options.messages,
+    options.userInput,
+    cleanedInput,
+  );
   const tools = await buildMcpTools({
     userInput: options.userInput,
     onStatus: options.onStatus,
     onToolContext: options.onToolContext,
     onRequestPermission: options.onRequestPermission,
   });
-  const parser = new ThinkingStreamParser({ startInThinking: options.startInThinking });
+  const parser = new ThinkingStreamParser({
+    startInThinking: options.startInThinking,
+  });
   let fullText = "";
 
   const result = streamText({
     model,
-    messages: trimMessagesToBudget(messages, options.ctxSize, options.maxTokens),
+    messages: trimMessagesToBudget(
+      messages,
+      options.ctxSize,
+      options.maxTokens,
+    ),
     maxOutputTokens: options.maxTokens,
     temperature: options.temperature,
     topP: DEFAULT_TOP_P,
@@ -85,7 +133,9 @@ export async function runLocalChat(options: RunLocalChatOptions): Promise<string
     } else if (part.type === "tool-error") {
       throw new Error(String(part.error));
     } else if (part.type === "error") {
-      throw part.error instanceof Error ? part.error : new Error(String(part.error));
+      throw part.error instanceof Error
+        ? part.error
+        : new Error(String(part.error));
     }
   }
 
@@ -98,7 +148,9 @@ export async function runLocalChat(options: RunLocalChatOptions): Promise<string
     }
   }
 
-  return fullText;
+  // Final sanitization pass to remove any leaked thinking tags
+  const sanitized = sanitizeAssistantContent(fullText);
+  return sanitized;
 }
 
 export async function generateLocalTitle(
@@ -161,22 +213,33 @@ function buildProviderOptions(enableThinking: boolean) {
   };
 }
 
-async function tauriLlamaFetch(_input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+async function tauriLlamaFetch(
+  _input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
   const body = await bodyToText(init?.body ?? null);
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const onEvent = new Channel<{ chunk?: string; done?: boolean; error?: string }>();
+      const onEvent = new Channel<{
+        chunk?: string;
+        done?: boolean;
+        error?: string;
+      }>();
       onEvent.onmessage = (payload) => {
         if (payload.chunk) controller.enqueue(encoder.encode(payload.chunk));
         if (payload.error) controller.error(new Error(payload.error));
         if (payload.done) controller.close();
       };
 
-      invokeCommand("proxy_llama_chat_completion", { body, onEvent }).catch((error) => {
-        controller.error(error instanceof Error ? error : new Error(String(error)));
-      });
+      invokeCommand("proxy_llama_chat_completion", { body, onEvent }).catch(
+        (error) => {
+          controller.error(
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        },
+      );
     },
   });
 
@@ -197,10 +260,17 @@ async function buildMcpTools(options: {
   userInput: string;
   onStatus: (text: string) => void;
   onToolContext: (context: ToolContext) => void;
-  onRequestPermission?: (serverId: string, toolName: string, args: Record<string, unknown>) => Promise<boolean>;
+  onRequestPermission?: (
+    serverId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ) => Promise<boolean>;
 }): Promise<ToolSet> {
   const { mentionedIds, cleanedInput } = extractMcpIds(options.userInput);
-  const servers = (await invokeCommand("mcp_list_servers", {})) as McpServerConfig[];
+  const servers = (await invokeCommand(
+    "mcp_list_servers",
+    {},
+  )) as McpServerConfig[];
   const allowedServers = servers.filter((server) => {
     if (!server.enabled) return false;
     return mentionedIds.length === 0 || mentionedIds.includes(server.id);
@@ -228,13 +298,21 @@ async function buildMcpTools(options: {
 
           const permission = toolAllowlist[toolName] || "ask";
           if (permission === "deny") {
-            throw new Error(`Tool ${toolName} execution denied by configuration.`);
+            throw new Error(
+              `Tool ${toolName} execution denied by configuration.`,
+            );
           }
           if (permission === "ask" && options.onRequestPermission) {
             options.onStatus(`Waiting for permission to run ${toolName}...`);
-            const allowed = await options.onRequestPermission(server.id, toolName, args);
+            const allowed = await options.onRequestPermission(
+              server.id,
+              toolName,
+              args,
+            );
             if (!allowed) {
-              throw new Error(`User denied permission to execute tool ${toolName}.`);
+              throw new Error(
+                `User denied permission to execute tool ${toolName}.`,
+              );
             }
           }
 
@@ -343,12 +421,20 @@ function getToolName(definition: ToolDefinition): string | null {
   return typeof name === "string" && name.trim() ? name : null;
 }
 
-function getToolDescription(definition: ToolDefinition, serverId: string): string {
-  const description = typeof definition.description === "string" ? definition.description : "(no description)";
+function getToolDescription(
+  definition: ToolDefinition,
+  serverId: string,
+): string {
+  const description =
+    typeof definition.description === "string"
+      ? definition.description
+      : "(no description)";
   return `[${serverId}] ${description}`;
 }
 
-function getToolInputSchema(definition: ToolDefinition): Record<string, unknown> {
+function getToolInputSchema(
+  definition: ToolDefinition,
+): Record<string, unknown> {
   const schema = definition.inputSchema;
   if (isRecord(schema)) return schema;
   return { type: "object", properties: {} };
@@ -360,7 +446,9 @@ function trimMessagesToBudget(
   maxOutputTokens: number,
 ): ModelMessage[] {
   const promptBudget = Math.max(512, ctxSize - maxOutputTokens - 256);
-  const systemMessages = messages.filter((message) => message.role === "system");
+  const systemMessages = messages.filter(
+    (message) => message.role === "system",
+  );
   const chatMessages = messages.filter((message) => message.role !== "system");
   const selected: AiChatMessage[] = [];
   let tokens = estimateMessageTokens(systemMessages);
@@ -379,7 +467,10 @@ function trimMessagesToBudget(
 }
 
 function estimateMessageTokens(messages: AiChatMessage[]): number {
-  return messages.reduce((total, message) => total + estimateTextTokens(message.content) + 8, 0);
+  return messages.reduce(
+    (total, message) => total + estimateTextTokens(message.content) + 8,
+    0,
+  );
 }
 
 function estimateTextTokens(text: string): number {
