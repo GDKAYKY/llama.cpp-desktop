@@ -29,6 +29,7 @@
     thinkingLabel = "Thinking",
     thinkingTags = [],
     toolContext = [],
+    thinkingTime = 0,
   } = $props();
 
   let isEditing = $state(false);
@@ -37,6 +38,10 @@
   let messageParts = $derived.by(() => {
     const result = [];
     let lastIndex = 0;
+
+    if (thinkingProcess.length > 0 || modelThinking) {
+      result.push({ type: 'thinking' });
+    }
     
     const sortedTools = [...toolContext].sort((a, b) => (a.textIndex || 0) - (b.textIndex || 0));
     const content = message.content || "";
@@ -254,17 +259,6 @@
               {message.model}
             </div>
           {/if}
-          {#if message.role === "assistant" && (thinkingProcess.length > 0 || modelThinking || toolContext.length > 0)}
-            <ThinkingPanel
-              {thinkingProcess}
-              {modelThinking}
-              {thinkingLabel}
-              {thinkingTags}
-              {isStreaming}
-              messageContent={message.content}
-              messageTimestamp={message.timestamp ?? null}
-            />
-          {/if}
           
           <div class="flex flex-col mt-2 gap-2">
             {#each messageParts as part}
@@ -272,6 +266,17 @@
                 <MarkdownContent content={part.content} />
               {:else if part.type === 'tool'}
                 <ToolContextItem ctx={part.ctx} {isStreaming} />
+              {:else if part.type === 'thinking'}
+                <ThinkingPanel
+                  {thinkingProcess}
+                  {modelThinking}
+                  {thinkingLabel}
+                  {thinkingTags}
+                  {isStreaming}
+                  messageContent={message.content}
+                  messageTimestamp={message.timestamp ?? null}
+                  {thinkingTime}
+                />
               {/if}
             {/each}
 

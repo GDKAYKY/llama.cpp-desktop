@@ -21,6 +21,8 @@
   import { SiModelcontextprotocol } from "@icons-pack/svelte-simple-icons";
   import { mcpStore } from "$lib/stores/mcp.svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
+  import { extractTextFromPDF } from "$lib/utils/pdf-extractor.js";
+  import { notifications } from "$lib/shared/notifications";
 
   /** @type {{
    *   userInput: string,
@@ -389,6 +391,29 @@
     insertSlashCommand(item.command);
   }
 
+  async function handleFileUpload(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      notifications.error("Only PDF files are supported currently.");
+      return;
+    }
+
+    try {
+      notifications.message("Extracting text from PDF...");
+      const text = await extractTextFromPDF(file);
+      userInput = userInput ? `${userInput}\n\n[PDF: ${file.name}]\n${text}\n` : `[PDF: ${file.name}]\n${text}\n`;
+      notifications.success("PDF text extracted successfully.");
+      isDropdownOpen = false;
+    } catch (err) {
+      notifications.error("Failed to parse PDF.");
+    } finally {
+      target.value = "";
+    }
+  }
+
   $effect(() => {
     if (!isSlashMenuOpen) return;
     if (slashMode === "mcp") {
@@ -558,6 +583,7 @@
                   <button
                     type="button"
                     class="flex w-full cursor-pointer items-center gap-3 rounded-lg border-none bg-transparent px-3.5 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-white/8"
+                    onclick={() => document.getElementById('file-upload-input')?.click()}
                   >
                     <CirclePlus size={18} />
                     <span>Upload from computer</span>
@@ -707,5 +733,6 @@
         </div>
       </div>
     </form>
+    <input type="file" id="file-upload-input" accept=".pdf" class="hidden" onchange={handleFileUpload} />
   </div>
 </div>

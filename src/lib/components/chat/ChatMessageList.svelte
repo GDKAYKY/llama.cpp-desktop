@@ -44,6 +44,9 @@
         toolContext={useLiveThinking
           ? toolContext
           : (msg.toolContext ?? [])}
+        thinkingTime={useLiveThinking
+          ? chatStore.thinkingTime
+          : (msg.thinkingTime ?? 0)}
         {pill}
       />
     {/each}

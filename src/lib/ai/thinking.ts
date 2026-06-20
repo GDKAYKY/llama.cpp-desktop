@@ -13,6 +13,12 @@ export class ThinkingStreamParser {
   private buffer = "";
   private currentCloseTag = "</think>";
 
+  constructor(options?: { startInThinking?: boolean }) {
+    if (options?.startInThinking) {
+      this.inThinking = true;
+    }
+  }
+
   push(chunk: string): ParsedChunk[] {
     this.buffer += chunk;
     const results: ParsedChunk[] = [];

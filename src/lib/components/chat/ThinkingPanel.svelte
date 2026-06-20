@@ -3,6 +3,7 @@
   import TextShimmer from "$components/ui/TextShimmer.svelte";
   import { cn } from "$shared/cn.js";
   import ToolContextItem from "$components/ui/tools/ToolContextItem.svelte";
+  import MarkdownContent from "$components/ui/MarkdownContent.svelte";
   import {
     groupThinkingSteps,
     isToolStep,
@@ -17,6 +18,7 @@
     messageContent = "",
     isStreaming = false,
     messageTimestamp = null,
+    thinkingTime = 0,
   } = $props();
 
   let thinkingOpen = $state(false);
@@ -93,11 +95,11 @@
       />
       {#if isStreaming}
         <TextShimmer class="min-w-0 flex-1 truncate" duration={1.5}>
-          Thinking
+          {`Thinking... (${formatThinkingDuration(thinkingElapsed)})`}
         </TextShimmer>
       {:else}
         <span class="min-w-0 flex-1 truncate">
-          {`Thinked for ${formatThinkingDuration(thinkingElapsed)}`}
+          {`Thinked for ${formatThinkingDuration(thinkingTime > 0 ? thinkingTime : thinkingElapsed)}`}
         </span>
       {/if}
     </button>
@@ -110,7 +112,7 @@
           <div class="flex flex-col gap-1">
             {#if summary.steps.length > 0}
               {#each groupedSteps as group, groupIndex}
-                <div class="whitespace-pre-wrap wrap-break-word">
+                <div>
                   {#if isStreaming && groupIndex === groupedSteps.length - 1 && group.items.length === 0}
                     {#if isToolStep(group.title)}
                       <div class="flex items-center gap-2">
@@ -126,13 +128,13 @@
                       <span>{group.title}</span>
                     </div>
                   {:else}
-                    {group.title}
+                    <MarkdownContent content={group.title} class="[&_p]:mb-0 [&_pre]:my-2" />
                   {/if}
                 </div>
                 {#if group.items.length > 0}
                   <ul class="ml-4 list-disc space-y-0.5">
                     {#each group.items as item, itemIndex}
-                      <li class="whitespace-pre-wrap wrap-break-word">
+                      <li>
                         {#if isStreaming && groupIndex === groupedSteps.length - 1 && itemIndex === group.items.length - 1}
                           {#if isToolStep(item)}
                             <div class="flex items-center gap-2">
@@ -154,7 +156,7 @@
                             <span>{item}</span>
                           </div>
                         {:else}
-                          {item}
+                          <MarkdownContent content={item} class="[&_p]:mb-0 [&_pre]:my-2" />
                         {/if}
                       </li>
                     {/each}

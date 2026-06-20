@@ -33,6 +33,7 @@ export interface RunLocalChatOptions {
   maxTokens: number;
   ctxSize: number;
   enableThinking: boolean;
+  startInThinking?: boolean;
   onText: (text: string) => void;
   onThinkingChunk: (text: string) => void;
   onStatus: (text: string) => void;
@@ -50,7 +51,7 @@ export async function runLocalChat(options: RunLocalChatOptions): Promise<string
     onToolContext: options.onToolContext,
     onRequestPermission: options.onRequestPermission,
   });
-  const parser = new ThinkingStreamParser();
+  const parser = new ThinkingStreamParser({ startInThinking: options.startInThinking });
   let fullText = "";
 
   const result = streamText({

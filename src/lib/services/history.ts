@@ -18,6 +18,7 @@ export interface ChatMessage {
   thinkingProcess?: string[];
   modelThinking?: string;
   toolContext?: ToolContext[];
+  thinkingTime?: number;
 }
 
 export interface ToolContext {
@@ -80,6 +81,7 @@ export async function saveMessage(
     thinkingProcess?: string[];
     modelThinking?: string;
     toolContext?: ToolContext[];
+    thinkingTime?: number;
   }
 ) {
   await db.messages.add({
@@ -92,7 +94,8 @@ export async function saveMessage(
     model,
     thinkingProcess: meta?.thinkingProcess,
     modelThinking: meta?.modelThinking,
-    toolContext: meta?.toolContext
+    toolContext: meta?.toolContext,
+    thinkingTime: meta?.thinkingTime
   });
   
   await db.conversations.update(conversationId, { updatedAt: Date.now() });
@@ -145,6 +148,7 @@ export async function updateConversationMessageAtIndex(
     thinkingProcess?: string[];
     modelThinking?: string;
     toolContext?: ToolContext[];
+    thinkingTime?: number;
   }
 ) {
   const messages = await getConversationMessagesOrdered(conversationId);
@@ -163,6 +167,7 @@ export async function updateConversationMessageAtIndex(
       thinkingProcess: updates.thinkingProcess,
       modelThinking: updates.modelThinking,
       toolContext: updates.toolContext,
+      thinkingTime: updates.thinkingTime,
     });
     await db.conversations.update(conversationId, { updatedAt: Date.now() });
   });

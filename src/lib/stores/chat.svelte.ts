@@ -26,6 +26,7 @@ export interface Message {
   thinkingProcess?: string[];
   modelThinking?: string;
   toolContext?: ToolContext[];
+  thinkingTime?: number;
 }
 
 export interface ToolContext {
@@ -48,8 +49,11 @@ class ChatStore {
   messages = $state<Message[]>([]);
   thinkingProcess = $state<string[]>([]);
   modelThinking = $state("");
-  thinkingLabel = $state("Thinking");
+  thinkingLabel = $state<string>("Thinking");
   thinkingTags = $state<string[]>([]);
+  thinkingLineBuffer = $state<string>("");
+  thinkingStartTime = $state<number | null>(null);
+  thinkingTime = $state<number>(0);
   toolContext = $state<ToolContext[]>([]);
   isLoading = $state(false);
   error = $state<string | null>(null);
@@ -67,7 +71,6 @@ class ChatStore {
   // Streaming buffers stay non-reactive on purpose to avoid UI churn.
   currentAssistantResponse = "";
   private lastTemplateKey: string | null = null;
-  private thinkingLineBuffer = "";
 
   async initialize() {
     this.error = null;
@@ -115,6 +118,7 @@ class ChatStore {
       thinkingProcess: h.thinkingProcess,
       modelThinking: h.modelThinking,
       toolContext: h.toolContext,
+      thinkingTime: h.thinkingTime,
     }));
 
     this.activeConversationId = id;
@@ -179,6 +183,8 @@ class ChatStore {
     this.modelThinking = "";
     this.toolContext = [];
     this.thinkingLineBuffer = "";
+    this.thinkingStartTime = null;
+    this.thinkingTime = 0;
     this.currentAssistantResponse = "";
 
     const requestMessages = this.buildAiMessages();
@@ -192,6 +198,7 @@ class ChatStore {
         maxTokens: settingsStore.settings.maxTokens,
         ctxSize: this.getRunningCtxSize(),
         enableThinking: this.hasExplicitChatTemplate(),
+        startInThinking: this.thinkingTags.length > 0,
         onText: (text) => this.appendChunk(text),
         onThinkingChunk: (text) => this.appendThinkingChunk(text),
         onStatus: (text) => this.appendThinkingStatus(text),
@@ -297,6 +304,7 @@ class ChatStore {
         maxTokens: settingsStore.settings.maxTokens,
         ctxSize: this.getRunningCtxSize(),
         enableThinking: this.hasExplicitChatTemplate(),
+        startInThinking: this.thinkingTags.length > 0,
         onText: (text) => {
           buffer += text;
           this.updateAssistantAt(messageIndex, { content: buffer });
@@ -361,6 +369,7 @@ class ChatStore {
         : undefined,
       modelThinking: this.modelThinking ? this.modelThinking : undefined,
       toolContext: this.toolContext.length ? [...this.toolContext] : undefined,
+      thinkingTime: this.thinkingTime > 0 ? this.thinkingTime : undefined,
     };
 
     this.messages = [
@@ -458,6 +467,7 @@ class ChatStore {
         : undefined,
       modelThinking: this.modelThinking || undefined,
       toolContext: this.toolContext.length ? JSON.parse(JSON.stringify(this.toolContext)) : undefined,
+      thinkingTime: this.thinkingTime > 0 ? this.thinkingTime : undefined,
     };
   }
 
@@ -474,6 +484,7 @@ class ChatStore {
     this.modelThinking = "";
     this.toolContext = [];
     this.thinkingLineBuffer = "";
+    this.thinkingStartTime = null;
   }
 
   private async refreshThinkingLabel() {
@@ -516,6 +527,10 @@ class ChatStore {
   private appendThinkingChunk(chunk: string) {
     if (!chunk) return;
 
+    if (this.thinkingStartTime === null) {
+      this.thinkingStartTime = Date.now();
+    }
+
     this.modelThinking += chunk;
 
     const combined = `${this.thinkingLineBuffer}${chunk}`;
@@ -548,6 +563,11 @@ class ChatStore {
   }
 
   private async finishAssistantResponse(conversationId: number) {
+    if (this.thinkingStartTime !== null) {
+      this.thinkingTime = Math.floor((Date.now() - this.thinkingStartTime) / 1000);
+      this.thinkingStartTime = null;
+    }
+
     this.flushThinkingBuffer();
 
     const lastMsg = this.messages[this.messages.length - 1];
