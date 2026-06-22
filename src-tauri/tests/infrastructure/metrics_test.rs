@@ -1,4 +1,4 @@
-use llama_desktop_lib::infrastructure::gpu::{MetricsProvider, SystemMetricsProvider};
+use llama_desktop_lib::infrastructure::gpu::{ MetricsProvider, SystemMetricsProvider };
 
 #[test]
 fn test_metrics_provider_nonexistent_pid() {

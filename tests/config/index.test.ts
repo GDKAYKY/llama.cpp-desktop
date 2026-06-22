@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
-import { DEFAULT_CONFIG } from "$lib/config/defaultConfig";
+import { DEFAULT_CONFIG } from "$lib/config/AppConfig";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
@@ -37,9 +37,9 @@ describe("config module", () => {
       expect(DEFAULT_CONFIG.autoSaveChat).toBe(true);
       expect(DEFAULT_CONFIG.chatHistoryLimit).toBe(50);
       expect(DEFAULT_CONFIG.serverPort).toBe(8080);
-      expect(DEFAULT_CONFIG.llamaServerParallel).toBe(1);
-      expect(DEFAULT_CONFIG.llamaServerGpuLayers).toBe(33);
-      expect(DEFAULT_CONFIG.llamaServerJinja).toBe(true);
+      expect(DEFAULT_CONFIG.Parallel).toBe(1);
+      expect(DEFAULT_CONFIG.GpuLayers).toBe(33);
+      expect(DEFAULT_CONFIG.Jinja).toBe(true);
       expect(DEFAULT_CONFIG.llamaServerExtraArgs).toEqual([]);
       expect(DEFAULT_CONFIG.webSearchProvider).toBe("tavily");
       expect(DEFAULT_CONFIG.webSearchMcpId).toBeNull();
@@ -114,7 +114,9 @@ describe("config module", () => {
       const { invoke } = await import("@tauri-apps/api/core");
       const { getConfigPath } = await import("$lib/config/index");
 
-      vi.mocked(invoke).mockResolvedValue("/home/user/.config/llama/config.json");
+      vi.mocked(invoke).mockResolvedValue(
+        "/home/user/.config/llama/config.json",
+      );
 
       const result = await getConfigPath();
 

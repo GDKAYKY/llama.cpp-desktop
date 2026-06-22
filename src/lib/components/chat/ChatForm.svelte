@@ -17,6 +17,9 @@
     Wrench,
     Package,
     X,
+    ChevronDown,
+    Hand,
+    LaptopMinimal,
   } from "lucide-svelte";
   import { SiModelcontextprotocol } from "@icons-pack/svelte-simple-icons";
   import { mcpStore } from "$lib/stores/mcp.svelte";
@@ -46,7 +49,6 @@
   } = $props();
 
   let isDropdownOpen = $state(false);
-  let isMcpDropdownOpen = $state(false);
   let isSlashMenuOpen = $state(false);
   let slashQuery = $state("");
   let slashSelectedIndex = $state(0);
@@ -177,17 +179,8 @@
     isDropdownOpen = !isDropdownOpen;
   }
 
-  function toggleMcpDropdown(e: MouseEvent) {
-    if (e) e.stopPropagation();
-    isMcpDropdownOpen = !isMcpDropdownOpen;
-    if (!isMcpDropdownOpen) {
-      mcpQuery = "";
-    }
-  }
-
   function handleClickOutside() {
     isDropdownOpen = false;
-    isMcpDropdownOpen = false;
     mcpQuery = "";
   }
 
@@ -396,7 +389,10 @@
     const file = target.files?.[0];
     if (!file) return;
 
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+    if (
+      file.type !== "application/pdf" &&
+      !file.name.toLowerCase().endsWith(".pdf")
+    ) {
       notifications.error("Only PDF files are supported currently.");
       return;
     }
@@ -404,7 +400,9 @@
     try {
       notifications.message("Extracting text from PDF...");
       const text = await extractTextFromPDF(file);
-      userInput = userInput ? `${userInput}\n\n[PDF: ${file.name}]\n${text}\n` : `[PDF: ${file.name}]\n${text}\n`;
+      userInput = userInput
+        ? `${userInput}\n\n[PDF: ${file.name}]\n${text}\n`
+        : `[PDF: ${file.name}]\n${text}\n`;
       notifications.success("PDF text extracted successfully.");
       isDropdownOpen = false;
     } catch (err) {
@@ -543,12 +541,11 @@
       </div>
     {/if}
 
-    <form
-      class="rounded-[28px] border border-white/10 bg-[#2f2f2f] p-3 px-4 shadow-xl transition-all"
-      onsubmit={handleSubmit}
-    >
-      <div class="flex flex-col gap-2">
-        <div class="w-full">
+    <form class="transition-all" onsubmit={handleSubmit}>
+      <div
+        class="relative flex min-h-[120px] flex-col overflow-hidden rounded-[1.65rem] border border-white/12 bg-[#2f2f2f]/95 shadow-[0_16px_50px_rgba(0,0,0,0.32)] backdrop-blur-xl"
+      >
+        <div class="flex-1 px-4 pb-1 pt-3">
           <textarea
             bind:this={textarea}
             bind:value={userInput}
@@ -556,20 +553,23 @@
             onkeydown={handleKeydownEvent}
             placeholder="Message llama-desktop..."
             rows="1"
-            class="min-h-[24px] max-h-[200px] w-full resize-none border-none bg-transparent py-1 text-[15px] leading-6 text-foreground outline-none placeholder:text-muted-foreground placeholder:opacity-60 md:text-base md:leading-relaxed"
+            class="max-h-[25dvh] min-h-[2.75rem] w-full resize-none border-none bg-transparent py-1 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground placeholder:opacity-70"
           ></textarea>
         </div>
 
-        <div class="relative mt-1 flex items-center gap-3">
-          <div class="mr-auto flex items-center gap-1">
+        <div
+          class="grid grid-cols-[minmax(0,auto)_auto_minmax(0,1fr)] items-center gap-[5px] px-2 pb-2"
+        >
+          <div class="flex min-w-0 items-center gap-[5px]">
             <div class="relative">
               <button
                 type="button"
-                class="flex cursor-pointer items-center justify-center rounded-full border-none bg-transparent p-2 text-muted-foreground transition-all hover:bg-white/5 hover:text-foreground"
+                class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-muted-foreground transition-colors hover:bg-white/7 hover:text-foreground"
                 onclick={toggleDropdown}
-                title="Attach files"
+                title="Add files and more"
+                aria-label="Add files and more"
               >
-                <Paperclip size={20} />
+                <CirclePlus size={20} />
               </button>
 
               {#if isDropdownOpen}
@@ -583,9 +583,10 @@
                   <button
                     type="button"
                     class="flex w-full cursor-pointer items-center gap-3 rounded-lg border-none bg-transparent px-3.5 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-white/8"
-                    onclick={() => document.getElementById('file-upload-input')?.click()}
+                    onclick={() =>
+                      document.getElementById("file-upload-input")?.click()}
                   >
-                    <CirclePlus size={18} />
+                    <Paperclip size={18} />
                     <span>Upload from computer</span>
                   </button>
                   <button
@@ -607,69 +608,18 @@
               {/if}
             </div>
 
-            <div class="relative">
-              <button
-                type="button"
-                class="flex cursor-pointer items-center justify-center rounded-full border-none bg-transparent p-2 text-muted-foreground transition-all hover:bg-white/5 hover:text-foreground"
-                onclick={toggleMcpDropdown}
-                title="Mention MCP"
-              >
-                <AtSign size={20} />
-              </button>
-
-              {#if isMcpDropdownOpen}
-                <div
-                  class="absolute bottom-[calc(100%+12px)] left-0 z-100 flex w-[240px] flex-col overflow-hidden rounded-xl border border-border bg-secondary p-1.5 shadow-lg"
-                  role="menu"
-                  tabindex="-1"
-                  onclick={(e: MouseEvent) => e.stopPropagation()}
-                  onkeydown={() => {}}
-                >
-                  <div
-                    class="flex items-center gap-2 rounded-xl bg-black/20 px-3 py-2 text-xs text-muted-foreground"
-                  >
-                    <Search size={14} />
-                    <input
-                      type="search"
-                      placeholder="Pesquisar MCP"
-                      bind:value={mcpQuery}
-                      class="w-full border-none bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/80"
-                    />
-                  </div>
-                  <div class="max-h-[280px] overflow-y-auto pr-1">
-                    {#if mcpStore.servers.length === 0}
-                      <div class="px-3 py-2 text-xs text-muted-foreground">
-                        Nenhum MCP configurado
-                      </div>
-                    {:else if filteredMcpDropdownServers.length === 0}
-                      <div class="px-3 py-2 text-xs text-muted-foreground">
-                        Nenhum MCP encontrado
-                      </div>
-                    {:else}
-                      {#each filteredMcpDropdownServers as server}
-                        <button
-                          type="button"
-                          class="flex w-full cursor-pointer items-center gap-3 rounded-lg border-none bg-transparent px-3.5 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-white/8"
-                          onclick={() => {
-                            insertMention(`@mcp:${server.id}`);
-                            isMcpDropdownOpen = false;
-                          }}
-                        >
-                          <SiModelcontextprotocol size={16} />
-                          <div class="flex flex-col gap-0.5">
-                            <span class="text-sm">{server.name}</span>
-                            <span
-                              class="text-[11px] text-muted-foreground font-mono"
-                              >{server.id}</span
-                            >
-                          </div>
-                        </button>
-                      {/each}
-                    {/if}
-                  </div>
-                </div>
-              {/if}
-            </div>
+            <button
+              type="button"
+              class="hidden h-8 min-w-0 cursor-pointer items-center gap-1.5 rounded-full border border-transparent px-2 text-sm leading-[18px] text-muted-foreground transition-colors hover:bg-white/7 hover:text-foreground sm:flex"
+              title="Approval mode"
+            >
+              <Hand size={18} class="shrink-0" />
+              <span class="max-w-36 truncate text-left">Ask for approval</span>
+              <ChevronDown
+                size={14}
+                class="shrink-0 text-muted-foreground/75"
+              />
+            </button>
 
             {#if selectedMcps.length > 0}
               {#each selectedMcps as selectedMcp}
@@ -712,11 +662,15 @@
               </button>
             {/if}
           </div>
-          <div class="flex items-center gap-2">
+
+          <div class="flex items-center"></div>
+
+          <div class="flex min-w-0 items-center justify-end gap-2">
             <button
               type="button"
-              class="flex cursor-pointer items-center justify-center rounded-full border-none bg-transparent p-2 text-muted-foreground transition-all hover:bg-white/5 hover:text-foreground"
+              class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-muted-foreground transition-colors hover:bg-white/7 hover:text-foreground"
               title="Voice input"
+              aria-label="Voice input"
             >
               <Mic size={20} />
             </button>
@@ -724,8 +678,9 @@
             <button
               type="submit"
               disabled={!userInput.trim() || isLoading || !modelLoaded}
-              class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-white text-black transition-all hover:enabled:scale-105 hover:enabled:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
+              class="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-white text-black transition-all hover:enabled:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
               title="Send message"
+              aria-label="Send message"
             >
               <ArrowUp size={20} strokeWidth={2.5} />
             </button>
@@ -733,6 +688,12 @@
         </div>
       </div>
     </form>
-    <input type="file" id="file-upload-input" accept=".pdf" class="hidden" onchange={handleFileUpload} />
+    <input
+      type="file"
+      id="file-upload-input"
+      accept=".pdf"
+      class="hidden"
+      onchange={handleFileUpload}
+    />
   </div>
 </div>

@@ -56,17 +56,32 @@
   $effect(() => {
     if (!headerBarRef || !leftSectionRef || !rightSectionRef) return;
 
-    const checkCollision = () => {
+    let expandedRightWidth = 0;
+
+    const resizeObserver = new ResizeObserver(() => {
       const leftRect = leftSectionRef.getBoundingClientRect();
       const rightRect = rightSectionRef.getBoundingClientRect();
       const gap = 16; // Minimum gap in pixels before collapsing
+      const availableInnerWidth = rightRect.right - leftRect.left;
 
-      collapseButtonText = leftRect.right + gap >= rightRect.left;
-    };
+      if (!collapseButtonText) {
+        expandedRightWidth = rightSectionRef.scrollWidth;
 
-    checkCollision();
+        if (
+          leftRect.right + gap >= rightRect.left ||
+          leftSectionRef.scrollWidth > leftSectionRef.clientWidth
+        ) {
+          collapseButtonText = true;
+        }
+      } else {
+        const requiredWidth =
+          leftSectionRef.scrollWidth + expandedRightWidth + gap;
+        if (availableInnerWidth >= requiredWidth) {
+          collapseButtonText = false;
+        }
+      }
+    });
 
-    const resizeObserver = new ResizeObserver(checkCollision);
     resizeObserver.observe(headerBarRef);
 
     return () => resizeObserver.disconnect();
@@ -201,13 +216,13 @@
   >
     <div
       bind:this={leftSectionRef}
-      class="flex items-center gap-1 md:gap-1.5 lg:gap-2 shrink min-w-0 overflow-hidden"
+      class="flex items-center gap-0.5 md:gap-1 lg:gap-2 shrink min-w-0 overflow-hidden"
     >
       <span class="text-[#ffffff] hidden md:inline truncate flex-shrink-0"
         >Não marcadas para commit</span
       >
       <span
-        class="bg-[#333333] text-[#cccccc] px-1.5 py-0.5 rounded-md text-xs font-medium flex-shrink-0"
+        class="bg-[#333333] text-[#cccccc] px-2 py-0.5 rounded-md text-xs font-medium flex-shrink-0"
         >7</span
       >
       <ChevronDown
@@ -310,7 +325,7 @@
       </button>
 
       <button
-        class="flex items-center border gap-1 border-[#454545] bg-[#2d2d2d] hover:bg-[#3d3d3d] text-[#ececec] py-1 rounded-lg text-s transition-colors ml-0.5 md:ml-1 shrink-0 {collapseButtonText
+        class="flex items-center border gap-1 border-[#454545] bg-[#2d2d2d] hover:bg-[#3d3d3d] text-[#ececec] py-1.5 rounded-lg text-s transition-colors shrink-0 {collapseButtonText
           ? 'px-2'
           : 'px-2 md:px-3'}"
         title="Comitar ou enviar"
@@ -322,7 +337,7 @@
       </button>
 
       <button
-        class="flex items-center border border-[#333333] bg-transparent text-[#666666] py-1 rounded-lg text-s ml-1 cursor-not-allowed shrink-0 {collapseButtonText
+        class="flex items-center border border-[#333333] bg-transparent text-[#666666] py-1.5 rounded-lg text-s ml-1 cursor-not-allowed shrink-0 {collapseButtonText
           ? 'px-2'
           : 'px-2 md:px-3'}"
         title="Criar PR"
@@ -336,7 +351,9 @@
   </div>
 
   <!-- Content Area (Split View) -->
-  <div class="flex-1 flex overflow-hidden relative w-full">
+  <div
+    class="flex-1 flex overflow-hidden relative w-full border-border border-t"
+  >
     <!-- Left Main Area (Diff View) -->
     <div
       class="flex-1 flex flex-col relative"
@@ -344,17 +361,17 @@
     >
       <!-- Diff Content Scroll Area -->
       <div class="flex-1 always-scrollbar bg-background relative">
-        {#each files as file (file.id)}
+        {#each files as file, index (file.id)}
           <div
-            class="mr-0.5 transition-all duration-150 {file.collapsed
-              ? 'mt-0.5'
-              : 'mt-0.5'}  bg-background group/file"
+            class="mr-0.5 transition-all duration-150 {index === 0
+              ? ''
+              : 'mt-0.5'} bg-background group/file"
           >
             <!-- File Header -->
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-              class="flex items-center justify-between px-3 py-3 cursor-pointer select-none bg-[#2d2d2d] group/header {file.collapsed
+              class="flex h-8 items-center justify-between px-3 cursor-pointer select-none bg-[#2d2d2d] group/header {file.collapsed
                 ? ''
                 : ''}"
               onclick={() => {
@@ -381,7 +398,7 @@
                   >
                 {/if}
                 <span
-                  class="truncate text-[13px] mr-1.5"
+                  class="truncate text-[12px] mr-1.5"
                   style="direction: rtl; text-align: left;"
                 >
                   <span style="direction: ltr; unicode-bidi: embed;">
@@ -433,7 +450,7 @@
                   <span class="text-[#ED5B37]">-{file.deletions}</span>
                 {/if}
                 <ExternalLink
-                  size={14}
+                  size={12}
                   class="text-[#858585] hover:text-[#cccccc] cursor-pointer"
                   onclick={(e) => e.stopPropagation()}
                 />

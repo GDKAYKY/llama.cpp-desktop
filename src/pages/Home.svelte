@@ -132,9 +132,9 @@
         modelPath,
         port,
         ctxSize,
-        nGpuLayers: settingsStore.settings.llamaServerGpuLayers,
-        jinja: settingsStore.settings.llamaServerJinja,
-        parallel: settingsStore.settings.llamaServerParallel,
+        nGpuLayers: settingsStore.settings.GpuLayers,
+        jinja: settingsStore.settings.Jinja,
+        parallel: settingsStore.settings.Parallel,
         extraArgs: settingsStore.settings.llamaServerExtraArgs,
         ...(chatTemplate !== null ? { chatTemplate } : {}),
       });
@@ -183,7 +183,9 @@
   <div class="flex h-full overflow-hidden">
     <!-- Chat area -->
     <div
-      class="relative flex h-full flex-col overflow-hidden rounded-tl-lg bg-background {isResizingPanel ? '' : 'transition-all duration-300'}"
+      class="relative flex h-full flex-col overflow-hidden rounded-tl-lg bg-background {isResizingPanel
+        ? ''
+        : 'transition-all duration-300'}"
       style="width: {uiStore.isSessionPanelOpen
         ? `calc(100% - ${sessionPanelWidth}px)`
         : '100%'}"
@@ -205,10 +207,15 @@
       />
 
       <!-- Background mock behind the rounded chat window -->
-      <div class="bg-[#171717]" style="height: {uiStore.isSidebarHidden ? '100%' : 'calc(100% - 60px)'}">
+      <div
+        class="bg-[#171717]"
+        style="height: {uiStore.isSidebarHidden ? '100%' : 'calc(100% - 60px)'}"
+      >
         <!-- Body — scrollable chat content -->
         <div
-          class="flex h-full min-h-0 flex-col overflow-y-auto rounded-t-lg bg-background {uiStore.isSidebarHidden ? 'pt-[60px]' : ''}"
+          class="flex h-full min-h-0 flex-col overflow-y-auto rounded-t-lg bg-background {uiStore.isSidebarHidden
+            ? 'pt-[60px]'
+            : ''}"
         >
           {#if isEmpty}
             <div class="flex grow items-center justify-center">
@@ -248,7 +255,7 @@
 
             <!-- Floating Chat Form at the bottom -->
             <div
-              class="pointer-events-none sticky bottom-0 z-10 mt-auto flex w-full flex-col items-center pb-2"
+              class="pointer-events-none sticky bottom-0 z-10 mt-auto flex w-full flex-col items-center"
             >
               <!-- Gradient overlay to blend bottom edge -->
               <div

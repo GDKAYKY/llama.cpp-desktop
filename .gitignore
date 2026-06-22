@@ -144,3 +144,4 @@ vite.config.ts.timestamp-*
 /update_icons.py
 /.obsidian/themes
 /docs/.obsidian
+/.antigravitycli

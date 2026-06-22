@@ -1,4 +1,4 @@
-import Dexie, { type Table } from 'dexie';
+import Dexie, { type Table } from "dexie";
 
 export interface Conversation {
   id?: number;
@@ -9,7 +9,7 @@ export interface Conversation {
 export interface ChatMessage {
   id?: number;
   conversationId: number;
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   content: string;
   tokens: number;
   keywords: string[];
@@ -34,13 +34,15 @@ export class ChatDatabase extends Dexie {
   messages!: Table<ChatMessage>;
 
   constructor() {
-    super('LlamaDesktopDB');
-    this.version(3).stores({
-      conversations: '++id, title, updatedAt',
-      messages: '++id, conversationId, role, *keywords, timestamp, model'
-    }).upgrade(trans => {
+    super("LlamaDesktopDB");
+    this.version(3)
+      .stores({
+        conversations: "++id, title, updatedAt",
+        messages: "++id, conversationId, role, *keywords, timestamp, model",
+      })
+      .upgrade((trans) => {
         // Upgrade logic if needed, but for adding a field/index Dexie handles it mostly
-    });
+      });
   }
 }
 
@@ -48,22 +50,74 @@ export const db = new ChatDatabase();
 
 // --- Helper: Keyword Extraction (Simple Stopword removal) ---
 const STOP_WORDS = new Set([
-  'a', 'an', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
-  'is', 'are', 'was', 'were', 'be', 'been', 'being',
-  'it', 'this', 'that', 'these', 'those',
-  'i', 'you', 'he', 'she', 'we', 'they', 'me', 'him', 'her', 'us', 'them',
-  'what', 'which', 'who', 'whom', 'whose',
-  'can', 'could', 'will', 'would', 'shall', 'should',
-  'have', 'has', 'had', 'do', 'does', 'did',
-  'but', 'and', 'or', 'so', 'if', 'when', 'where', 'how', 'why'
+  "a",
+  "an",
+  "the",
+  "in",
+  "on",
+  "at",
+  "to",
+  "for",
+  "of",
+  "with",
+  "by",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "it",
+  "this",
+  "that",
+  "these",
+  "those",
+  "i",
+  "you",
+  "he",
+  "she",
+  "we",
+  "they",
+  "me",
+  "him",
+  "her",
+  "us",
+  "them",
+  "what",
+  "which",
+  "who",
+  "whom",
+  "whose",
+  "can",
+  "could",
+  "will",
+  "would",
+  "shall",
+  "should",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "but",
+  "and",
+  "or",
+  "so",
+  "if",
+  "when",
+  "where",
+  "how",
+  "why",
 ]);
 
 export function extractKeywords(text: string): string[] {
   return text
     .toLowerCase()
-    .replace(/[^\w\s]/g, '') // Remove punctuation
+    .replace(/[^\w\s]/g, "") // Remove punctuation
     .split(/\s+/)
-    .filter(word => word.length > 2 && !STOP_WORDS.has(word));
+    .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
 }
 
 export function estimateTokens(text: string): number {
@@ -74,7 +128,7 @@ export function estimateTokens(text: string): number {
 
 export async function saveMessage(
   conversationId: number,
-  role: 'user' | 'assistant' | 'system',
+  role: "user" | "assistant" | "system",
   content: string,
   model?: string,
   meta?: {
@@ -82,7 +136,7 @@ export async function saveMessage(
     modelThinking?: string;
     toolContext?: ToolContext[];
     thinkingTime?: number;
-  }
+  },
 ) {
   await db.messages.add({
     conversationId,
@@ -95,35 +149,42 @@ export async function saveMessage(
     thinkingProcess: meta?.thinkingProcess,
     modelThinking: meta?.modelThinking,
     toolContext: meta?.toolContext,
-    thinkingTime: meta?.thinkingTime
+    thinkingTime: meta?.thinkingTime,
   });
-  
+
   await db.conversations.update(conversationId, { updatedAt: Date.now() });
 }
 
 async function getConversationMessagesOrdered(
-  conversationId: number
+  conversationId: number,
 ): Promise<ChatMessage[]> {
-  const messages = await db.messages.where('conversationId').equals(conversationId).toArray();
+  const messages = await db.messages
+    .where("conversationId")
+    .equals(conversationId)
+    .toArray();
   return messages.sort(
-    (a, b) => a.timestamp - b.timestamp || (a.id ?? 0) - (b.id ?? 0)
+    (a, b) => a.timestamp - b.timestamp || (a.id ?? 0) - (b.id ?? 0),
   );
 }
 
-export async function createConversation(title: string = 'New Chat'): Promise<number> {
+export async function createConversation(
+  title: string = "New Chat",
+): Promise<number> {
   return await db.conversations.add({
     title,
-    updatedAt: Date.now()
+    updatedAt: Date.now(),
   });
 }
 
-export async function getConversationHistory(conversationId: number): Promise<ChatMessage[]> {
-    return await getConversationMessagesOrdered(conversationId);
+export async function getConversationHistory(
+  conversationId: number,
+): Promise<ChatMessage[]> {
+  return await getConversationMessagesOrdered(conversationId);
 }
 
 export async function truncateConversationFromIndex(
   conversationId: number,
-  startIndex: number
+  startIndex: number,
 ) {
   const messages = await getConversationMessagesOrdered(conversationId);
   const idsToDelete = messages
@@ -131,7 +192,7 @@ export async function truncateConversationFromIndex(
     .map((message) => message.id)
     .filter((id): id is number => id !== undefined);
 
-  await db.transaction('rw', db.messages, db.conversations, async () => {
+  await db.transaction("rw", db.messages, db.conversations, async () => {
     if (idsToDelete.length > 0) {
       await db.messages.bulkDelete(idsToDelete);
     }
@@ -149,16 +210,18 @@ export async function updateConversationMessageAtIndex(
     modelThinking?: string;
     toolContext?: ToolContext[];
     thinkingTime?: number;
-  }
+  },
 ) {
   const messages = await getConversationMessagesOrdered(conversationId);
   const target = messages[messageIndex];
 
   if (!target?.id) {
-    throw new Error(`Message at index ${messageIndex} was not found in conversation ${conversationId}`);
+    throw new Error(
+      `Message at index ${messageIndex} was not found in conversation ${conversationId}`,
+    );
   }
 
-  await db.transaction('rw', db.messages, db.conversations, async () => {
+  await db.transaction("rw", db.messages, db.conversations, async () => {
     await db.messages.update(target.id!, {
       content: updates.content,
       tokens: estimateTokens(updates.content),
@@ -173,97 +236,114 @@ export async function updateConversationMessageAtIndex(
   });
 }
 
-export async function updateConversationTitle(conversationId: number, title: string) {
-    await db.conversations.update(conversationId, { title });
+export async function updateConversationTitle(
+  conversationId: number,
+  title: string,
+) {
+  await db.conversations.update(conversationId, { title });
 }
 
 export async function deleteConversation(conversationId: number) {
-    await db.transaction('rw', db.conversations, db.messages, async () => {
-        await db.messages.where('conversationId').equals(conversationId).delete();
-        await db.conversations.delete(conversationId);
-    });
+  await db.transaction("rw", db.conversations, db.messages, async () => {
+    await db.messages.where("conversationId").equals(conversationId).delete();
+    await db.conversations.delete(conversationId);
+  });
 }
 
-export async function getRecentConversations(limit: number = 20): Promise<Conversation[]> {
-    // Dexie doesn't support complex sorting easily without hooks or compound indices for everything.
-    // 'conversations' is indexed by ++id, title, updatedAt.
-    // We want desc order of updatedAt.
-    return await db.conversations.orderBy('updatedAt').reverse().limit(limit).toArray();
+export async function getRecentConversations(
+  limit: number = 20,
+): Promise<Conversation[]> {
+  // Dexie doesn't support complex sorting easily without hooks or compound indices for everything.
+  // 'conversations' is indexed by ++id, title, updatedAt.
+  // We want desc order of updatedAt.
+  return await db.conversations
+    .orderBy("updatedAt")
+    .reverse()
+    .limit(limit)
+    .toArray();
 }
 
 export interface ContextResult {
-    message: ChatMessage;
-    score: number;
+  message: ChatMessage;
+  score: number;
 }
 
-export async function findRelevantContext(query: string, currentConversationId: number, limitTokens: number = 2000): Promise<string> {
-   const queryKeywords = extractKeywords(query);
-   if (queryKeywords.length === 0) return '';
+export async function findRelevantContext(
+  query: string,
+  currentConversationId: number,
+  limitTokens: number = 2000,
+): Promise<string> {
+  const queryKeywords = extractKeywords(query);
+  if (queryKeywords.length === 0) return "";
 
-   // 1. Fetch all candidate messages (optimization: limit to recent 1000 messages or use a query limit if DB grows large)
-   // For now, we fetch all user/assistant messages to scan. Indexing 'keywords' helps if we use multi-entry, 
-   // but purely scoring in JS is more flexible for "hybrid" logic.
-   // We can use db.messages.where('keywords').anyOf(queryKeywords) to filter first.
-   
-   const candidates = await db.messages
-    .where('keywords')
+  // 1. Fetch all candidate messages (optimization: limit to recent 1000 messages or use a query limit if DB grows large)
+  // For now, we fetch all user/assistant messages to scan. Indexing 'keywords' helps if we use multi-entry,
+  // but purely scoring in JS is more flexible for "hybrid" logic.
+  // We can use db.messages.where('keywords').anyOf(queryKeywords) to filter first.
+
+  const candidates = await db.messages
+    .where("keywords")
     .anyOf(queryKeywords)
-    .distinct() 
+    .distinct()
     .toArray();
-    
-   // 2. Score candidates
-   const scored: ContextResult[] = candidates
-    .filter(msg => {
-        // Exclude current conversation to avoid repeating immediate context (optional, but usually immediate context is already in the prompt)
-        // Let's exclude ONLY the very last few messages if they are from the SAME conversation to avoid duplication?
-        // Actually, preventing the *current* conversation from being in "long term memory" context is safe if the backend handles immediate session history.
-        return msg.conversationId !== currentConversationId;
+
+  // 2. Score candidates
+  const scored: ContextResult[] = candidates
+    .filter((msg) => {
+      // Exclude current conversation to avoid repeating immediate context (optional, but usually immediate context is already in the prompt)
+      // Let's exclude ONLY the very last few messages if they are from the SAME conversation to avoid duplication?
+      // Actually, preventing the *current* conversation from being in "long term memory" context is safe if the backend handles immediate session history.
+      return msg.conversationId !== currentConversationId;
     })
-    .map(msg => {
-       let score = 0;
-       
-       // Keyword Match Score
-       const matchCount = msg.keywords.filter(k => queryKeywords.includes(k)).length;
-       score += matchCount * 1.0;
-       
-       // Recency Score (Global, based on ID or timestamp)
-       // This is rough. Assume higher ID = newer.
-       // Normalize ID score? Let's just give a small bump for very recent messages.
-       // Simple approach: Decay score based on age? 
-       // For now: Just keyword density.
-       
-       // Role Score
-       if (msg.role === 'user') score += 0.5; // Slightly prefer user queries
-       
-       return { message: msg, score };
+    .map((msg) => {
+      let score = 0;
+
+      // Keyword Match Score
+      const matchCount = msg.keywords.filter((k) =>
+        queryKeywords.includes(k),
+      ).length;
+      score += matchCount * 1.0;
+
+      // Recency Score (Global, based on ID or timestamp)
+      // This is rough. Assume higher ID = newer.
+      // Normalize ID score? Let's just give a small bump for very recent messages.
+      // Simple approach: Decay score based on age?
+      // For now: Just keyword density.
+
+      // Role Score
+      if (msg.role === "user") score += 0.5; // Slightly prefer user queries
+
+      return { message: msg, score };
     });
-    
-   // 3. Sort by score desc
-   scored.sort((a, b) => b.score - a.score);
-   
-   // 4. Select top unique messages fitting token budget
-   const selected: ChatMessage[] = [];
-   let currentTokens = 0;
-   
-   // formatting cost
-   const formatCost = 10; 
-   
-   for (const item of scored) {
-       if (item.score < 1) continue; // Minimum relevance threshold
-       
-       if (currentTokens + item.message.tokens + formatCost > limitTokens) break;
-       
-       selected.push(item.message);
-       currentTokens += item.message.tokens + formatCost;
-       
-       if (selected.length >= 5) break; // Hard limit on count
-   }
-   
-   // 5. Format output
-   if (selected.length === 0) return '';
-   
-   // Sort selected by timestamp asc to make sense reading them
-   selected.sort((a, b) => a.timestamp - b.timestamp);
-   
-   return selected.map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n');
+
+  // 3. Sort by score desc
+  scored.sort((a, b) => b.score - a.score);
+
+  // 4. Select top unique messages fitting token budget
+  const selected: ChatMessage[] = [];
+  let currentTokens = 0;
+
+  // formatting cost
+  const formatCost = 10;
+
+  for (const item of scored) {
+    if (item.score < 1) continue; // Minimum relevance threshold
+
+    if (currentTokens + item.message.tokens + formatCost > limitTokens) break;
+
+    selected.push(item.message);
+    currentTokens += item.message.tokens + formatCost;
+
+    if (selected.length >= 5) break; // Hard limit on count
+  }
+
+  // 5. Format output
+  if (selected.length === 0) return "";
+
+  // Sort selected by timestamp asc to make sense reading them
+  selected.sort((a, b) => a.timestamp - b.timestamp);
+
+  return selected
+    .map((m) => `[${m.role.toUpperCase()}]: ${m.content}`)
+    .join("\n");
 }

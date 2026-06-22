@@ -54,15 +54,9 @@
   let contextSizeValue = $state(settingsStore.settings.contextSize);
   let historyLimitValue = $state(settingsStore.settings.chatHistoryLimit);
   let serverPortValue = $state(settingsStore.settings.serverPort);
-  let llamaServerParallelValue = $state(
-    settingsStore.settings.llamaServerParallel,
-  );
-  let llamaServerGpuLayersValue = $state(
-    settingsStore.settings.llamaServerGpuLayers,
-  );
-  let llamaServerGpuDeviceValue = $state(
-    settingsStore.settings.llamaServerGpuDevice ?? "0",
-  );
+  let ParallelValue = $state(settingsStore.settings.Parallel);
+  let GpuLayersValue = $state(settingsStore.settings.GpuLayers);
+  let GpuDeviceValue = $state(settingsStore.settings.GpuDevice ?? "0");
   let llamaServerExtraArgsValue = $state("");
 
   $effect(() => {
@@ -71,10 +65,9 @@
     contextSizeValue = settingsStore.settings.contextSize;
     historyLimitValue = settingsStore.settings.chatHistoryLimit;
     serverPortValue = settingsStore.settings.serverPort;
-    llamaServerParallelValue = settingsStore.settings.llamaServerParallel;
-    llamaServerGpuLayersValue = settingsStore.settings.llamaServerGpuLayers;
-    llamaServerGpuDeviceValue =
-      settingsStore.settings.llamaServerGpuDevice ?? "0";
+    ParallelValue = settingsStore.settings.Parallel;
+    GpuLayersValue = settingsStore.settings.GpuLayers;
+    GpuDeviceValue = settingsStore.settings.GpuDevice ?? "0";
     llamaServerExtraArgsValue = formatLlamaServerExtraArgs(
       settingsStore.settings.llamaServerExtraArgs,
     );
@@ -154,10 +147,10 @@
         autoSaveChat: settingsStore.settings.autoSaveChat,
         chatHistoryLimit: historyLimitValue,
         serverPort: serverPortValue,
-        llamaServerParallel: llamaServerParallelValue,
-        llamaServerGpuLayers: llamaServerGpuLayersValue,
-        llamaServerGpuDevice: llamaServerGpuDeviceValue,
-        llamaServerJinja: settingsStore.settings.llamaServerJinja,
+        Parallel: ParallelValue,
+        GpuLayers: GpuLayersValue,
+        GpuDevice: GpuDeviceValue,
+        Jinja: settingsStore.settings.Jinja,
         llamaServerExtraArgs: parseLlamaServerExtraArgs(
           llamaServerExtraArgsValue,
         ),
@@ -253,9 +246,9 @@
     const totalSize = getTotalModelSize();
     return estimateVramUsage(
       totalSize,
-      llamaServerGpuLayersValue,
+      GpuLayersValue,
       contextSizeValue,
-      llamaServerParallelValue,
+      ParallelValue,
     );
   }
 
@@ -664,7 +657,7 @@
                 id="server-parallel"
                 type="number"
                 min="1"
-                bind:value={llamaServerParallelValue}
+                bind:value={ParallelValue}
                 oninput={handleChange}
                 class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
               />
@@ -677,7 +670,7 @@
               <input
                 id="server-gpu-layers"
                 type="number"
-                bind:value={llamaServerGpuLayersValue}
+                bind:value={GpuLayersValue}
                 oninput={handleChange}
                 class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
               />
@@ -689,7 +682,7 @@
               >
               <select
                 id="server-gpu-device"
-                bind:value={llamaServerGpuDeviceValue}
+                bind:value={GpuDeviceValue}
                 onchange={handleChange}
                 class="w-full rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:ring-1 focus:ring-primary/20"
               >
@@ -770,7 +763,7 @@
                   </p>
                   <p class="text-xs text-muted-foreground/70 mt-2">
                     Based on context size ({contextSizeValue} tokens), GPU layers
-                    ({llamaServerGpuLayersValue}), and parallel slots ({llamaServerParallelValue})
+                    ({GpuLayersValue}), and parallel slots ({ParallelValue})
                   </p>
                 </div>
               </div>
@@ -786,9 +779,9 @@
             </label>
             <Switch.Root
               id="llama-server-jinja"
-              checked={settingsStore.settings.llamaServerJinja}
+              checked={settingsStore.settings.Jinja}
               onCheckedChange={(checked) => {
-                settingsStore.settings.llamaServerJinja = checked;
+                settingsStore.settings.Jinja = checked;
                 handleChange();
               }}
               class="peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"

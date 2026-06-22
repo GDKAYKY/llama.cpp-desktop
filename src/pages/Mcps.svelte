@@ -49,11 +49,21 @@
 
   let toolsList = $state<ToolItem[]>([
     { id: "snapshot", name: "Snapshot", category: "read", permission: "ask" },
-    { id: "screenshot", name: "Screenshot", category: "read", permission: "ask" },
+    {
+      id: "screenshot",
+      name: "Screenshot",
+      category: "read",
+      permission: "ask",
+    },
     { id: "wait", name: "Wait", category: "read", permission: "ask" },
     { id: "scrape", name: "Scrape", category: "read", permission: "ask" },
     { id: "app", name: "App", category: "write", permission: "ask" },
-    { id: "powershell", name: "PowerShell", category: "write", permission: "ask" },
+    {
+      id: "powershell",
+      name: "PowerShell",
+      category: "write",
+      permission: "ask",
+    },
   ]);
 
   let readExpanded = $state(true);
@@ -138,12 +148,15 @@
     if (existingTools.length > 0) {
       toolsList = existingTools.map((t) => {
         const name = String(t.name || "");
-        const isRead = name.startsWith("get_") || name.startsWith("read_") || name.startsWith("list_");
+        const isRead =
+          name.startsWith("get_") ||
+          name.startsWith("read_") ||
+          name.startsWith("list_");
         return {
           id: name,
           name: name,
           category: isRead ? "read" : "write",
-          permission: (savedPermissions[name] as ToolPermission) || "ask"
+          permission: (savedPermissions[name] as ToolPermission) || "ask",
         };
       });
     } else {
@@ -153,7 +166,11 @@
 
   function setBatchPermission(category: "read" | "write", permission: string) {
     if (permission === "custom") return;
-    toolsList = toolsList.map(t => t.category === category ? { ...t, permission: permission as ToolPermission } : t);
+    toolsList = toolsList.map((t) =>
+      t.category === category
+        ? { ...t, permission: permission as ToolPermission }
+        : t,
+    );
   }
 
   function mapToText(map: Record<string, string>) {
@@ -191,11 +208,14 @@
     const env = form.transport === "stdio" ? textToMap(form.env) : {};
     const headers =
       form.transport === "http_sse" ? textToMap(form.headers) : {};
-    
-    const toolAllow = toolsList.reduce((acc, tool) => {
-      acc[tool.name] = tool.permission;
-      return acc;
-    }, {} as Record<string, string>);
+
+    const toolAllow = toolsList.reduce(
+      (acc, tool) => {
+        acc[tool.name] = tool.permission;
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
 
     return {
       id: form.id.trim(),
@@ -352,12 +372,15 @@
     if (existingTools.length > 0) {
       toolsList = existingTools.map((t: any) => {
         const name = String(t.name || "");
-        const isRead = name.startsWith("get_") || name.startsWith("read_") || name.startsWith("list_");
+        const isRead =
+          name.startsWith("get_") ||
+          name.startsWith("read_") ||
+          name.startsWith("list_");
         return {
           id: name,
           name: name,
           category: isRead ? "read" : "write",
-          permission: (savedPermissions[name] as ToolPermission) || "ask"
+          permission: (savedPermissions[name] as ToolPermission) || "ask",
         };
       });
     } else {
@@ -809,33 +832,55 @@
           {/if}
 
           <div class="mt-6 grid gap-4 md:grid-cols-2">
-            <div class="space-y-6 text-[#e5e5e5] p-4 bg-[#1e1e1e] rounded-lg font-sans md:col-span-2 border border-[#27272a]">
+            <div
+              class="space-y-6 text-[#e5e5e5] p-4 bg-[#1e1e1e] rounded-lg font-sans md:col-span-2 border border-[#27272a]"
+            >
               <div class="space-y-1">
-                <h2 class="text-lg font-semibold text-white">Permissões de ferramentas</h2>
-                <p class="text-sm text-[#a1a1aa]">Escolha quando o Claude pode usar essas ferramentas.</p>
+                <h2 class="text-lg font-semibold text-white">
+                  Permissões de ferramentas
+                </h2>
+                <p class="text-sm text-[#a1a1aa]">
+                  Escolha quando o Claude pode usar essas ferramentas.
+                </p>
               </div>
 
               <div class="space-y-4">
                 <!-- Read Tools -->
                 <div class="space-y-1">
                   <div class="flex items-center justify-between py-2">
-                    <button 
+                    <button
                       class="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
-                      onclick={() => readExpanded = !readExpanded}
+                      onclick={() => (readExpanded = !readExpanded)}
                     >
-                      <ChevronDown size={16} class={`text-[#e5e5e5] transition-transform ${!readExpanded ? '-rotate-90' : ''}`} />
-                      <span class="text-sm font-medium">Ferramentas somente leitura</span>
-                      <span class="bg-[#27272a] text-[#a1a1aa] text-xs px-2 py-0.5 rounded-md">4</span>
+                      <ChevronDown
+                        size={16}
+                        class={`text-[#e5e5e5] transition-transform ${!readExpanded ? "-rotate-90" : ""}`}
+                      />
+                      <span class="text-sm font-medium"
+                        >Ferramentas somente leitura</span
+                      >
+                      <span
+                        class="bg-[#27272a] text-[#a1a1aa] text-xs px-2 py-0.5 rounded-md"
+                        >4</span
+                      >
                     </button>
-                    <Dropdown 
+                    <Dropdown
                       items={[
-                        { label: "Always allow", value: "allow", icon: CheckCircle },
+                        {
+                          label: "Always allow",
+                          value: "allow",
+                          icon: CheckCircle,
+                        },
                         { label: "Ask permission", value: "ask", icon: Hand },
                         { label: "Blocked", value: "deny", icon: Ban },
-                        { label: "Custom", value: "custom", icon: MoreHorizontal }
+                        {
+                          label: "Custom",
+                          value: "custom",
+                          icon: MoreHorizontal,
+                        },
                       ]}
                       value="custom"
-                      onSelect={(val) => setBatchPermission('read', val)}
+                      onSelect={(val) => setBatchPermission("read", val)}
                       triggerClass="bg-[#27272a] hover:bg-[#3f3f46] border-[#3f3f46] text-[#e5e5e5] h-8 px-3 rounded-lg"
                       contentClass="w-[200px]"
                     />
@@ -843,25 +888,31 @@
 
                   {#if readExpanded}
                     <div class="flex flex-col">
-                      {#each toolsList.filter(t => t.category === 'read') as tool}
-                        <div class="flex items-center justify-between py-3 border-t border-[#27272a] ml-[26px]">
-                          <span class="text-sm text-[#a1a1aa] font-medium">{tool.name}</span>
-                          <div class="flex items-center bg-[#18181b] p-1 rounded-lg border border-[#27272a]">
-                            <button 
-                              onclick={() => tool.permission = 'allow'}
-                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'allow' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                      {#each toolsList.filter((t) => t.category === "read") as tool}
+                        <div
+                          class="flex items-center justify-between py-3 border-t border-[#27272a] ml-[26px]"
+                        >
+                          <span class="text-sm text-[#a1a1aa] font-medium"
+                            >{tool.name}</span
+                          >
+                          <div
+                            class="flex items-center bg-[#18181b] p-1 rounded-lg border border-[#27272a]"
+                          >
+                            <button
+                              onclick={() => (tool.permission = "allow")}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === "allow" ? "bg-[#3f3f46] text-[#e5e5e5]" : "text-[#a1a1aa] hover:text-[#e5e5e5]"}`}
                             >
                               <CheckCircle size={16} />
                             </button>
-                            <button 
-                              onclick={() => tool.permission = 'ask'}
-                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'ask' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                            <button
+                              onclick={() => (tool.permission = "ask")}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === "ask" ? "bg-[#3f3f46] text-[#e5e5e5]" : "text-[#a1a1aa] hover:text-[#e5e5e5]"}`}
                             >
                               <Hand size={16} />
                             </button>
-                            <button 
-                              onclick={() => tool.permission = 'deny'}
-                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'deny' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                            <button
+                              onclick={() => (tool.permission = "deny")}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === "deny" ? "bg-[#3f3f46] text-[#e5e5e5]" : "text-[#a1a1aa] hover:text-[#e5e5e5]"}`}
                             >
                               <Ban size={16} />
                             </button>
@@ -875,23 +926,39 @@
                 <!-- Write Tools -->
                 <div class="space-y-1">
                   <div class="flex items-center justify-between py-2">
-                    <button 
+                    <button
                       class="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
-                      onclick={() => writeExpanded = !writeExpanded}
+                      onclick={() => (writeExpanded = !writeExpanded)}
                     >
-                      <ChevronDown size={16} class={`text-[#e5e5e5] transition-transform ${!writeExpanded ? '-rotate-90' : ''}`} />
-                      <span class="text-sm font-medium">Ferramentas de gravação/exclusão</span>
-                      <span class="bg-[#27272a] text-[#a1a1aa] text-xs px-2 py-0.5 rounded-md">14</span>
+                      <ChevronDown
+                        size={16}
+                        class={`text-[#e5e5e5] transition-transform ${!writeExpanded ? "-rotate-90" : ""}`}
+                      />
+                      <span class="text-sm font-medium"
+                        >Ferramentas de gravação/exclusão</span
+                      >
+                      <span
+                        class="bg-[#27272a] text-[#a1a1aa] text-xs px-2 py-0.5 rounded-md"
+                        >14</span
+                      >
                     </button>
-                    <Dropdown 
+                    <Dropdown
                       items={[
-                        { label: "Always allow", value: "allow", icon: CheckCircle },
+                        {
+                          label: "Always allow",
+                          value: "allow",
+                          icon: CheckCircle,
+                        },
                         { label: "Ask permission", value: "ask", icon: Hand },
                         { label: "Blocked", value: "deny", icon: Ban },
-                        { label: "Custom", value: "custom", icon: MoreHorizontal }
+                        {
+                          label: "Custom",
+                          value: "custom",
+                          icon: MoreHorizontal,
+                        },
                       ]}
                       value="custom"
-                      onSelect={(val) => setBatchPermission('write', val)}
+                      onSelect={(val) => setBatchPermission("write", val)}
                       triggerClass="bg-[#27272a] hover:bg-[#3f3f46] border-[#3f3f46] text-[#e5e5e5] h-8 px-3 rounded-lg"
                       contentClass="w-[200px]"
                     />
@@ -899,25 +966,31 @@
 
                   {#if writeExpanded}
                     <div class="flex flex-col">
-                      {#each toolsList.filter(t => t.category === 'write') as tool}
-                        <div class="flex items-center justify-between py-3 border-t border-[#27272a] ml-[26px]">
-                          <span class="text-sm text-[#a1a1aa] font-medium">{tool.name}</span>
-                          <div class="flex items-center bg-[#18181b] p-1 rounded-lg border border-[#27272a]">
-                            <button 
-                              onclick={() => tool.permission = 'allow'}
-                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'allow' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                      {#each toolsList.filter((t) => t.category === "write") as tool}
+                        <div
+                          class="flex items-center justify-between py-3 border-t border-[#27272a] ml-[26px]"
+                        >
+                          <span class="text-sm text-[#a1a1aa] font-medium"
+                            >{tool.name}</span
+                          >
+                          <div
+                            class="flex items-center bg-[#18181b] p-1 rounded-lg border border-[#27272a]"
+                          >
+                            <button
+                              onclick={() => (tool.permission = "allow")}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === "allow" ? "bg-[#3f3f46] text-[#e5e5e5]" : "text-[#a1a1aa] hover:text-[#e5e5e5]"}`}
                             >
                               <CheckCircle size={16} />
                             </button>
-                            <button 
-                              onclick={() => tool.permission = 'ask'}
-                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'ask' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                            <button
+                              onclick={() => (tool.permission = "ask")}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === "ask" ? "bg-[#3f3f46] text-[#e5e5e5]" : "text-[#a1a1aa] hover:text-[#e5e5e5]"}`}
                             >
                               <Hand size={16} />
                             </button>
-                            <button 
-                              onclick={() => tool.permission = 'deny'}
-                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === 'deny' ? 'bg-[#3f3f46] text-[#e5e5e5]' : 'text-[#a1a1aa] hover:text-[#e5e5e5]'}`}
+                            <button
+                              onclick={() => (tool.permission = "deny")}
+                              class={`p-1.5 rounded-md transition-colors cursor-pointer ${tool.permission === "deny" ? "bg-[#3f3f46] text-[#e5e5e5]" : "text-[#a1a1aa] hover:text-[#e5e5e5]"}`}
                             >
                               <Ban size={16} />
                             </button>
@@ -929,7 +1002,6 @@
                 </div>
               </div>
             </div>
-
           </div>
 
           <div class="mt-6 flex items-center gap-2">

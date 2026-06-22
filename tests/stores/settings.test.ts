@@ -29,9 +29,9 @@ describe("settingsStore", () => {
     expect(settingsStore.settings.autoSaveChat).toBe(true);
     expect(settingsStore.settings.chatHistoryLimit).toBe(50);
     expect(settingsStore.settings.serverPort).toBe(8080);
-    expect(settingsStore.settings.llamaServerParallel).toBe(1);
-    expect(settingsStore.settings.llamaServerGpuLayers).toBe(33);
-    expect(settingsStore.settings.llamaServerJinja).toBe(true);
+    expect(settingsStore.settings.Parallel).toBe(1);
+    expect(settingsStore.settings.GpuLayers).toBe(33);
+    expect(settingsStore.settings.Jinja).toBe(true);
     expect(settingsStore.settings.llamaServerExtraArgs).toEqual([]);
   });
 
@@ -48,7 +48,7 @@ describe("settingsStore", () => {
       "save_config",
       expect.objectContaining({
         config: expect.objectContaining({ modelsDirectory: "/test/models" }),
-      })
+      }),
     );
   });
 
@@ -97,9 +97,9 @@ describe("settingsStore", () => {
       autoSaveChat: false,
       chatHistoryLimit: 100,
       serverPort: 9090,
-      llamaServerParallel: 4,
-      llamaServerGpuLayers: 20,
-      llamaServerJinja: false,
+      Parallel: 4,
+      GpuLayers: 20,
+      Jinja: false,
       llamaServerExtraArgs: ["--metrics", "--slots"],
       webSearchProvider: "tavily" as const,
       webSearchMcpId: null,
@@ -142,9 +142,9 @@ describe("settingsStore", () => {
       autoSaveChat: true,
       chatHistoryLimit: 50,
       serverPort: 8080,
-      llamaServerParallel: 1,
-      llamaServerGpuLayers: 33,
-      llamaServerJinja: true,
+      Parallel: 1,
+      GpuLayers: 33,
+      Jinja: true,
       llamaServerExtraArgs: [],
       webSearchProvider: "tavily" as const,
       webSearchMcpId: null,

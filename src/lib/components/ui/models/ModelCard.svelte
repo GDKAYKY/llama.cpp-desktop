@@ -342,40 +342,6 @@
     />
   </div>
 
-  {#if gpuInstances.length > 0}
-    <div class="space-y-2 rounded-lg border border-white/8 bg-white/[0.03] p-2.5">
-      <div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-        <Activity size={12} />
-        <span>GPU Instances</span>
-      </div>
-
-      {#each gpuInstances as instance (`${instance.gpu_index}-${instance.gpu_name}`)}
-        <div class="rounded-md bg-black/20 px-2.5 py-2">
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2">
-                <Badge>GPU {instance.gpu_index}</Badge>
-                <span class="truncate text-[11px] font-semibold text-foreground/90">
-                  {instance.gpu_name}
-                </span>
-              </div>
-              <div class="mt-1 text-[10px] text-muted-foreground">
-                {getGpuUtilizationLabel(instance)}
-              </div>
-            </div>
-
-            <div class="text-right text-[10px] text-muted-foreground">
-              <div>{getGpuMemoryLabel(instance)}</div>
-              {#if instance.temperature != null}
-                <div class="mt-1">{instance.temperature}C</div>
-              {/if}
-            </div>
-          </div>
-        </div>
-      {/each}
-    </div>
-  {/if}
-
   <div class="rounded-lg bg-white/5 p-2.5">
     <div class="grid grid-cols-3 gap-2">
       <div class="flex flex-col">
@@ -408,7 +374,7 @@
     </div>
   </div>
 
-  <div class="mt-auto space-y-1 pt-2">
+  <div class="mt-auto space-y-1 pt-1">
     {#each metaItems as item (item.label)}
       <MetaRow
         icon={item.icon}

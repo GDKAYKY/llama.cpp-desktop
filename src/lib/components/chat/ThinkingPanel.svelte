@@ -45,8 +45,17 @@
       : 0;
     const minutes = Math.floor(seconds / 60);
     const remaining = seconds % 60;
-    if (minutes <= 0) return `${remaining}s`;
+    if (minutes <= 0) {
+      if (seconds > 0) return `${Math.max(1, remaining)}s`;
+      return "0s";
+    }
     return `${minutes}m ${remaining}s`;
+  }
+
+  function normalizeThinkingText(text) {
+    return String(text || "")
+      .replace(/\\n/g, "\n")
+      .trim();
   }
 
   $effect(() => {
@@ -99,17 +108,19 @@
         </TextShimmer>
       {:else}
         <span class="min-w-0 flex-1 truncate">
-          {`Thinked for ${formatThinkingDuration(thinkingTime > 0 ? thinkingTime : thinkingElapsed)}`}
+          {`Thinked for ${formatThinkingDuration(
+            thinkingTime > 0 ? thinkingTime : thinkingElapsed,
+          )}`}
         </span>
       {/if}
     </button>
 
     {#if thinkingOpen}
-      <div class="pl-5">
+      <div>
         <div
-          class="thinking-scroll max-h-56 overflow-y-auto text-[12px] text-muted-foreground/60 mt-1"
+          class="thinking-scroll max-h-56 overflow-y-auto mt-1 text-[15px] leading-6 md:text-base md:leading-relaxed text-foreground/90 break-words"
         >
-          <div class="flex flex-col gap-1">
+          <div class="flex flex-col">
             {#if summary.steps.length > 0}
               {#each groupedSteps as group, groupIndex}
                 <div>
@@ -117,18 +128,27 @@
                     {#if isToolStep(group.title)}
                       <div class="flex items-center gap-2">
                         <Wrench size={12} class="text-muted-foreground/70" />
-                        <TextShimmer duration={1.5}>{group.title}</TextShimmer>
+                        <TextShimmer duration={1.5}>
+                          {normalizeThinkingText(group.title)}
+                        </TextShimmer>
                       </div>
                     {:else}
-                      <TextShimmer duration={1.5}>{group.title}</TextShimmer>
+                      <TextShimmer duration={1.5}>
+                        {normalizeThinkingText(group.title)}
+                      </TextShimmer>
                     {/if}
                   {:else if isToolStep(group.title)}
                     <div class="flex items-center gap-2">
-                      <Wrench size={12} class="text-muted-foreground/70" />
-                      <span>{group.title}</span>
+                      <Wrench size={12} class="text-muted-foreground/70 shrink-0" />
+                      <span class="whitespace-pre-wrap text-inherit leading-inherit">
+                        {normalizeThinkingText(group.title)}
+                      </span>
                     </div>
                   {:else}
-                    <MarkdownContent content={group.title} class="[&_p]:mb-0 [&_pre]:my-2" />
+                    <MarkdownContent
+                      content={normalizeThinkingText(group.title)}
+                      class="text-inherit leading-inherit [&_p]:mb-0 [&_p]:text-inherit [&_p]:leading-inherit [&_pre]:my-2"
+                    />
                   {/if}
                 </div>
                 {#if group.items.length > 0}
@@ -137,26 +157,35 @@
                       <li>
                         {#if isStreaming && groupIndex === groupedSteps.length - 1 && itemIndex === group.items.length - 1}
                           {#if isToolStep(item)}
-                            <div class="flex items-center gap-2">
+                          <div class="flex items-center gap-2">
                               <Wrench
                                 size={12}
-                                class="text-muted-foreground/70"
+                                class="text-muted-foreground/70 shrink-0"
                               />
-                              <TextShimmer duration={1.5}>{item}</TextShimmer>
+                              <TextShimmer duration={1.5}>
+                                {normalizeThinkingText(item)}
+                              </TextShimmer>
                             </div>
                           {:else}
-                            <TextShimmer duration={1.5}>{item}</TextShimmer>
+                            <TextShimmer duration={1.5}>
+                              {normalizeThinkingText(item)}
+                            </TextShimmer>
                           {/if}
                         {:else if isToolStep(item)}
                           <div class="flex items-center gap-2">
                             <Wrench
                               size={12}
-                              class="text-muted-foreground/70"
+                              class="text-muted-foreground/70 shrink-0"
                             />
-                            <span>{item}</span>
+                            <span class="whitespace-pre-wrap text-inherit leading-inherit">
+                              {normalizeThinkingText(item)}
+                            </span>
                           </div>
                         {:else}
-                          <MarkdownContent content={item} class="[&_p]:mb-0 [&_pre]:my-2" />
+                          <MarkdownContent
+                            content={normalizeThinkingText(item)}
+                            class="text-inherit leading-inherit [&_p]:mb-0 [&_p]:text-inherit [&_p]:leading-inherit [&_pre]:my-2"
+                          />
                         {/if}
                       </li>
                     {/each}

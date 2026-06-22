@@ -1,4 +1,9 @@
-import { loadConfig, saveConfig, resetConfig, DEFAULT_CONFIG } from '$lib/config/index';
+import {
+  loadConfig,
+  saveConfig,
+  resetConfig,
+  DEFAULT_CONFIG,
+} from "$lib/config/index";
 
 class SettingsStore {
   settings = $state({ ...DEFAULT_CONFIG });
@@ -8,7 +13,7 @@ class SettingsStore {
   constructor() {
     this.init();
   }
-
+  //! TODO: Standardize into Config("Backend") and settings("Frontend")
   async init() {
     try {
       this.isLoading = true;
@@ -16,7 +21,7 @@ class SettingsStore {
       this.settings = { ...DEFAULT_CONFIG, ...config };
       this.error = null;
     } catch (err) {
-      this.error = 'Failed to load settings';
+      this.error = "Failed to load settings";
     } finally {
       this.isLoading = false;
     }
@@ -28,7 +33,7 @@ class SettingsStore {
       await saveConfig(this.settings);
       this.error = null;
     } catch (err) {
-      this.error = 'Failed to update settings';
+      this.error = "Failed to update settings";
     }
   }
 
@@ -38,7 +43,7 @@ class SettingsStore {
       this.settings = { ...DEFAULT_CONFIG, ...config };
       this.error = null;
     } catch (err) {
-      this.error = 'Failed to reset settings';
+      this.error = "Failed to reset settings";
     }
   }
 }

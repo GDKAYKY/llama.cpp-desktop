@@ -152,9 +152,9 @@
       modelPath: model.model_file_path,
       port: settingsStore.settings.serverPort,
       ctxSize: settingsStore.settings.contextSize,
-      nGpuLayers: settingsStore.settings.llamaServerGpuLayers,
-      jinja: settingsStore.settings.llamaServerJinja,
-      parallel: settingsStore.settings.llamaServerParallel,
+      nGpuLayers: settingsStore.settings.GpuLayers,
+      jinja: settingsStore.settings.Jinja,
+      parallel: settingsStore.settings.Parallel,
       extraArgs: settingsStore.settings.llamaServerExtraArgs,
       ...(chatTemplate !== null ? { chatTemplate } : {}),
     });
